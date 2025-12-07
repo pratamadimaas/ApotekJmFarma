@@ -1,9 +1,5 @@
 <?php
 
-// =======================================================
-// A. ROUTES/WEB.PHP (Dengan Penambahan Stok Opname)
-// =======================================================
-
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
@@ -15,7 +11,7 @@ use App\Http\Controllers\ShiftController;
 use App\Http\Controllers\LaporanController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\StokOpnameController; // Tambahkan import StokOpnameController
+use App\Http\Controllers\StokOpnameController;
 
 /*
 |--------------------------------------------------------------------------
@@ -51,6 +47,7 @@ Route::middleware('auth')->group(function () {
     });
 
     // --- Master Barang (CRUD Penuh) ---
+    Route::get('/barang/harga-satuan', [BarangController::class, 'hargaSatuan'])->name('barang.harga-satuan');
     Route::resource('barang', BarangController::class);
     Route::get('/barang/{id}/satuan', [BarangController::class, 'getSatuan'])->name('barang.satuan');
     
@@ -117,11 +114,28 @@ Route::middleware('auth')->group(function () {
             Route::post('/update', [SettingController::class, 'update'])->name('update');
         });
         
-        // ✅ FITUR BARU: STOK OPNAME
+        // ✅ FITUR STOK OPNAME DENGAN SCAN BARCODE (ADMIN ONLY)
         Route::prefix('stokopname')->name('stokopname.')->group(function () {
+            // Halaman utama (daftar riwayat SO)
             Route::get('/', [StokOpnameController::class, 'index'])->name('index');
+            
+            // Halaman scan barcode (create sesi baru)
             Route::get('/create', [StokOpnameController::class, 'create'])->name('create');
-            Route::post('/store', [StokOpnameController::class, 'store'])->name('store');
+            
+            // API untuk scan barcode
+            Route::post('/scan', [StokOpnameController::class, 'scanBarcode'])->name('scan');
+            
+            // Update item (stok fisik & expired date)
+            Route::put('/item/{id}', [StokOpnameController::class, 'updateItem'])->name('update-item');
+            
+            // Delete item dari sesi
+            Route::delete('/item/{id}', [StokOpnameController::class, 'deleteItem'])->name('delete-item');
+            
+            // Finalize SO (selesaikan dan update stok sistem)
+            Route::post('/{id}/finalize', [StokOpnameController::class, 'finalize'])->name('finalize');
+            
+            // Lihat detail sesi SO yang sudah selesai
+            Route::get('/{id}', [StokOpnameController::class, 'show'])->name('show');
         });
     });
 });

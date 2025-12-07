@@ -42,7 +42,37 @@
                             @error('kode_barang')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                     </div>
-                    <div class="col-md-8">
+
+                    {{-- ✅ FIELD BARCODE --}}
+                    <div class="col-md-4">
+                        <div class="form-group mb-3">
+                            <label for="barcode">
+                                Barcode 
+                                <span class="text-muted">(Opsional)</span>
+                                <i class="bi bi-upc-scan text-primary"></i>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="bi bi-upc"></i>
+                                </span>
+                                <input type="text" 
+                                       class="form-control @error('barcode') is-invalid @enderror" 
+                                       id="barcode" 
+                                       name="barcode" 
+                                       value="{{ old('barcode', $barang->barcode) }}"
+                                       placeholder="Scan atau ketik: 8992745123456">
+                                @error('barcode')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle"></i> 
+                                Scan dengan scanner atau ketik manual
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
                         <div class="form-group mb-3">
                             <label for="nama_barang">Nama Barang <span class="text-danger">*</span></label>
                             <input type="text" class="form-control @error('nama_barang') is-invalid @enderror" 
@@ -96,7 +126,7 @@
                     <div class="col-md-4">
                         <div class="form-group mb-3">
                             <label for="harga_beli">Harga Beli <span class="text-danger">*</span></label>
-                            <input type="number" step="0.01" min="0" 
+                            <input type="number" step="1" min="0" 
                                    class="form-control @error('harga_beli') is-invalid @enderror" 
                                    id="harga_beli" name="harga_beli" 
                                    value="{{ old('harga_beli', $barang->harga_beli) }}" required>
@@ -106,7 +136,7 @@
                     <div class="col-md-4">
                         <div class="form-group mb-3">
                             <label for="harga_jual">Harga Jual (Satuan Terkecil) <span class="text-danger">*</span></label>
-                            <input type="number" step="0.01" min="0" 
+                            <input type="number" step="1" min="0" 
                                    class="form-control @error('harga_jual') is-invalid @enderror" 
                                    id="harga_jual" name="harga_jual" 
                                    value="{{ old('harga_jual', $barang->harga_jual) }}" required>
@@ -183,7 +213,7 @@
                                 </div>
                                 <div class="col-md-3">
                                     <label class="form-label">Harga Jual</label>
-                                    <input type="number" step="0.01" min="0" class="form-control form-control-sm" 
+                                    <input type="number" step="1" min="0" class="form-control form-control-sm" 
                                            name="satuan_konversi[{{ $k_index }}][harga_jual]" 
                                            placeholder="50000" 
                                            value="{{ old('satuan_konversi.' . $k_index . '.harga_jual', $konversi->harga_jual) }}">
@@ -248,10 +278,88 @@
 
 @push('scripts')
 <script>
+    // ✅ BARCODE SCANNER DETECTION
+    document.addEventListener('DOMContentLoaded', function() {
+        const barcodeInput = document.getElementById('barcode');
+        
+        if (!barcodeInput) return;
+        
+        // Deteksi scan barcode (scan sangat cepat < 100ms per karakter)
+        let barcodeBuffer = '';
+        let lastKeyTime = Date.now();
+        let isScanning = false;
+        
+        document.addEventListener('keydown', function(e) {
+            // Jika sedang fokus di textarea, skip
+            if (document.activeElement.tagName === 'TEXTAREA') {
+                return;
+            }
+            
+            // Jika fokus di input lain (bukan barcode), skip
+            if (document.activeElement !== barcodeInput && 
+                document.activeElement.tagName === 'INPUT' &&
+                document.activeElement.id !== 'barcode') {
+                return;
+            }
+            
+            const currentTime = Date.now();
+            const timeDiff = currentTime - lastKeyTime;
+            
+            // Jika waktu antar ketukan < 50ms, kemungkinan dari scanner
+            if (timeDiff < 50) {
+                isScanning = true;
+                if (e.key !== 'Enter') {
+                    barcodeBuffer += e.key;
+                }
+            } else {
+                barcodeBuffer = e.key === 'Enter' ? '' : e.key;
+                isScanning = false;
+            }
+            
+            lastKeyTime = currentTime;
+            
+            // Jika Enter dan panjang buffer > 5, isi ke input barcode
+            if (e.key === 'Enter' && barcodeBuffer.length > 5 && isScanning) {
+                e.preventDefault();
+                const cleanBarcode = barcodeBuffer.replace(/Enter/g, '');
+                barcodeInput.value = cleanBarcode;
+                barcodeInput.focus();
+                
+                // Visual feedback
+                barcodeInput.classList.add('is-valid');
+                setTimeout(() => {
+                    barcodeInput.classList.remove('is-valid');
+                }, 1000);
+                
+                barcodeBuffer = '';
+                isScanning = false;
+            }
+        });
+        
+        // Clear buffer setelah 200ms tidak ada input
+        setInterval(() => {
+            const currentTime = Date.now();
+            if (currentTime - lastKeyTime > 200) {
+                barcodeBuffer = '';
+                isScanning = false;
+            }
+        }, 300);
+        
+        // Manual input juga bisa
+        barcodeInput.addEventListener('input', function() {
+            if (this.value.length > 5) {
+                this.classList.add('is-valid');
+                setTimeout(() => {
+                    this.classList.remove('is-valid');
+                }, 1000);
+            }
+        });
+    });
+
     // ✅ Ambil index terakhir dari data yang sudah ada
     let konversiIndex = {{ $barang->satuanKonversi->count() }}; 
 
-    // ✅ Template baris konversi baru - SESUAI STRUKTUR BARU
+    // ✅ Template baris konversi baru
     function getKonversiTemplate(index) {
         return `
             <div class="konversi-row card mb-2" data-index="${index}">
@@ -272,7 +380,7 @@
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">Harga Jual</label>
-                            <input type="number" step="0.01" min="0" class="form-control form-control-sm" 
+                            <input type="number" step="1" min="0" class="form-control form-control-sm" 
                                    name="satuan_konversi[${index}][harga_jual]" 
                                    placeholder="50000">
                         </div>
@@ -296,23 +404,22 @@
         `;
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
-        const container = document.getElementById('konversi-container');
-        const addButton = document.getElementById('add-konversi-btn');
+    // Event listener untuk form edit
+    const container = document.getElementById('konversi-container');
+    const addButton = document.getElementById('add-konversi-btn');
 
-        // Event listener untuk tombol tambah satuan konversi
-        addButton.addEventListener('click', function() {
-            container.insertAdjacentHTML('beforeend', getKonversiTemplate(konversiIndex));
-            konversiIndex++;
-        });
+    // Event listener untuk tombol tambah satuan konversi
+    addButton.addEventListener('click', function() {
+        container.insertAdjacentHTML('beforeend', getKonversiTemplate(konversiIndex));
+        konversiIndex++;
+    });
 
-        // Delegasi Event Listener untuk tombol hapus
-        container.addEventListener('click', function(e) {
-            if (e.target.classList.contains('remove-konversi') || 
-                e.target.closest('.remove-konversi')) {
-                e.target.closest('.konversi-row').remove();
-            }
-        });
+    // Delegasi Event Listener untuk tombol hapus
+    container.addEventListener('click', function(e) {
+        if (e.target.classList.contains('remove-konversi') || 
+            e.target.closest('.remove-konversi')) {
+            e.target.closest('.konversi-row').remove();
+        }
     });
 </script>
 @endpush

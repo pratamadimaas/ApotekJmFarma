@@ -44,30 +44,30 @@ class PenjualanController extends Controller
         return response()->json($barang);
     }
 
-    // ✅ API Get Detail Barang - DENGAN HARGA PER SATUAN
     public function getBarang($id)
-    {
-        $barang = Barang::with('satuanKonversi')->findOrFail($id);
-        
-        // ✅ Satuan konversi dengan harga spesifik
-        $satuanKonversi = $barang->satuanKonversi->map(function($konv) {
-            return [
-                'nama_satuan' => $konv->nama_satuan,
-                'jumlah_konversi' => $konv->jumlah_konversi,
-                'harga_jual' => $konv->harga_jual, // Harga sudah ada di DB
-                'is_default' => $konv->is_default
-            ];
-        });
+{
+    $barang = Barang::with('satuanKonversi')->findOrFail($id);
+    
+    // ✅ Satuan konversi dengan harga spesifik
+    $satuanKonversi = $barang->satuanKonversi->map(function($konv) {
+        return [
+            'nama_satuan' => $konv->nama_satuan,
+            'jumlah_konversi' => $konv->jumlah_konversi,
+            'harga_jual' => $konv->harga_jual,
+            'is_default' => $konv->is_default
+        ];
+    });
 
-        return response()->json([
-            'id' => $barang->id,
-            'nama_barang' => $barang->nama_barang,
-            'harga_jual' => $barang->harga_jual, // Harga satuan terkecil
-            'stok' => $barang->stok,
-            'satuan_dasar' => $barang->satuan_terkecil,
-            'satuan_konversi' => $satuanKonversi,
-        ]);
-    }
+    return response()->json([
+        'id' => $barang->id,
+        'kode_barang' => $barang->kode_barang,  
+        'nama_barang' => $barang->nama_barang,
+        'harga_jual' => $barang->harga_jual,
+        'stok' => $barang->stok,
+        'satuan_dasar' => $barang->satuan_terkecil,
+        'satuan_konversi' => $satuanKonversi,
+    ]);
+}
 
     // ✅ Store Transaksi - HANDLE MULTI SATUAN
     public function store(Request $request)

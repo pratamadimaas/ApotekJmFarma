@@ -13,67 +13,129 @@ class Barang extends Model
 
     protected $fillable = [
         'kode_barang',
+        'barcode',
         'nama_barang',
         'kategori',
+        'satuan_terkecil',
         'harga_beli',
         'harga_jual',
         'stok',
-        'stok_minimum',
-        'satuan_terkecil',
-        'tanggal_kadaluarsa',
+        'stok_minimal',
+        'lokasi_rak',
         'deskripsi',
-        'aktif',
-        'lokasi_rak' 
+        'aktif'
     ];
 
     protected $casts = [
         'harga_beli' => 'decimal:2',
         'harga_jual' => 'decimal:2',
-        'stok' => 'integer',
-        'stok_minimum' => 'integer',
+        'stok' => 'decimal:2',
+        'stok_minimal' => 'decimal:2',
         'aktif' => 'boolean',
-        'tanggal_kadaluarsa' => 'date'
     ];
 
-    // --- Relasi ---
+    // ============================================
+    // RELASI
+    // ============================================
 
-    // Relasi ke Satuan Konversi (contoh: 1 Box = 10 Pcs)
+    // Relasi ke Satuan Konversi
     public function satuanKonversi()
     {
-        return $this->hasMany(SatuanKonversi::class);
-    }
-
-    // Relasi ke Detail Pembelian
-    public function detailPembelian()
-    {
-        // Asumsi: Anda memiliki model DetailPembelian
-        return $this->hasMany(DetailPembelian::class);
+        return $this->hasMany(SatuanKonversi::class, 'barang_id');
     }
 
     // Relasi ke Detail Penjualan
     public function detailPenjualan()
     {
-        // Asumsi: Anda memiliki model DetailPenjualan
-        return $this->hasMany(DetailPenjualan::class);
+        return $this->hasMany(DetailPenjualan::class, 'barang_id');
     }
 
-    // --- Query Scopes & Accessors ---
+    // Relasi ke Detail Pembelian
+    public function detailPembelian()
+    {
+        return $this->hasMany(DetailPembelian::class, 'barang_id');
+    }
 
-    // Scope untuk memfilter barang aktif
+    // ============================================
+    // SCOPES
+    // ============================================
+
+    // ✅ Scope untuk pencarian
+    public function scopeSearch($query, $search)
+    {
+        return $query->where(function($q) use ($search) {
+            $q->where('nama_barang', 'LIKE', "%{$search}%")
+              ->orWhere('kode_barang', 'LIKE', "%{$search}%")
+              ->orWhere('barcode', 'LIKE', "%{$search}%");
+        });
+    }
+
+    // ✅ Scope untuk stok rendah/minimal
+    public function scopeStokRendah($query)
+    {
+        return $query->whereRaw('stok <= stok_minimal');
+    }
+
+    // ✅ Alias untuk stokRendah (untuk backward compatibility)
+    public function scopeStokMinimum($query)
+    {
+        return $query->whereRaw('stok <= stok_minimal');
+    }
+
+    // ✅ Scope untuk barang aktif
     public function scopeAktif($query)
     {
         return $query->where('aktif', true);
     }
 
-    // Scope untuk memfilter barang yang mencapai stok minimum
-    public function scopeStokMinimum($query)
+    // ============================================
+    // HELPER METHODS
+    // ============================================
+
+    // Helper: Cek apakah stok rendah
+    public function isStokRendah()
     {
-        return $query->whereRaw('stok <= stok_minimum');
+        return $this->stok <= $this->stok_minimal;
     }
 
-    // Accessor untuk mengecek apakah stok sudah mencapai minimum
-    public function getIsStokMinimumAttribute()
+    // Helper: Format harga beli
+    public function getFormattedHargaBeliAttribute()
     {
-        return $this->stok <= $this->stok_minimum;
+        return 'Rp ' . number_format($this->harga_beli, 0, ',', '.');
+    }
+
+    // Helper: Format harga jual
+    public function getFormattedHargaJualAttribute()
+    {
+        return 'Rp ' . number_format($this->harga_jual, 0, ',', '.');
+    }
+
+    // Helper: Get status stok (badge color)
+    public function getStatusStokAttribute()
+    {
+        if ($this->stok <= 0) {
+            return 'habis'; // bg-dark
+        } elseif ($this->stok <= $this->stok_minimal) {
+            return 'rendah'; // bg-danger
+        } elseif ($this->stok <= ($this->stok_minimal * 2)) {
+            return 'warning'; // bg-warning
+        } else {
+            return 'aman'; // bg-success
+        }
+    }
+
+    // Helper: Get badge class untuk status stok
+    public function getBadgeStokClassAttribute()
+    {
+        switch ($this->status_stok) {
+            case 'habis':
+                return 'bg-dark';
+            case 'rendah':
+                return 'bg-danger';
+            case 'warning':
+                return 'bg-warning';
+            default:
+                return 'bg-success';
+        }
     }
 }

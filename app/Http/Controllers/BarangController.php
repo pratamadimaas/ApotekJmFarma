@@ -9,6 +9,10 @@ use Illuminate\Support\Facades\DB;
 
 class BarangController extends Controller
 {
+    // ------------------------------------
+    // CRUD Barang (Index, Create, Store, Show, Edit, Update, Destroy)
+    // ------------------------------------
+
     public function index(Request $request)
     {
         $query = Barang::query();
@@ -16,7 +20,8 @@ class BarangController extends Controller
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('nama_barang', 'LIKE', "%{$search}%")
-                  ->orWhere('kode_barang', 'LIKE', "%{$search}%");
+                  ->orWhere('kode_barang', 'LIKE', "%{$search}%")
+                  ->orWhere('barcode', 'LIKE', "%{$search}%"); // ✅ TAMBAH SEARCH BARCODE
             });
         }
         if ($request->filled('kategori')) {
@@ -36,6 +41,7 @@ class BarangController extends Controller
     {
         $request->validate([
             'kode_barang' => 'required|string|unique:barang,kode_barang',
+            'barcode' => 'nullable|string|max:50|unique:barang,barcode', // ✅ VALIDASI BARCODE
             'nama_barang' => 'required|string',
             'kategori' => 'required|string',
             'satuan_dasar' => 'required|string',
@@ -43,7 +49,7 @@ class BarangController extends Controller
             'harga_jual' => 'required|numeric|min:0',
             'stok' => 'required|numeric|min:0',
             'stok_minimal' => 'required|numeric|min:0',
-            // ✅ Validasi untuk satuan konversi
+            // Validasi untuk satuan konversi
             'satuan_konversi.*.nama_satuan' => 'nullable|string',
             'satuan_konversi.*.jumlah_konversi' => 'nullable|integer|min:1',
             'satuan_konversi.*.harga_jual' => 'nullable|numeric|min:0',
@@ -54,6 +60,7 @@ class BarangController extends Controller
         try {
             $barang = Barang::create([
                 'kode_barang' => $request->kode_barang,
+                'barcode' => $request->barcode, // ✅ SIMPAN BARCODE
                 'nama_barang' => $request->nama_barang,
                 'kategori' => $request->kategori,
                 'satuan_terkecil' => $request->satuan_dasar,
@@ -65,7 +72,7 @@ class BarangController extends Controller
                 'deskripsi' => $request->deskripsi
             ]);
 
-            // ✅ Simpan satuan konversi dengan struktur baru
+            // Simpan satuan konversi
             if ($request->filled('satuan_konversi')) {
                 foreach ($request->satuan_konversi as $konversi) {
                     if (!empty($konversi['nama_satuan']) && !empty($konversi['jumlah_konversi'])) {
@@ -105,6 +112,7 @@ class BarangController extends Controller
     {
         $request->validate([
             'kode_barang' => 'required|string|unique:barang,kode_barang,' . $id,
+            'barcode' => 'nullable|string|max:50|unique:barang,barcode,' . $id, // ✅ VALIDASI BARCODE SAAT UPDATE
             'nama_barang' => 'required|string',
             'kategori' => 'required|string',
             'satuan_dasar' => 'required|string',
@@ -112,6 +120,11 @@ class BarangController extends Controller
             'harga_jual' => 'required|numeric|min:0',
             'stok' => 'required|numeric|min:0',
             'stok_minimal' => 'required|numeric|min:0',
+            // Tambahkan validasi konversi saat update jika diperlukan
+            'satuan_konversi.*.nama_satuan' => 'nullable|string',
+            'satuan_konversi.*.jumlah_konversi' => 'nullable|integer|min:1',
+            'satuan_konversi.*.harga_jual' => 'nullable|numeric|min:0',
+            'satuan_konversi.*.is_default' => 'nullable|boolean',
         ]);
 
         DB::beginTransaction();
@@ -120,6 +133,7 @@ class BarangController extends Controller
             
             $barang->update([
                 'kode_barang' => $request->kode_barang,
+                'barcode' => $request->barcode, // ✅ UPDATE BARCODE
                 'nama_barang' => $request->nama_barang,
                 'kategori' => $request->kategori,
                 'satuan_terkecil' => $request->satuan_dasar,
@@ -134,7 +148,7 @@ class BarangController extends Controller
             // Hapus satuan konversi lama
             $barang->satuanKonversi()->delete();
 
-            // ✅ Simpan satuan konversi baru
+            // Simpan satuan konversi baru
             if ($request->filled('satuan_konversi')) {
                 foreach ($request->satuan_konversi as $konversi) {
                     if (!empty($konversi['nama_satuan']) && !empty($konversi['jumlah_konversi'])) {
@@ -163,6 +177,7 @@ class BarangController extends Controller
         try {
             $barang = Barang::findOrFail($id);
             
+            // Pengecekan relasi transaksi (agar tidak terjadi error Foreign Key Constraint)
             if ($barang->detailPenjualan()->count() > 0 || $barang->detailPembelian()->count() > 0) {
                 return back()->with('error', 'Barang tidak bisa dihapus karena sudah ada transaksi!');
             }
@@ -174,6 +189,10 @@ class BarangController extends Controller
             return back()->with('error', 'Error: ' . $e->getMessage());
         }
     }
+
+    // ------------------------------------
+    // FUNGSI KHUSUS
+    // ------------------------------------
 
     public function stokMinimal()
     {
@@ -188,8 +207,44 @@ class BarangController extends Controller
         $barang = Barang::findOrFail($id);
         return view('pages.barang.adjustment', compact('barang'));
     }
+    
+    // Simpan Adjustment Stok
+    public function adjustmenStore(Request $request, $id)
+    {
+        $request->validate([
+            'tipe' => 'required|in:tambah,kurang',
+            'qty' => 'required|numeric|min:1',
+            'keterangan' => 'required|string'
+        ]);
 
-    // ✅ AJAX Get Satuan - SESUAI STRUKTUR BARU
+        $barang = Barang::findOrFail($id);
+
+        if ($request->tipe === 'tambah') {
+            $barang->increment('stok', $request->qty);
+        } else {
+            if ($barang->stok < $request->qty) {
+                return back()->with('error', 'Stok tidak mencukupi!');
+            }
+            $barang->decrement('stok', $request->qty);
+        }
+        
+        // Catatan: Idealnya, setiap adjustment disimpan di tabel log/history stok.
+
+        return redirect()->route('barang.index')->with('success', 'Adjustment stok berhasil!');
+    }
+
+    // Daftar Harga Satuan (Baru ditambahkan)
+    public function hargaSatuan(Request $request)
+    {
+        $barang = Barang::with('satuanKonversi')
+                         ->where('aktif', 1) 
+                         ->orderBy('nama_barang', 'asc')
+                         ->paginate(20);
+
+        return view('pages.barang.harga-satuan', compact('barang'));
+    }
+
+    // AJAX Get Satuan Konversi (Untuk fitur Kasir/Lainnya)
     public function getSatuan($id)
     {
         $barang = Barang::with('satuanKonversi')->findOrFail($id);
@@ -210,25 +265,36 @@ class BarangController extends Controller
         ]);
     }
 
-    public function adjustmenStore(Request $request, $id)
+    // ✅ FUNGSI BARU: Cari Barang by Barcode (untuk Stok Opname/Kasir)
+    public function getByBarcode(Request $request)
     {
-        $request->validate([
-            'tipe' => 'required|in:tambah,kurang',
-            'qty' => 'required|numeric|min:1',
-            'keterangan' => 'required|string'
-        ]);
-
-        $barang = Barang::findOrFail($id);
-
-        if ($request->tipe === 'tambah') {
-            $barang->increment('stok', $request->qty);
-        } else {
-            if ($barang->stok < $request->qty) {
-                return back()->with('error', 'Stok tidak mencukupi!');
-            }
-            $barang->decrement('stok', $request->qty);
-        }
+        $barcode = $request->barcode;
         
-        return redirect()->route('barang.index')->with('success', 'Adjustment stok berhasil!');
+        if (!$barcode) {
+            return response()->json(['error' => 'Barcode tidak boleh kosong'], 400);
+        }
+
+        $barang = Barang::with('satuanKonversi')
+                        ->where('barcode', $barcode)
+                        ->first();
+
+        if (!$barang) {
+            return response()->json(['error' => 'Barang dengan barcode tersebut tidak ditemukan'], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'id' => $barang->id,
+                'kode_barang' => $barang->kode_barang,
+                'barcode' => $barang->barcode,
+                'nama_barang' => $barang->nama_barang,
+                'kategori' => $barang->kategori,
+                'satuan_terkecil' => $barang->satuan_terkecil,
+                'harga_jual' => $barang->harga_jual,
+                'stok' => $barang->stok,
+                'satuan_konversi' => $barang->satuanKonversi,
+            ]
+        ]);
     }
 }

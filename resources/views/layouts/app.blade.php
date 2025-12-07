@@ -45,7 +45,9 @@
             overflow-x: hidden;
         }
         
-        /* Navbar Modern */
+        /* ========================================
+           NAVBAR MODERN
+           ======================================== */
         .navbar-custom {
             background: rgba(255, 255, 255, 0.85) !important;
             backdrop-filter: blur(20px);
@@ -102,7 +104,31 @@
             width: 80%;
         }
         
-        /* Sidebar Ultra Modern */
+        /* ========================================
+           SIDEBAR OVERLAY (Mobile)
+           ======================================== */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            z-index: 998;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .sidebar-overlay.show {
+            display: block;
+            opacity: 1;
+        }
+        
+        /* ========================================
+           SIDEBAR ULTRA MODERN
+           ======================================== */
         .sidebar {
             min-height: 100vh;
             background: linear-gradient(180deg, #ffffff 0%, #fafbff 100%);
@@ -116,6 +142,7 @@
             box-shadow: var(--shadow-sm);
             z-index: 999;
             overflow-y: auto;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         .sidebar::before {
@@ -186,7 +213,9 @@
             transform: scale(1.1) rotate(5deg);
         }
         
-        /* Main Content Modern */
+        /* ========================================
+           MAIN CONTENT MODERN
+           ======================================== */
         .main-content {
             margin-left: 280px;
             margin-top: 76px;
@@ -194,7 +223,9 @@
             min-height: calc(100vh - 76px);
         }
         
-        /* Card Ultra Modern */
+        /* ========================================
+           CARD ULTRA MODERN
+           ======================================== */
         .card-custom {
             border: 1px solid var(--border-color);
             border-radius: 20px;
@@ -242,7 +273,9 @@
             padding: 1.75rem;
         }
         
-        /* Button Modern dengan Gradient */
+        /* ========================================
+           BUTTON MODERN
+           ======================================== */
         .btn-primary-custom {
             background: var(--primary-gradient);
             border: none;
@@ -281,7 +314,9 @@
             transform: translateY(0);
         }
         
-        /* Alert Modern */
+        /* ========================================
+           ALERT MODERN
+           ======================================== */
         .alert {
             border: none;
             border-radius: 16px;
@@ -315,7 +350,9 @@
             border-left-color: #ef4444;
         }
         
-        /* Footer Modern */
+        /* ========================================
+           FOOTER MODERN
+           ======================================== */
         .footer {
             margin-left: 280px;
             padding: 1.5rem 2.5rem;
@@ -328,7 +365,9 @@
             font-weight: 500;
         }
         
-        /* Table Modern */
+        /* ========================================
+           TABLE MODERN
+           ======================================== */
         .table {
             border-collapse: separate;
             border-spacing: 0 0.5rem;
@@ -370,7 +409,9 @@
             border-radius: 0 12px 12px 0;
         }
         
-        /* Form Modern */
+        /* ========================================
+           FORM MODERN
+           ======================================== */
         .form-control,
         .form-select {
             border: 1px solid var(--border-color);
@@ -394,7 +435,9 @@
             font-size: 0.95rem;
         }
         
-        /* Badge Modern */
+        /* ========================================
+           BADGE MODERN
+           ======================================== */
         .badge {
             padding: 0.5rem 1rem;
             border-radius: 8px;
@@ -403,7 +446,9 @@
             letter-spacing: 0.3px;
         }
         
-        /* Scrollbar Custom */
+        /* ========================================
+           SCROLLBAR CUSTOM
+           ======================================== */
         ::-webkit-scrollbar {
             width: 8px;
             height: 8px;
@@ -422,7 +467,9 @@
             background: linear-gradient(135deg, #5a67d8 0%, #6b3fa0 100%);
         }
         
-        /* Loading Animation */
+        /* ========================================
+           LOADING ANIMATION
+           ======================================== */
         @keyframes pulse {
             0%, 100% {
                 opacity: 1;
@@ -436,22 +483,16 @@
             animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
         
-        /* Responsive */
-        @media (max-width: 992px) {
+        /* ========================================
+           RESPONSIVE MOBILE
+           ======================================== */
+        @media (max-width: 991px) {
             .sidebar {
-                width: 240px;
-            }
-            
-            .main-content,
-            .footer {
-                margin-left: 240px;
-            }
-        }
-        
-        @media (max-width: 768px) {
-            .sidebar {
+                top: 0;
+                height: 100vh;
                 transform: translateX(-100%);
-                transition: transform 0.3s ease;
+                box-shadow: var(--shadow-xl);
+                z-index: 1001;
             }
             
             .sidebar.show {
@@ -460,7 +501,35 @@
             
             .main-content,
             .footer {
-                margin-left: 0;
+                margin-left: 0 !important;
+            }
+            
+            .main-content {
+                padding: 1.5rem;
+            }
+            
+            .navbar-custom {
+                padding: 1rem 1.5rem;
+            }
+        }
+        
+        /* Prevent body scroll saat sidebar terbuka di mobile */
+        body.sidebar-open {
+            overflow: hidden;
+        }
+        
+        @media (min-width: 992px) {
+            .sidebar {
+                transform: translateX(0);
+            }
+            
+            #sidebarToggle,
+            #sidebarClose {
+                display: none !important;
+            }
+            
+            .sidebar-overlay {
+                display: none !important;
             }
         }
     </style>
@@ -470,6 +539,9 @@
 <body>
     <!-- Navbar -->
     @include('layouts.partials.navbar')
+    
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
     
     <!-- Sidebar -->
     @include('layouts.partials.sidebar')
@@ -495,7 +567,7 @@
     
     <!-- Footer -->
     <footer class="footer">
-        <p class="mb-0">© 2024 Apotek Sehat | Version 1.0 | Powered by Laravel</p>
+        <p class="mb-0">© 2024 Apotek JM Farma | Version 1.0 | Powered by Laravel</p>
     </footer>
     
     <!-- Bootstrap 5 JS via CDN -->
@@ -515,7 +587,73 @@
             }
         });
         
-        // Smooth scroll behavior
+        // ========================================
+        // SIDEBAR TOGGLE untuk Mobile
+        // ========================================
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebarClose = document.getElementById('sidebarClose');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+            
+            // Function untuk buka sidebar
+            function openSidebar() {
+                sidebar.classList.add('show');
+                sidebarOverlay.classList.add('show');
+                document.body.classList.add('sidebar-open');
+            }
+            
+            // Function untuk tutup sidebar
+            function closeSidebar() {
+                sidebar.classList.remove('show');
+                sidebarOverlay.classList.remove('show');
+                document.body.classList.remove('sidebar-open');
+            }
+            
+            // Event listener untuk toggle button
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    openSidebar();
+                });
+            }
+            
+            // Event listener untuk close button
+            if (sidebarClose) {
+                sidebarClose.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    closeSidebar();
+                });
+            }
+            
+            // Event listener untuk overlay (klik di luar sidebar untuk tutup)
+            if (sidebarOverlay) {
+                sidebarOverlay.addEventListener('click', function() {
+                    closeSidebar();
+                });
+            }
+            
+            // Tutup sidebar saat link diklik (mobile only)
+            const sidebarLinks = sidebar.querySelectorAll('.nav-link:not([data-bs-toggle])');
+            sidebarLinks.forEach(link => {
+                link.addEventListener('click', function() {
+                    if (window.innerWidth < 992) {
+                        closeSidebar();
+                    }
+                });
+            });
+            
+            // Tutup sidebar saat window di-resize ke desktop
+            window.addEventListener('resize', function() {
+                if (window.innerWidth >= 992) {
+                    closeSidebar();
+                }
+            });
+        });
+        
+        // ========================================
+        // SMOOTH SCROLL
+        // ========================================
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
                 e.preventDefault();
@@ -528,16 +666,6 @@
                 }
             });
         });
-        
-        // Mobile sidebar toggle
-        const sidebarToggle = document.querySelector('[data-sidebar-toggle]');
-        const sidebar = document.querySelector('.sidebar');
-        
-        if (sidebarToggle && sidebar) {
-            sidebarToggle.addEventListener('click', () => {
-                sidebar.classList.toggle('show');
-            });
-        }
     </script>
     
     @stack('scripts')

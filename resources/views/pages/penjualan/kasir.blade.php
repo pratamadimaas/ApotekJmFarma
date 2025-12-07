@@ -5,148 +5,169 @@
 @section('content')
 <div class="container-fluid">
     <!-- Page Header -->
-    <div class="page-header mb-4">
+    <div class="page-header mb-3">
         <div class="d-flex justify-content-between align-items-center">
-            <div class="d-flex align-items-center">
-                <div class="icon-wrapper me-3">
-                    <i class="bi bi-cart-check-fill"></i>
-                </div>
-                <div>
-                    <h2 class="page-title mb-1">Point of Sale</h2>
-                    <p class="page-subtitle mb-0">Kasir: {{ auth()->user()->name }} | Shift: #{{ $shift->id }}</p>
-                </div>
-            </div>
             <div>
-                <span class="badge badge-shift">
-                    <i class="bi bi-clock me-1"></i>
-                    Shift Aktif
-                </span>
+                <h4 class="mb-0">TRANSAKSI PENJUALAN</h4>
+                <small class="text-muted">Kasir: {{ auth()->user()->name }} | Shift: #{{ $shift->id }}</small>
             </div>
+            <span class="badge bg-success px-3 py-2">
+                <i class="bi bi-clock me-1"></i> Shift Aktif
+            </span>
         </div>
     </div>
 
-    <div class="row g-4">
-        <!-- Left: Pilih Barang -->
-        <div class="col-lg-7">
-            <div class="card-custom">
-                <div class="card-header">
-                    <i class="bi bi-search me-2"></i>
-                    <strong>Pilih Barang</strong>
+    <div class="row g-3">
+        <!-- LEFT: Form Input & Keranjang -->
+        <div class="col-lg-8">
+            <!-- Form Input Barang -->
+            <div class="card mb-3 shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="mb-0"><i class="bi bi-input-cursor me-2"></i>INPUT BARANG</h6>
                 </div>
                 <div class="card-body">
-                    <!-- Search Bar -->
-                    <div class="search-box mb-4">
-                        <i class="bi bi-search search-icon"></i>
-                        <input type="text" id="searchBarang" class="form-control search-input" 
-                               placeholder="Cari barang (nama atau kode barang)...">
-                    </div>
-                    
-                    <!-- List Barang -->
-                    <div id="listBarang" class="row g-3">
-                        @forelse($barang as $item)
-                        <div class="col-xl-3 col-lg-4 col-md-6 barang-col">
-                            <div class="barang-card" data-id="{{ $item->id }}" 
-                                 data-nama="{{ strtolower($item->nama_barang) }}" 
-                                 data-kode="{{ strtolower($item->kode_barang) }}">
-                                <div class="barang-badge">
-                                    <i class="bi bi-box-seam"></i>
-                                </div>
-                                <div class="barang-info">
-                                    <span class="barang-kode">{{ $item->kode_barang }}</span>
-                                    <h6 class="barang-nama">{{ $item->nama_barang }}</h6>
-                                    <div class="barang-price">
-                                        Rp {{ number_format($item->harga_jual, 0, ',', '.') }}
-                                    </div>
-                                    <div class="barang-stock">
-                                        <i class="bi bi-archive me-1"></i>
-                                        Stok: <strong>{{ $item->stok }}</strong> {{ $item->satuan_terkecil }}
-                                    </div>
-                                </div>
-                                <button class="btn-add-cart" onclick="tambahKeKeranjang({{ $item->id }})">
-                                    <i class="bi bi-plus-lg"></i>
-                                </button>
-                            </div>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Tanggal</label>
+                            <input type="date" class="form-control" value="{{ date('Y-m-d') }}" readonly>
                         </div>
-                        @empty
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">No. Faktur</label>
+                            <input type="text" class="form-control" value="AUTO" readonly>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Pembayaran</label>
+                            <select class="form-select">
+                                <option>Tunai</option>
+                            </select>
+                        </div>
                         <div class="col-12">
-                            <div class="empty-state">
-                                <i class="bi bi-inbox"></i>
-                                <p>Tidak ada barang tersedia</p>
-                            </div>
+                            <label class="form-label fw-bold">Kode / ENTER</label>
+                            <input type="text" id="inputKodeBarang" class="form-control form-control-lg" 
+                                   placeholder="Ketik kode barang atau nama, tekan ENTER untuk cari..." autofocus>
+                            <small class="text-muted">Tekan ENTER untuk membuka daftar barang</small>
                         </div>
-                        @endforelse
+                    </div>
+                </div>
+            </div>
+
+            <!-- Keranjang Belanja -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="bi bi-cart3 me-2"></i>DAFTAR BELANJA
+                    </h6>
+                    <span class="badge bg-light text-dark" id="totalItems">0 Item</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
+                        <table class="table table-bordered table-hover mb-0" id="cartTable">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th width="5%">No</th>
+                                    <th width="15%">Kode</th>
+                                    <th width="25%">Nama</th>
+                                    <th width="8%">Qty</th>
+                                    <th width="12%">Satuan</th>
+                                    <th width="12%">Harga</th>
+                                    <th width="8%">Disc %</th>
+                                    <th width="15%">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cartItems">
+                                <tr>
+                                    <td colspan="8" class="text-center py-5 text-muted">
+                                        <i class="bi bi-cart-x display-4 d-block mb-2"></i>
+                                        Belum ada barang di keranjang
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Right: Keranjang -->
-        <div class="col-lg-5">
-            <div class="card-custom cart-sticky">
-                <div class="card-header">
-                    <i class="bi bi-cart3 me-2"></i>
-                    <strong>Keranjang Belanja</strong>
-                    <button class="btn-clear-cart ms-auto" onclick="clearKeranjang()" style="display: none;">
-                        <i class="bi bi-trash me-1"></i> Kosongkan
-                    </button>
+        <!-- RIGHT: Payment Section -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0"><i class="bi bi-calculator me-2"></i>PEMBAYARAN</h6>
                 </div>
                 <div class="card-body">
-                    <!-- Cart Items -->
-                    <div class="cart-items" id="cartItems">
-                        <div class="empty-cart">
-                            <i class="bi bi-cart-x"></i>
-                            <p>Keranjang masih kosong</p>
-                            <small>Pilih barang untuk memulai transaksi</small>
+                    <!-- Total Section -->
+                    <div class="mb-3">
+                        <div class="row mb-2">
+                            <div class="col-6">
+                                <label class="form-label mb-0">Sub Total</label>
+                                <input type="text" class="form-control" id="subTotal" value="0" readonly>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label mb-0">Diskon</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="diskonPersen" value="0">
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label mb-0">Ongkos</label>
+                            <input type="text" class="form-control" id="ongkos" value="0">
                         </div>
                     </div>
 
-                    <!-- Summary -->
-                    <div class="cart-summary">
-                        <div class="summary-row">
-                            <span>Subtotal</span>
-                            <span id="subtotalText">Rp 0</span>
+                    <!-- Grand Total -->
+                    <div class="bg-primary text-white p-3 rounded text-center mb-3">
+                        <div class="mb-1">GRAND TOTAL</div>
+                        <h2 class="mb-0" id="grandTotal">Rp 0</h2>
+                    </div>
+
+                    <!-- Bayar Section -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Bayar (F2)</label>
+                        <input type="text" id="uangDibayar" class="form-control form-control-lg text-end fw-bold" 
+                               placeholder="0">
+                    </div>
+
+                    <!-- Quick Amounts -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-4">
+                            <button class="btn btn-outline-secondary btn-sm w-100" onclick="setUangPas()">
+                                Uang Pas
+                            </button>
                         </div>
-                        <div class="summary-row summary-total">
-                            <strong>Total Bayar</strong>
-                            <strong class="total-price">Rp <span id="totalHarga">0</span></strong>
+                        <div class="col-4">
+                            <button class="btn btn-outline-secondary btn-sm w-100" onclick="addAmount(50000)">
+                                +50K
+                            </button>
+                        </div>
+                        <div class="col-4">
+                            <button class="btn btn-outline-secondary btn-sm w-100" onclick="addAmount(100000)">
+                                +100K
+                            </button>
                         </div>
                     </div>
 
-                    <!-- Payment -->
-                    <div class="payment-section">
-                        <div class="form-group-modern mb-3">
-                            <label class="form-label">
-                                <i class="bi bi-cash-stack me-2"></i>Uang Dibayar
-                            </label>
-                            <div class="input-with-icon">
-                                <span class="currency-symbol">Rp</span>
-                                <input type="text" id="uangDibayar" class="form-control currency-input" 
-                                       placeholder="0">
-                            </div>
-                        </div>
+                    <!-- Kembalian -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Kembali</label>
+                        <input type="text" id="kembalian" class="form-control form-control-lg text-end fw-bold bg-light" 
+                               value="0" readonly>
+                    </div>
 
-                        <div class="form-group-modern mb-3">
-                            <label class="form-label">
-                                <i class="bi bi-arrow-left-right me-2"></i>Kembalian
-                            </label>
-                            <div class="input-with-icon">
-                                <span class="currency-symbol">Rp</span>
-                                <input type="text" id="kembalian" class="form-control currency-input" 
-                                       value="0" readonly>
-                            </div>
-                        </div>
-
-                        <!-- Quick Amount Buttons -->
-                        <div class="quick-amount mb-3">
-                            <button class="btn-quick-amount" onclick="setUangPas()">Uang Pas</button>
-                            <button class="btn-quick-amount" onclick="addAmount(50000)">+50K</button>
-                            <button class="btn-quick-amount" onclick="addAmount(100000)">+100K</button>
-                        </div>
-
-                        <!-- Checkout Button -->
-                        <button class="btn-checkout" id="btnCheckout" onclick="prosesTransaksi()" disabled>
-                            <i class="bi bi-check-circle me-2"></i>
-                            Proses Pembayaran
+                    <!-- Action Buttons -->
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-warning btn-lg" id="btnPending" onclick="simpanPending()">
+                            <i class="bi bi-clock-history me-2"></i>Pending (F4)
+                        </button>
+                        <button class="btn btn-success btn-lg" id="btnSimpan" onclick="prosesTransaksi()" disabled>
+                            <i class="bi bi-save me-2"></i>Simpan (F3)
+                        </button>
+                        <button class="btn btn-danger btn-lg" onclick="clearKeranjang()">
+                            <i class="bi bi-x-circle me-2"></i>Batal (ESC)
+                        </button>
+                        <button class="btn btn-info btn-lg" onclick="tampilkanPending()">
+                            <i class="bi bi-list-ul me-2"></i>Lihat Pending
                         </button>
                     </div>
                 </div>
@@ -155,505 +176,284 @@
     </div>
 </div>
 
-{{-- ✅ MODAL PILIH SATUAN --}}
-<div class="modal fade" id="modalPilihSatuan" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
+<!-- Modal Pilih Obat/Barang -->
+<div class="modal fade" id="modalPilihObat" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
-            <div class="modal-header">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-search me-2"></i>PILIH OBAT
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Search Box -->
+                <div class="mb-3">
+                    <input type="text" id="searchObat" class="form-control form-control-lg" 
+                           placeholder="Cari obat..." autofocus>
+                </div>
+
+                <!-- Table Daftar Obat -->
+                <div class="table-responsive" style="max-height: 500px;">
+                    <table class="table table-bordered table-hover">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th width="3%">No</th>
+                                <th width="10%">Kode</th>
+                                <th width="25%">Nama Obat</th>
+                                <th width="21%">Satuan 1 (Dasar)</th>
+                                <th width="20%">Satuan 2</th>
+                                <th width="20%">Satuan 3</th>
+                            </tr>
+                        </thead>
+                        <tbody id="listObat">
+                            @foreach($barang as $key => $item)
+                            <tr class="obat-row" 
+                                data-id="{{ $item->id }}"
+                                data-nama="{{ strtolower($item->nama_barang) }}" 
+                                data-kode="{{ strtolower($item->kode_barang) }}"
+                                onclick="pilihBarangLangsung({{ $item->id }})">
+                                <td class="text-center">{{ $key + 1 }}</td>
+                                <td><strong class="text-primary">{{ $item->kode_barang }}</strong></td>
+                                <td><strong>{{ $item->nama_barang }}</strong></td>
+                                
+                                <!-- Satuan Dasar (Satuan 1) -->
+                                <td>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="badge bg-success">{{ $item->satuan_terkecil }}</span>
+                                        <strong class="text-success">Rp {{ number_format($item->harga_jual, 0, ',', '.') }}</strong>
+                                    </div>
+                                </td>
+                                
+                                <!-- Satuan 2 -->
+                                <td>
+                                    @if(isset($item->satuan_konversi[0]))
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <span class="badge bg-secondary">{{ $item->satuan_konversi[0]->nama_satuan }}</span>
+                                                <small class="text-muted ms-1">({{ $item->satuan_konversi[0]->jumlah_konversi }} {{ $item->satuan_terkecil }})</small>
+                                            </div>
+                                            <strong class="text-primary">Rp {{ number_format($item->satuan_konversi[0]->harga_jual, 0, ',', '.') }}</strong>
+                                        </div>
+                                    @else
+                                        <span class="text-muted">-</span>
+                                    @endif
+                                </td>
+                                
+                                <!-- Satuan 3 -->
+                                <td>
+                                    @if(isset($item->satuan_konversi[1]))
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <span class="badge bg-secondary">{{ $item->satuan_konversi[1]->nama_satuan }}</span>
+                                                <small class="text-muted ms-1">({{ $item->satuan_konversi[1]->jumlah_konversi }} {{ $item->satuan_terkecil }})</small>
+                                            </div>
+                                            <strong class="text-primary">Rp {{ number_format($item->satuan_konversi[1]->harga_jual, 0, ',', '.') }}</strong>
+                                        </div>
+                                    @else
+                                        <span class="text-muted">-</span>
+                                    @endif
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span class="text-muted me-auto">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Klik baris untuk tambah dengan satuan dasar | {{ count($barang) }} Item
+                </span>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-1"></i>Tutup
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Pilih Satuan -->
+<div class="modal fade" id="modalPilihSatuan" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
                 <h5 class="modal-title">
                     <i class="bi bi-box-seam me-2"></i>
-                    Pilih Satuan - <span id="modalNamaBarang"></span>
+                    PILIH SATUAN - <span id="modalNamaBarang"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover mb-0" id="tableSatuan">
+                        <thead class="table-light">
+                            <tr>
+                                <th width="40%">Satuan</th>
+                                <th width="20%">Jumlah</th>
+                                <th width="40%">Harga</th>
+                            </tr>
+                        </thead>
+                        <tbody id="listSatuan">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Daftar Pending -->
+<div class="modal fade" id="modalPending" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">
+                    <i class="bi bi-clock-history me-2"></i>TRANSAKSI PENDING
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div id="listSatuan"></div>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th width="5%">No</th>
+                                <th width="15%">Waktu</th>
+                                <th width="10%">Jumlah Item</th>
+                                <th width="15%">Total</th>
+                                <th width="25%">Catatan</th>
+                                <th width="15%">Kasir</th>
+                                <th width="15%">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="listPending">
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-muted">
+                                    Belum ada transaksi pending
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Input Catatan Pending -->
+<div class="modal fade" id="modalCatatanPending" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">Catatan Pending</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label">Catatan (opsional)</label>
+                <textarea class="form-control" id="catatanPending" rows="3" 
+                          placeholder="Contoh: Pak Budi - Tunggu struk dokter"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-warning" onclick="konfirmasiPending()">
+                    <i class="bi bi-check-circle me-1"></i>Simpan Pending
+                </button>
             </div>
         </div>
     </div>
 </div>
 
 <style>
-/* ... (CSS yang sama seperti sebelumnya) ... */
-
-/* ✅ TAMBAHAN CSS UNTUK SATUAN */
-.satuan-option {
-    background: white;
-    border: 2px solid var(--border-color);
-    border-radius: 12px;
-    padding: 1rem;
-    margin-bottom: 0.75rem;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.satuan-option:hover {
-    border-color: var(--primary-color);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
-    transform: translateY(-2px);
-}
-
-.satuan-option .satuan-name {
-    font-weight: 600;
-    font-size: 1.1rem;
-    color: var(--text-primary);
-    margin-bottom: 0.25rem;
-}
-
-.satuan-option .satuan-info {
-    color: var(--text-secondary);
-    font-size: 0.9rem;
-    margin-bottom: 0.5rem;
-}
-
-.satuan-option .satuan-price {
-    font-weight: 700;
-    font-size: 1.25rem;
-    background: var(--primary-gradient);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-.satuan-badge {
-    display: inline-block;
-    background: rgba(16, 185, 129, 0.1);
-    color: #10b981;
-    padding: 0.25rem 0.75rem;
-    border-radius: 6px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    margin-left: 0.5rem;
-}
-
-.cart-item-satuan {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    margin-bottom: 0.5rem;
-}
-
-/* Sama seperti CSS sebelumnya */
 .page-header {
-    animation: fadeInDown 0.5s ease;
-}
-
-.badge-shift {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: white;
-    padding: 0.5rem 1.25rem;
-    border-radius: 10px;
-    font-weight: 600;
-    font-size: 0.9rem;
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-}
-
-.search-box {
-    position: relative;
-}
-
-.search-icon {
-    position: absolute;
-    left: 1.25rem;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--text-secondary);
-    font-size: 1.1rem;
-    z-index: 10;
-}
-
-.search-input {
-    padding-left: 3.5rem !important;
-    height: 56px;
-    border-radius: 16px;
-    border: 2px solid var(--border-color);
-    font-size: 1rem;
-    transition: all 0.3s ease;
-}
-
-.search-input:focus {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
-}
-
-.barang-card {
     background: white;
-    border: 2px solid var(--border-color);
-    border-radius: 16px;
-    padding: 1.25rem;
-    position: relative;
-    cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-}
-
-.barang-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 24px rgba(102, 126, 234, 0.15);
-    border-color: var(--primary-color);
-}
-
-.barang-badge {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-    width: 40px;
-    height: 40px;
-    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--primary-color);
-    font-size: 1.2rem;
-}
-
-.barang-info {
-    flex: 1;
-}
-
-.barang-kode {
-    display: inline-block;
-    background: rgba(102, 126, 234, 0.1);
-    color: var(--primary-color);
-    padding: 0.25rem 0.75rem;
-    border-radius: 6px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    margin-bottom: 0.5rem;
-}
-
-.barang-nama {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0.5rem 0;
-    line-height: 1.3;
-    min-height: 2.6rem;
-}
-
-.barang-price {
-    font-size: 1.1rem;
-    font-weight: 700;
-    background: var(--primary-gradient);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    margin: 0.5rem 0;
-}
-
-.barang-stock {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    margin-top: 0.5rem;
-}
-
-.btn-add-cart {
-    position: absolute;
-    bottom: 1rem;
-    right: 1rem;
-    width: 36px;
-    height: 36px;
-    background: var(--primary-gradient);
-    border: none;
-    border-radius: 10px;
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transform: scale(0.8);
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-}
-
-.barang-card:hover .btn-add-cart {
-    opacity: 1;
-    transform: scale(1);
-}
-
-.btn-add-cart:hover {
-    transform: scale(1.1);
-}
-
-.cart-sticky {
-    position: sticky;
-    top: 100px;
-}
-
-.btn-clear-cart {
-    background: none;
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    color: #ef4444;
-    padding: 0.4rem 1rem;
-    border-radius: 8px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    transition: all 0.3s ease;
-}
-
-.btn-clear-cart:hover {
-    background: #ef4444;
-    color: white;
-    border-color: #ef4444;
-}
-
-.cart-items {
-    max-height: 320px;
-    overflow-y: auto;
-    margin-bottom: 1.5rem;
-    padding-right: 0.5rem;
-}
-
-.empty-cart {
-    text-align: center;
-    padding: 3rem 1rem;
-    color: var(--text-secondary);
-}
-
-.empty-cart i {
-    font-size: 4rem;
-    color: #e2e8f0;
-    margin-bottom: 1rem;
-}
-
-.empty-cart p {
-    font-weight: 600;
-    margin-bottom: 0.25rem;
-}
-
-.cart-item {
-    background: linear-gradient(135deg, rgba(102, 126, 234, 0.03) 0%, rgba(118, 75, 162, 0.03) 100%);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
     padding: 1rem;
-    margin-bottom: 0.75rem;
-    transition: all 0.3s ease;
-    animation: slideInRight 0.3s ease;
-}
-
-@keyframes slideInRight {
-    from {
-        opacity: 0;
-        transform: translateX(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(0);
-    }
-}
-
-.cart-item:hover {
-    border-color: var(--primary-color);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
-}
-
-.cart-item-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: start;
-    margin-bottom: 0.75rem;
-}
-
-.cart-item-name {
-    font-weight: 600;
-    font-size: 0.95rem;
-    color: var(--text-primary);
-    flex: 1;
-}
-
-.btn-remove-item {
-    background: rgba(239, 68, 68, 0.1);
-    border: none;
-    width: 28px;
-    height: 28px;
     border-radius: 8px;
-    color: #ef4444;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.3s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
-.btn-remove-item:hover {
-    background: #ef4444;
-    color: white;
-    transform: scale(1.1);
-}
-
-.cart-item-controls {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.qty-control {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    background: white;
-    border-radius: 10px;
-    padding: 0.25rem;
-}
-
-.btn-qty {
-    width: 32px;
-    height: 32px;
+.card {
     border: none;
-    background: var(--primary-gradient);
-    color: white;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.3s ease;
 }
 
-.btn-qty:hover {
-    transform: scale(1.1);
-}
-
-.qty-input {
-    width: 50px;
-    text-align: center;
-    border: none;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.cart-item-price {
-    font-weight: 700;
-    color: var(--primary-color);
-    font-size: 1rem;
-}
-
-.cart-summary {
-    background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
-    border-radius: 12px;
-    padding: 1.25rem;
-    margin-bottom: 1.5rem;
-}
-
-.summary-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.5rem 0;
-    color: var(--text-secondary);
-}
-
-.summary-total {
-    border-top: 2px solid var(--border-color);
-    margin-top: 0.5rem;
-    padding-top: 1rem;
-    color: var(--text-primary);
-}
-
-.total-price {
-    font-size: 1.75rem;
-    background: var(--primary-gradient);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-.currency-symbol {
-    position: absolute;
-    left: 1rem;
-    top: 50%;
-    transform: translateY(-50%);
-    font-weight: 600;
-    color: var(--text-secondary);
+.sticky-top {
+    position: sticky;
+    top: 0;
     z-index: 10;
 }
 
-.currency-input {
-    padding-left: 3rem !important;
-    font-weight: 600;
-    font-size: 1.1rem;
-}
-
-.quick-amount {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 0.5rem;
-}
-
-.btn-quick-amount {
-    background: white;
-    border: 2px solid var(--border-color);
-    padding: 0.75rem;
-    border-radius: 10px;
-    font-weight: 600;
+/* Table Styling */
+.table {
     font-size: 0.9rem;
-    color: var(--text-primary);
-    transition: all 0.3s ease;
 }
 
-.btn-quick-amount:hover {
-    background: var(--primary-gradient);
-    color: white;
-    border-color: transparent;
-    transform: translateY(-2px);
+.table thead th {
+    background: #e9ecef;
+    font-weight: 600;
+    border: 1px solid #dee2e6;
 }
 
-.btn-checkout {
-    width: 100%;
-    background: var(--primary-gradient);
-    border: none;
-    color: white;
-    padding: 1.25rem;
-    border-radius: 12px;
-    font-weight: 700;
-    font-size: 1.05rem;
-    transition: all 0.3s ease;
-    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+.table tbody td {
+    vertical-align: middle;
+    border: 1px solid #dee2e6;
 }
 
-.btn-checkout:not(:disabled):hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 28px rgba(102, 126, 234, 0.4);
+/* Modal Obat Row Hover */
+.obat-row {
+    cursor: pointer;
 }
 
-.btn-checkout:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+.obat-row:hover {
+    background-color: #e7f3ff !important;
 }
 
-.empty-state {
-    text-align: center;
-    padding: 4rem 2rem;
-    color: var(--text-secondary);
+.obat-row.selected {
+    background-color: #cfe2ff !important;
 }
 
-.empty-state i {
-    font-size: 5rem;
-    color: #e2e8f0;
-    margin-bottom: 1rem;
+/* Satuan Table Row */
+#tableSatuan tbody tr {
+    cursor: pointer;
 }
 
-@keyframes fadeInDown {
-    from {
-        opacity: 0;
-        transform: translateY(-20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+#tableSatuan tbody tr:hover {
+    background-color: #e7f3ff;
 }
 
-.cart-items::-webkit-scrollbar {
-    width: 6px;
+/* Input Focus */
+input:focus, select:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
 }
 
-.cart-items::-webkit-scrollbar-thumb {
-    background: var(--primary-gradient);
-    border-radius: 10px;
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
 }
 
-@media (max-width: 992px) {
-    .cart-sticky {
-        position: static;
-    }
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Number input remove arrows */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type=number] {
+    -moz-appearance: textfield;
 }
 </style>
 
@@ -662,107 +462,79 @@
 @push('scripts')
 <script>
 let keranjang = [];
-let currentBarangData = null; // Simpan data barang sementara untuk modal
+let currentBarangData = null;
+let pendingList = [];
+let modalPilihObat, modalPilihSatuan, modalPending, modalCatatanPending;
 
-// Search barang
-$('#searchBarang').on('keyup', function() {
-    let keyword = $(this).val().toLowerCase();
+$(document).ready(function() {
+    // Initialize modals
+    modalPilihObat = new bootstrap.Modal(document.getElementById('modalPilihObat'));
+    modalPilihSatuan = new bootstrap.Modal(document.getElementById('modalPilihSatuan'));
+    modalPending = new bootstrap.Modal(document.getElementById('modalPending'));
+    modalCatatanPending = new bootstrap.Modal(document.getElementById('modalCatatanPending'));
     
-    $('.barang-col').each(function() {
-        let nama = $(this).find('.barang-card').data('nama');
-        let kode = $(this).find('.barang-card').data('kode');
-        
-        if (nama.includes(keyword) || kode.includes(keyword)) {
-            $(this).show();
-        } else {
-            $(this).hide();
+    // Load pending dari localStorage
+    loadPendingFromStorage();
+    
+    // ENTER to open modal
+    $('#inputKodeBarang').on('keypress', function(e) {
+        if (e.which === 13) {
+            e.preventDefault();
+            let keyword = $(this).val().trim();
+            modalPilihObat.show();
+            
+            setTimeout(function() {
+                $('#searchObat').val(keyword).focus().trigger('keyup');
+            }, 500);
         }
+    });
+    
+    // Search obat in modal
+    $('#searchObat').on('keyup', function() {
+        let keyword = $(this).val().toLowerCase();
+        
+        $('.obat-row').each(function() {
+            let nama = $(this).data('nama');
+            let kode = $(this).data('kode');
+            
+            if (nama.includes(keyword) || kode.includes(keyword)) {
+                $(this).show();
+            } else {
+                $(this).hide();
+            }
+        });
     });
 });
 
-// ✅ Tambah ke keranjang - BUKA MODAL JIKA ADA SATUAN KONVERSI
-function tambahKeKeranjang(barangId) {
+// Pilih barang langsung (klik baris = langsung masuk keranjang dengan satuan dasar)
+function pilihBarangLangsung(barangId) {
     $.get('/penjualan/barang/' + barangId, function(data) {
         currentBarangData = data;
+        modalPilihObat.hide();
         
-        // Jika ada satuan konversi, tampilkan modal
-        if (data.satuan_konversi && data.satuan_konversi.length > 0) {
-            tampilkanModalSatuan(data);
-        } else {
-            // Langsung tambah dengan satuan dasar
-            tambahKeKeranjangDenganSatuan(data.satuan_dasar, data.harga_jual);
-        }
+        // ✅ FIX: Gunakan data lengkap dari API
+        tambahKeKeranjang(data.satuan_dasar, data.harga_jual, 1);
     }).fail(function() {
         alert('Gagal mengambil data barang');
     });
 }
 
-// ✅ Tampilkan modal pilih satuan
-function tampilkanModalSatuan(data) {
-    $('#modalNamaBarang').text(data.nama_barang);
-    
-    let html = '';
-    
-    // Satuan dasar
-    html += `
-        <div class="satuan-option" onclick="pilihSatuan('${data.satuan_dasar}', ${data.harga_jual})">
-            <div class="satuan-name">
-                ${data.satuan_dasar}
-                <span class="satuan-badge">Satuan Dasar</span>
-            </div>
-            <div class="satuan-info">1 ${data.satuan_dasar}</div>
-            <div class="satuan-price">Rp ${formatRupiah(data.harga_jual)}</div>
-        </div>
-    `;
-    
-    // Satuan konversi
-    data.satuan_konversi.forEach(function(satuan) {
-        html += `
-            <div class="satuan-option" onclick="pilihSatuan('${satuan.nama_satuan}', ${satuan.harga_jual})">
-                <div class="satuan-name">${satuan.nama_satuan}</div>
-                <div class="satuan-info">
-                    ${satuan.jumlah_konversi} ${data.satuan_dasar} = 1 ${satuan.nama_satuan}
-                </div>
-                <div class="satuan-price">Rp ${formatRupiah(satuan.harga_jual)}</div>
-            </div>
-        `;
-    });
-    
-    $('#listSatuan').html(html);
-    
-    // Tampilkan modal
-    const modal = new bootstrap.Modal(document.getElementById('modalPilihSatuan'));
-    modal.show();
-}
-
-// ✅ Pilih satuan dari modal
-function pilihSatuan(namaSatuan, hargaSatuan) {
-    tambahKeKeranjangDenganSatuan(namaSatuan, hargaSatuan);
-    
-    // Tutup modal
-    const modal = bootstrap.Modal.getInstance(document.getElementById('modalPilihSatuan'));
-    modal.hide();
-}
-
-// ✅ Tambah ke keranjang dengan satuan tertentu
-function tambahKeKeranjangDenganSatuan(satuan, harga) {
+// Tambah ke keranjang
+function tambahKeKeranjang(satuan, harga, konversi) {
     const data = currentBarangData;
     
-    // Cari apakah sudah ada di keranjang dengan satuan yang sama
+    // ✅ FIX: Pastikan data lengkap
+    if (!data || !data.id) {
+        alert('Data barang tidak lengkap!');
+        return;
+    }
+    
+    // Cek apakah sudah ada di keranjang dengan satuan yang sama
     let existing = keranjang.find(item => 
         item.barang_id == data.id && item.satuan == satuan
     );
     
     if (existing) {
-        // Hitung stok dalam satuan terkecil
-        let konversi = 1;
-        if (satuan !== data.satuan_dasar) {
-            let satuanData = data.satuan_konversi.find(s => s.nama_satuan == satuan);
-            if (satuanData) {
-                konversi = satuanData.jumlah_konversi;
-            }
-        }
-        
         let stokDalamSatuan = Math.floor(data.stok / konversi);
         
         if (existing.qty < stokDalamSatuan) {
@@ -774,141 +546,243 @@ function tambahKeKeranjangDenganSatuan(satuan, harga) {
     } else {
         keranjang.push({
             barang_id: data.id,
+            kode_barang: data.kode_barang,  
             nama_barang: data.nama_barang,
             qty: 1,
             satuan: satuan,
-            harga: harga,
+            harga: harga,  
+            diskon: 0,
             stok: data.stok,
+            konversi: konversi,
             satuan_dasar: data.satuan_dasar,
+            harga_dasar: data.harga_jual, // ✅ TAMBAH: Simpan harga satuan dasar
             satuan_konversi: data.satuan_konversi
         });
     }
     
     renderKeranjang();
+    $('#inputKodeBarang').val('').focus();
 }
 
-// ✅ Render keranjang - TAMPILKAN SATUAN
+// Ganti satuan dari keranjang
+function gantiSatuan(index) {
+    const item = keranjang[index];
+    
+    // Tampilkan modal pilih satuan
+    $('#modalNamaBarang').text(item.nama_barang);
+    
+    let html = '';
+    
+    // ✅ FIX: Gunakan harga_dasar yang sudah disimpan
+    let hargaSatuanDasar = item.harga_dasar || item.harga;
+    
+    // Satuan dasar
+    html += `
+        <tr onclick="gantiSatuanItem(${index}, '${item.satuan_dasar}', ${hargaSatuanDasar}, 1)">
+            <td>
+                <strong>${item.satuan_dasar}</strong>
+                <span class="badge bg-success ms-2">Satuan Dasar</span>
+            </td>
+            <td class="text-center">1 ${item.satuan_dasar}</td>
+            <td class="text-end">
+                <strong class="text-primary">Rp ${formatRupiah(hargaSatuanDasar)}</strong>
+            </td>
+        </tr>
+    `;
+    
+    // Satuan konversi
+    if (item.satuan_konversi && item.satuan_konversi.length > 0) {
+        item.satuan_konversi.forEach(function(satuan) {
+            html += `
+                <tr onclick="gantiSatuanItem(${index}, '${satuan.nama_satuan}', ${satuan.harga_jual}, ${satuan.jumlah_konversi})">
+                    <td><strong>${satuan.nama_satuan}</strong></td>
+                    <td class="text-center">
+                        ${satuan.jumlah_konversi} ${item.satuan_dasar}
+                    </td>
+                    <td class="text-end">
+                        <strong class="text-primary">Rp ${formatRupiah(satuan.harga_jual)}</strong>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+    
+    $('#listSatuan').html(html);
+    modalPilihSatuan.show();
+}
+
+// Fungsi ganti satuan item di keranjang
+function gantiSatuanItem(index, namaSatuan, hargaSatuan, konversi) {
+    keranjang[index].satuan = namaSatuan;
+    keranjang[index].harga = hargaSatuan;
+    keranjang[index].konversi = konversi;
+    keranjang[index].qty = 1; // Reset qty ke 1
+    
+    modalPilihSatuan.hide();
+    renderKeranjang();
+}
+
+// Render keranjang
 function renderKeranjang() {
     let html = '';
     let total = 0;
     
     if (keranjang.length === 0) {
         html = `
-            <div class="empty-cart">
-                <i class="bi bi-cart-x"></i>
-                <p>Keranjang masih kosong</p>
-                <small>Pilih barang untuk memulai transaksi</small>
-            </div>
+            <tr>
+                <td colspan="8" class="text-center py-5 text-muted">
+                    <i class="bi bi-cart-x display-4 d-block mb-2"></i>
+                    Belum ada barang di keranjang
+                </td>
+            </tr>
         `;
-        $('.btn-clear-cart').hide();
-        $('#btnCheckout').prop('disabled', true);
     } else {
         keranjang.forEach((item, index) => {
-            let subtotal = item.qty * item.harga;
+            let subtotalBeforeDisc = item.qty * item.harga;
+            let discAmount = (subtotalBeforeDisc * item.diskon) / 100;
+            let subtotal = subtotalBeforeDisc - discAmount;
             total += subtotal;
             
             html += `
-                <div class="cart-item">
-                    <div class="cart-item-header">
-                        <div>
-                            <div class="cart-item-name">${item.nama_barang}</div>
-                            <div class="cart-item-satuan">
-                                <i class="bi bi-box-seam me-1"></i>${item.satuan}
-                                <span class="text-muted">@ Rp ${formatRupiah(item.harga)}</span>
-                            </div>
-                        </div>
-                        <button class="btn-remove-item" onclick="hapusItem(${index})">
-                            <i class="bi bi-x-lg"></i>
+                <tr>
+                    <td class="text-center">${index + 1}</td>
+                    <td>${item.kode_barang}</td>
+                    <td><strong>${item.nama_barang}</strong></td>
+                    <td>
+                        <input type="number" class="form-control form-control-sm text-center" 
+                               value="${item.qty}" min="1"
+                               onchange="updateQty(${index}, this.value)">
+                    </td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-outline-primary" onclick="gantiSatuan(${index})" title="Ganti Satuan">
+                            ${item.satuan} <i class="bi bi-pencil-square ms-1"></i>
                         </button>
-                    </div>
-                    <div class="cart-item-controls">
-                        <div class="qty-control">
-                            <button class="btn-qty" onclick="updateQty(${index}, ${item.qty - 1})">
-                                <i class="bi bi-dash"></i>
-                            </button>
-                            <input type="number" value="${item.qty}" class="qty-input" readonly>
-                            <button class="btn-qty" onclick="updateQty(${index}, ${item.qty + 1})">
-                                <i class="bi bi-plus"></i>
-                            </button>
-                        </div>
-                        <div class="cart-item-price">
-                            Rp ${formatRupiah(subtotal)}
-                        </div>
-                    </div>
-                </div>
+                    </td>
+                    <td class="text-end">${formatRupiah(item.harga)}</td>
+                    <td>
+                        <input type="number" class="form-control form-control-sm text-center" 
+                               value="${item.diskon}" min="0" max="100"
+                               onchange="updateDiskon(${index}, this.value)">
+                    </td>
+                    <td class="text-end">
+                        <strong>${formatRupiah(subtotal)}</strong>
+                        <button class="btn btn-sm btn-danger ms-2" onclick="hapusItem(${index})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
             `;
         });
-        $('.btn-clear-cart').show();
-        $('#btnCheckout').prop('disabled', false);
     }
     
     $('#cartItems').html(html);
-    $('#subtotalText').text('Rp ' + formatRupiah(total));
-    $('#totalHarga').text(formatRupiah(total));
+    $('#totalItems').text(keranjang.length + ' Item');
+    $('#subTotal').val(formatRupiah(total));
     
-    hitungKembalian();
+    hitungGrandTotal();
 }
 
-// ✅ Update qty - CEK STOK PER SATUAN
+// Update qty
 function updateQty(index, newQty) {
+    newQty = parseInt(newQty);
+    
     if (newQty < 1) {
         hapusItem(index);
         return;
     }
     
     const item = keranjang[index];
+    let stokDalamSatuan = Math.floor(item.stok / item.konversi);
     
-    // Hitung konversi ke satuan terkecil
-    let konversi = 1;
-    if (item.satuan !== item.satuan_dasar && item.satuan_konversi) {
-        let satuanData = item.satuan_konversi.find(s => s.nama_satuan == item
-
-        .satuan);
-if (satuanData) {
-konversi = satuanData.jumlah_konversi;
-}
-}
-let stokDalamSatuan = Math.floor(item.stok / konversi);
-
-if (newQty > stokDalamSatuan) {
-    alert(`Stok tidak cukup! Maksimal: ${stokDalamSatuan} ${item.satuan}`);
-    return;
+    if (newQty > stokDalamSatuan) {
+        alert(`Stok tidak cukup! Maksimal: ${stokDalamSatuan} ${item.satuan}`);
+        renderKeranjang();
+        return;
+    }
+    
+    keranjang[index].qty = newQty;
+    renderKeranjang();
 }
 
-keranjang[index].qty = newQty;
-renderKeranjang();
+// Update diskon
+function updateDiskon(index, diskon) {
+    keranjang[index].diskon = parseFloat(diskon) || 0;
+    renderKeranjang();
 }
+
+// Hapus item
 function hapusItem(index) {
-keranjang.splice(index, 1);
-renderKeranjang();
+    keranjang.splice(index, 1);
+    renderKeranjang();
 }
+
+// Clear keranjang
 function clearKeranjang() {
-if (confirm('Kosongkan semua barang di keranjang?')) {
-keranjang = [];
-renderKeranjang();
-$('#uangDibayar').val('');
+    if (keranjang.length > 0 && confirm('Batalkan transaksi dan kosongkan keranjang?')) {
+        keranjang = [];
+        renderKeranjang();
+        $('#uangDibayar').val('');
+        $('#diskonPersen').val('0');
+$('#ongkos').val('0');
+$('#inputKodeBarang').val('').focus();
 }
 }
+// Hitung Grand Total
+function hitungGrandTotal() {
+let subtotal = 0;
+keranjang.forEach(item => {
+let itemTotal = item.qty * item.harga;
+let discAmount = (itemTotal * item.diskon) / 100;
+subtotal += (itemTotal - discAmount);
+});
+let diskonPersen = parseFloat($('#diskonPersen').val()) || 0;
+let ongkos = parseInt($('#ongkos').val().replace(/\D/g, '')) || 0;
+
+let diskonNominal = (subtotal * diskonPersen) / 100;
+let grandTotal = subtotal - diskonNominal + ongkos;
+
+$('#grandTotal').text('Rp ' + formatRupiah(grandTotal));
+
+hitungKembalian();
+}
+// Event listeners untuk diskon dan ongkos
+$('#diskonPersen, #ongkos').on('keyup change', function() {
+hitungGrandTotal();
+});
+// Input uang dibayar
 $('#uangDibayar').on('keyup', function() {
 let value = $(this).val().replace(/\D/g, '');
 $(this).val(formatRupiah(value));
 hitungKembalian();
 });
+// Hitung kembalian
 function hitungKembalian() {
-let total = keranjang.reduce((sum, item) => sum + (item.qty * item.harga), 0);
+let subtotal = 0;
+keranjang.forEach(item => {
+let itemTotal = item.qty * item.harga;
+let discAmount = (itemTotal * item.diskon) / 100;
+subtotal += (itemTotal - discAmount);
+});
+let diskonPersen = parseFloat($('#diskonPersen').val()) || 0;
+let ongkos = parseInt($('#ongkos').val().replace(/\D/g, '')) || 0;
+let diskonNominal = (subtotal * diskonPersen) / 100;
+let grandTotal = subtotal - diskonNominal + ongkos;
+
 let uangDibayar = parseInt($('#uangDibayar').val().replace(/\D/g, '')) || 0;
-let kembalian = uangDibayar - total;
+let kembalian = uangDibayar - grandTotal;
+
 $('#kembalian').val(formatRupiah(kembalian > 0 ? kembalian : 0));
 
-if (uangDibayar >= total && total > 0) {
-    $('#btnCheckout').prop('disabled', false);
+if (uangDibayar >= grandTotal && grandTotal > 0) {
+    $('#btnSimpan').prop('disabled', false);
 } else {
-    $('#btnCheckout').prop('disabled', true);
+    $('#btnSimpan').prop('disabled', true);
 }
 }
+// Quick amount
 function setUangPas() {
-let total = keranjang.reduce((sum, item) => sum + (item.qty * item.harga), 0);
-$('#uangDibayar').val(formatRupiah(total));
+let grandTotal = $('#grandTotal').text().replace(/[^0-9]/g, '');
+$('#uangDibayar').val(formatRupiah(grandTotal));
 hitungKembalian();
 }
 function addAmount(amount) {
@@ -916,30 +790,181 @@ let current = parseInt($('#uangDibayar').val().replace(/\D/g, '')) || 0;
 $('#uangDibayar').val(formatRupiah(current + amount));
 hitungKembalian();
 }
+// ===========================================
+// FITUR PENDING
+// ===========================================
+// Simpan ke pending
+function simpanPending() {
+if (keranjang.length === 0) {
+alert('Keranjang masih kosong!');
+return;
+}
+// Tampilkan modal catatan
+$('#catatanPending').val('');
+modalCatatanPending.show();
+}
+// Konfirmasi pending
+function konfirmasiPending() {
+let catatan = $('#catatanPending').val().trim();
+let subtotal = 0;
+keranjang.forEach(item => {
+    let itemTotal = item.qty * item.harga;
+    let discAmount = (itemTotal * item.diskon) / 100;
+    subtotal += (itemTotal - discAmount);
+});
+
+let diskonPersen = parseFloat($('#diskonPersen').val()) || 0;
+let ongkos = parseInt($('#ongkos').val().replace(/\D/g, '')) || 0;
+let diskonNominal = (subtotal * diskonPersen) / 100;
+let grandTotal = subtotal - diskonNominal + ongkos;
+
+// Simpan ke pending list
+let pendingData = {
+    id: Date.now(),
+    waktu: new Date().toLocaleString('id-ID'),
+    items: JSON.parse(JSON.stringify(keranjang)),
+    total: grandTotal,
+    diskon_persen: diskonPersen,
+    ongkos: ongkos,
+    catatan: catatan || '-',
+    kasir: '{{ auth()->user()->name }}'
+};
+
+pendingList.push(pendingData);
+savePendingToStorage();
+
+modalCatatanPending.hide();
+
+// Reset form
+keranjang = [];
+renderKeranjang();
+$('#uangDibayar').val('');
+$('#diskonPersen').val('0');
+$('#ongkos').val('0');
+$('#inputKodeBarang').val('').focus();
+
+alert('Transaksi berhasil di-pending!');
+}
+// Tampilkan daftar pending
+function tampilkanPending() {
+let html = '';
+if (pendingList.length === 0) {
+    html = `
+        <tr>
+            <td colspan="7" class="text-center py-4 text-muted">
+                Belum ada transaksi pending
+            </td>
+        </tr>
+    `;
+} else {
+    pendingList.forEach((item, index) => {
+        html += `
+            <tr>
+                <td class="text-center">${index + 1}</td>
+                <td>${item.waktu}</td>
+                <td class="text-center">
+                    <span class="badge bg-info">${item.items.length} item</span>
+                </td>
+                <td class="text-end"><strong>Rp ${formatRupiah(item.total)}</strong></td>
+                <td>${item.catatan}</td>
+                <td>${item.kasir}</td>
+                <td class="text-center">
+                    <button class="btn btn-sm btn-success" onclick="muatPending(${index})" title="Lanjutkan">
+                        <i class="bi bi-play-fill"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="hapusPending(${index})" title="Hapus">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+$('#listPending').html(html);
+modalPending.show();
+}
+// Muat pending ke keranjang
+function muatPending(index) {
+if (keranjang.length > 0) {
+if (!confirm('Keranjang saat ini akan diganti dengan transaksi pending. Lanjutkan?')) {
+return;
+}
+}
+let pending = pendingList[index];
+
+// Load ke keranjang
+keranjang = JSON.parse(JSON.stringify(pending.items));
+$('#diskonPersen').val(pending.diskon_persen);
+$('#ongkos').val(pending.ongkos);
+
+// Hapus dari pending list
+pendingList.splice(index, 1);
+savePendingToStorage();
+
+modalPending.hide();
+renderKeranjang();
+
+alert('Transaksi pending berhasil dimuat!');
+}
+// Hapus pending
+function hapusPending(index) {
+if (confirm('Hapus transaksi pending ini?')) {
+pendingList.splice(index, 1);
+savePendingToStorage();
+tampilkanPending();
+}
+}
+// Save pending to localStorage
+function savePendingToStorage() {
+localStorage.setItem('pos_pending_{{ $shift->id }}', JSON.stringify(pendingList));
+}
+// Load pending from localStorage
+function loadPendingFromStorage() {
+let stored = localStorage.getItem('pos_pending_{{ $shift->id }}');
+if (stored) {
+pendingList = JSON.parse(stored);
+}
+}
+// ===========================================
+// PROSES TRANSAKSI
+// ===========================================
+// Proses transaksi
 function prosesTransaksi() {
 if (keranjang.length === 0) {
 alert('Keranjang masih kosong!');
 return;
 }
-let total = keranjang.reduce((sum, item) => sum + (item.qty * item.harga), 0);
+let subtotal = 0;
+keranjang.forEach(item => {
+    let itemTotal = item.qty * item.harga;
+    let discAmount = (itemTotal * item.diskon) / 100;
+    subtotal += (itemTotal - discAmount);
+});
+
+let diskonPersen = parseFloat($('#diskonPersen').val()) || 0;
+let ongkos = parseInt($('#ongkos').val().replace(/\D/g, '')) || 0;
+let diskonNominal = (subtotal * diskonPersen) / 100;
+let grandTotal = subtotal - diskonNominal + ongkos;
+
 let uangDibayar = parseInt($('#uangDibayar').val().replace(/\D/g, '')) || 0;
 
-if (uangDibayar < total) {
+if (uangDibayar < grandTotal) {
     alert('Uang tidak cukup!');
     return;
 }
 
-$('#btnCheckout').prop('disabled', true).html('<i class="bi bi-hourglass-split me-2"></i>Memproses...');
+$('#btnSimpan').prop('disabled', true).html('<i class="bi bi-hourglass-split me-2"></i>Memproses...');
 
 $.ajax({
     url: '/penjualan/store',
     method: 'POST',
     data: {
         items: keranjang,
-        total_bayar: total,
+        total_bayar: grandTotal,
         uang_dibayar: uangDibayar,
-        diskon: 0,                      
-        metode_pembayaran: 'cash',      
+        diskon: diskonNominal,
+        metode_pembayaran: 'cash',
         _token: $('meta[name="csrf-token"]').attr('content')
     },
     success: function(response) {
@@ -949,19 +974,83 @@ $.ajax({
             window.open('/penjualan/print/' + response.penjualan_id, '_blank');
         }
         
+        // Reset form
         keranjang = [];
         renderKeranjang();
         $('#uangDibayar').val('');
-        $('#btnCheckout').html('<i class="bi bi-check-circle me-2"></i>Proses Pembayaran');
+        $('#diskonPersen').val('0');
+        $('#ongkos').val('0');
+        $('#inputKodeBarang').val('').focus();
+        $('#btnSimpan').html('<i class="bi bi-save me-2"></i>Simpan (F3)');
     },
     error: function(xhr) {
-        alert('Error: ' + (xhr.responseJSON?.error || 'Terjadi kesalahan'));
-        $('#btnCheckout').prop('disabled', false).html('<i class="bi bi-check-circle me-2"></i>Proses Pembayaran');
+        alert('Error: ' + (xhr.responseJSON?.message || 'Terjadi kesalahan saat menyimpan'));
+        $('#btnSimpan').prop('disabled', false).html('<i class="bi bi-save me-2"></i>Simpan (F3)');
     }
 });
 }
+// ===========================================
+// UTILITIES
+// ===========================================
+// Format rupiah
 function formatRupiah(angka) {
-return new Intl.NumberFormat('id-ID').format(angka);
+if (!angka) return '0';
+let number_string = angka.toString().replace(/[^,\d]/g, '');
+let split = number_string.split(',');
+let sisa = split[0].length % 3;
+let rupiah = split[0].substr(0, sisa);
+let ribuan = split[0].substr(sisa).match(/\d{3}/gi);
+if (ribuan) {
+    let separator = sisa ? '.' : '';
+    rupiah += separator + ribuan.join('.');
 }
+
+rupiah = split[1] != undefined ? rupiah + ',' + split[1] : rupiah;
+return rupiah;
+}
+// ===========================================
+// KEYBOARD SHORTCUTS
+// ===========================================
+$(document).on('keydown', function(e) {
+// F2 - Focus uang dibayar
+if (e.key === 'F2') {
+e.preventDefault();
+$('#uangDibayar').focus().select();
+}
+// F3 - Simpan transaksi
+if (e.key === 'F3') {
+    e.preventDefault();
+    if (!$('#btnSimpan').prop('disabled')) {
+        prosesTransaksi();
+    }
+}
+
+// F4 - Pending
+if (e.key === 'F4') {
+    e.preventDefault();
+    if (keranjang.length > 0) {
+        simpanPending();
+    }
+}
+
+// ESC - Clear/Batal
+if (e.key === 'Escape') {
+    if ($('#modalPilihObat').hasClass('show')) {
+        modalPilihObat.hide();
+    } else if ($('#modalPilihSatuan').hasClass('show')) {
+        modalPilihSatuan.hide();
+    } else if ($('#modalPending').hasClass('show')) {
+        modalPending.hide();
+    } else if ($('#modalCatatanPending').hasClass('show')) {
+        modalCatatanPending.hide();
+    } else {
+        clearKeranjang();
+    }
+}
+});
+// Focus kembali ke input setelah modal ditutup
+$('#modalPilihObat, #modalPilihSatuan, #modalPending, #modalCatatanPending').on('hidden.bs.modal', function() {
+$('#inputKodeBarang').focus();
+});
 </script>
 @endpush

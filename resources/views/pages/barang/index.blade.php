@@ -17,7 +17,7 @@
             <form method="GET" class="row g-2 mb-4 align-items-end">
                 <div class="col-md-4">
                     <label for="search" class="form-label visually-hidden">Cari Barang</label>
-                    <input type="text" name="search" class="form-control" placeholder="Cari nama/kode..." value="{{ request('search') }}">
+                    <input type="text" name="search" class="form-control" placeholder="Cari nama/kode/barcode..." value="{{ request('search') }}">
                 </div>
                 <div class="col-md-3">
                     <label for="kategori" class="form-label visually-hidden">Kategori</label>
@@ -39,12 +39,13 @@
                     <thead>
                         <tr>
                             <th>Kode</th>
+                            <th>Barcode</th> {{-- ✅ KOLOM BARCODE BARU --}}
                             <th>Nama Barang</th>
                             <th>Kategori</th>
                             <th>Harga Beli</th>
                             <th>Harga Jual</th>
                             <th>Stok</th>
-                            <th>Lokasi Rak</th> {{-- ✅ KOLOM BARU --}}
+                            <th>Lokasi Rak</th>
                             <th>Aksi</th>
                         </tr>
                     </thead>
@@ -52,6 +53,16 @@
                         @forelse($barang as $item)
                         <tr>
                             <td>{{ $item->kode_barang }}</td>
+                            <td>
+                                {{-- ✅ TAMPILAN BARCODE dengan icon --}}
+                                @if($item->barcode)
+                                    <span class="badge bg-info text-dark">
+                                        <i class="bi bi-upc-scan"></i> {{ $item->barcode }}
+                                    </span>
+                                @else
+                                    <span class="text-muted">-</span>
+                                @endif
+                            </td>
                             <td>{{ $item->nama_barang }}</td>
                             <td><span class="badge bg-secondary">{{ $item->kategori }}</span></td>
                             <td>Rp {{ number_format($item->harga_beli, 0, ',', '.') }}</td>
@@ -61,7 +72,7 @@
                                     {{ $item->stok }} {{ $item->satuan_terkecil }}
                                 </span>
                             </td>
-                            <td>{{ $item->lokasi_rak ?? '-' }}</td> {{-- ✅ MENAMPILKAN DATA LOKASI RAK --}}
+                            <td>{{ $item->lokasi_rak ?? '-' }}</td>
                             <td>
                                 <a href="{{ route('barang.edit', $item->id) }}" class="btn btn-sm btn-warning me-1" title="Edit">
                                     <i class="bi bi-pencil"></i>
@@ -76,7 +87,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="8" class="text-center py-4">Tidak ada data barang yang ditemukan.</td> {{-- ✅ COLSPAN DISESUAIKAN menjadi 8 --}}
+                            <td colspan="9" class="text-center py-4">Tidak ada data barang yang ditemukan.</td> {{-- ✅ COLSPAN disesuaikan menjadi 9 --}}
                         </tr>
                         @endforelse
                     </tbody>
