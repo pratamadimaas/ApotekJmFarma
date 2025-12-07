@@ -93,7 +93,7 @@
                             <tbody>
                                 @forelse ($perHari as $hari)
                                 <tr>
-                                    <td>{{ Carbon::parse($hari->tanggal)->format('d M Y') }}</td>
+                                    <td>{{ \Carbon\Carbon::parse($hari->tanggal)->format('d M Y') }}</td>
                                     <td class="text-end">{{ $hari->jumlah_transaksi }}</td>
                                     <td class="text-end">{{ number_format($hari->total, 0, ',', '.') }}</td>
                                 </tr>
