@@ -47,18 +47,28 @@ Route::middleware('auth')->group(function () {
     });
 
     // --- Master Barang (CRUD Penuh) ---
+    Route::get('/barang/search', [StokOpnameController::class, 'searchBarang'])->name('barang.search');
     Route::get('/barang/harga-satuan', [BarangController::class, 'hargaSatuan'])->name('barang.harga-satuan');
     Route::resource('barang', BarangController::class);
     Route::get('/barang/{id}/satuan', [BarangController::class, 'getSatuan'])->name('barang.satuan');
     
-    // --- Shift ---
+    // --- Shift Management (UPDATED - Blind Closing System) ---
     Route::prefix('shift')->name('shift.')->group(function () {
+        // Buka Shift
         Route::get('/buka', [ShiftController::class, 'formBuka'])->name('buka.form');
         Route::post('/buka', [ShiftController::class, 'buka'])->name('buka.store');
+        
+        // Tutup Shift (Blind Closing - Tidak tampilkan data penjualan)
         Route::get('/tutup', [ShiftController::class, 'formTutup'])->name('tutup.form');
         Route::post('/tutup', [ShiftController::class, 'tutup'])->name('tutup.store');
+        
+        Route::get('/hasil/{id}', [ShiftController::class, 'hasil'])->name('hasil');
+        
+        // Riwayat & Detail Shift
         Route::get('/riwayat', [ShiftController::class, 'riwayat'])->name('riwayat');
         Route::get('/riwayat/{id}', [ShiftController::class, 'detail'])->name('detail');
+        
+        // ✅ UPDATED: Cetak Laporan 58mm (Thermal Printer Format)
         Route::get('/riwayat/{id}/cetak', [ShiftController::class, 'cetakLaporan'])->name('cetakLaporan');
     });
 
@@ -81,6 +91,29 @@ Route::middleware('auth')->group(function () {
     Route::get('/change-password', [UserController::class, 'showChangePasswordForm'])->name('change.password.form');
     Route::post('/change-password', [UserController::class, 'changePassword'])->name('change.password');
 
+    // ✅ --- Stok Opname dengan Scan Barcode (SEMUA USER: Admin & Kasir) ---
+    Route::prefix('stokopname')->name('stokopname.')->group(function () {
+        // Halaman utama (daftar riwayat SO)
+        Route::get('/', [StokOpnameController::class, 'index'])->name('index');
+        
+        // Halaman scan barcode (create sesi baru)
+        Route::get('/create', [StokOpnameController::class, 'create'])->name('create');
+        
+        // API untuk scan barcode
+        Route::post('/scan', [StokOpnameController::class, 'scanBarcode'])->name('scan');
+        
+        // Update item (stok fisik & expired date)
+        Route::put('/item/{id}', [StokOpnameController::class, 'updateItem'])->name('update-item');
+        
+        // Delete item dari sesi
+        Route::delete('/item/{id}', [StokOpnameController::class, 'deleteItem'])->name('delete-item');
+        
+        // Finalize SO (selesaikan dan update stok sistem)
+        Route::post('/{id}/finalize', [StokOpnameController::class, 'finalize'])->name('finalize');
+        
+        // Lihat detail sesi SO yang sudah selesai
+        Route::get('/{id}', [StokOpnameController::class, 'show'])->name('show');
+    });
 
     /*
     |--------------------------------------------------------------------------
@@ -112,30 +145,6 @@ Route::middleware('auth')->group(function () {
         Route::prefix('settings')->name('settings.')->group(function () {
             Route::get('/', [SettingController::class, 'index'])->name('index');
             Route::post('/update', [SettingController::class, 'update'])->name('update');
-        });
-        
-        // ✅ FITUR STOK OPNAME DENGAN SCAN BARCODE (ADMIN ONLY)
-        Route::prefix('stokopname')->name('stokopname.')->group(function () {
-            // Halaman utama (daftar riwayat SO)
-            Route::get('/', [StokOpnameController::class, 'index'])->name('index');
-            
-            // Halaman scan barcode (create sesi baru)
-            Route::get('/create', [StokOpnameController::class, 'create'])->name('create');
-            
-            // API untuk scan barcode
-            Route::post('/scan', [StokOpnameController::class, 'scanBarcode'])->name('scan');
-            
-            // Update item (stok fisik & expired date)
-            Route::put('/item/{id}', [StokOpnameController::class, 'updateItem'])->name('update-item');
-            
-            // Delete item dari sesi
-            Route::delete('/item/{id}', [StokOpnameController::class, 'deleteItem'])->name('delete-item');
-            
-            // Finalize SO (selesaikan dan update stok sistem)
-            Route::post('/{id}/finalize', [StokOpnameController::class, 'finalize'])->name('finalize');
-            
-            // Lihat detail sesi SO yang sudah selesai
-            Route::get('/{id}', [StokOpnameController::class, 'show'])->name('show');
         });
     });
 });

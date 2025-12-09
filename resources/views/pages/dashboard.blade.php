@@ -86,9 +86,115 @@
             </div>
         </div>
 
-        <!-- Card 3: Stok Minimal -->
+        <!-- Card 3: Laba Hari Ini -->
+        <div class="col-xl-3 col-md-6">
+            <div class="stat-card stat-card-info">
+                <div class="stat-card-icon">
+                    <i class="bi bi-piggy-bank-fill"></i>
+                </div>
+                <div class="stat-card-content">
+                    <span class="stat-label">Laba Hari Ini</span>
+                    <h3 class="stat-value">Rp {{ number_format($labaHariIni, 0, ',', '.') }}</h3>
+                    <div class="stat-footer">
+                        <i class="bi bi-graph-up me-1"></i>
+                        @if($penjualanHariIni > 0)
+                            Margin: {{ number_format(($labaHariIni / $penjualanHariIni) * 100, 1) }}%
+                        @else
+                            Margin: 0%
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 4: Laba Bulan Ini -->
         <div class="col-xl-3 col-md-6">
             <div class="stat-card stat-card-warning">
+                <div class="stat-card-icon">
+                    <i class="bi bi-wallet2"></i>
+                </div>
+                <div class="stat-card-content">
+                    <span class="stat-label">Laba Bulan Ini</span>
+                    <h3 class="stat-value">Rp {{ number_format($labaBulanIni, 0, ',', '.') }}</h3>
+                    <div class="stat-footer">
+                        <i class="bi bi-graph-up me-1"></i>
+                        @if($penjualanBulanIni > 0)
+                            Margin: {{ number_format(($labaBulanIni / $penjualanBulanIni) * 100, 1) }}%
+                        @else
+                            Margin: 0%
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shift Aktif Semua User -->
+    @if($shiftAktifSemua->count() > 0)
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card-modern">
+                <div class="card-modern-header">
+                    <div class="d-flex align-items-center">
+                        <div class="card-icon me-3">
+                            <i class="bi bi-people-fill"></i>
+                        </div>
+                        <div>
+                            <h5 class="card-modern-title mb-0">Shift Aktif Saat Ini</h5>
+                            <small class="text-muted">{{ $shiftAktifSemua->count() }} user sedang bertugas</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-modern-body">
+                    <div class="row g-3">
+                        @foreach($shiftAktifSemua as $shift)
+                        <div class="col-xl-3 col-lg-4 col-md-6">
+                            <div class="shift-active-card">
+                                <div class="shift-active-header">
+                                    <div class="shift-active-avatar">
+                                        <i class="bi bi-person-circle"></i>
+                                    </div>
+                                    <div class="shift-active-info">
+                                        <div class="shift-active-name">{{ $shift->user->name }}</div>
+                                        <div class="shift-active-role">
+                                            <i class="bi bi-briefcase me-1"></i>
+                                            {{ ucfirst($shift->user->role ?? 'kasir') }}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="shift-active-details">
+                                    <div class="shift-detail-item">
+                                        <i class="bi bi-clock-history"></i>
+                                        <span>{{ \Carbon\Carbon::parse($shift->waktu_buka)->format('H:i') }}</span>
+                                    </div>
+                                    <div class="shift-detail-item">
+                                        <i class="bi bi-hash"></i>
+                                        <span>Shift #{{ $shift->id }}</span>
+                                    </div>
+                                    <div class="shift-detail-item">
+                                        <i class="bi bi-cash-stack"></i>
+                                        <span>Rp {{ number_format($shift->modal_awal ?? 0, 0, ',', '.') }}</span>
+                                    </div>
+                                </div>
+                                <div class="shift-active-status">
+                                    <span class="badge bg-success-soft">
+                                        <i class="bi bi-circle-fill pulse-dot me-1"></i>Aktif
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
+
+    <!-- Second Stats Row -->
+    <div class="row g-4 mb-4">
+        <div class="col-xl-4 col-md-6">
+            <div class="stat-card stat-card-danger">
                 <div class="stat-card-icon">
                     <i class="bi bi-exclamation-triangle"></i>
                 </div>
@@ -103,9 +209,8 @@
             </div>
         </div>
 
-        <!-- Card 4: Barang Terlaris -->
-        <div class="col-xl-3 col-md-6">
-            <div class="stat-card stat-card-info">
+        <div class="col-xl-4 col-md-6">
+            <div class="stat-card stat-card-purple">
                 <div class="stat-card-icon">
                     <i class="bi bi-star-fill"></i>
                 </div>
@@ -119,11 +224,26 @@
                 </div>
             </div>
         </div>
+
+        <div class="col-xl-4 col-md-6">
+            <div class="stat-card stat-card-teal">
+                <div class="stat-card-icon">
+                    <i class="bi bi-receipt-cutoff"></i>
+                </div>
+                <div class="stat-card-content">
+                    <span class="stat-label">Total Transaksi</span>
+                    <h3 class="stat-value">{{ \App\Models\Penjualan::thisMonth()->count() }}</h3>
+                    <div class="stat-footer">
+                        <i class="bi bi-calendar-month me-1"></i>
+                        Bulan ini
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Charts & Tables Row -->
     <div class="row g-4 mb-4">
-        <!-- Chart: Penjualan 7 Hari -->
         <div class="col-xl-8">
             <div class="card-modern">
                 <div class="card-modern-header">
@@ -143,7 +263,6 @@
             </div>
         </div>
 
-        <!-- Top Barang Terlaris -->
         <div class="col-xl-4">
             <div class="card-modern">
                 <div class="card-modern-header">
@@ -232,6 +351,9 @@
     @endif
 </div>
 
+@endsection
+
+@push('styles')
 <style>
 /* Dashboard Apotek Theme */
 :root {
@@ -240,10 +362,15 @@
     --apotek-warning: #f59e0b;
     --apotek-danger: #ef4444;
     --apotek-info: #3b82f6;
+    --apotek-teal: #14b8a6;
+    --apotek-purple: #8b5cf6;
     --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     --gradient-success: linear-gradient(135deg, #10b981 0%, #059669 100%);
     --gradient-warning: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
     --gradient-info: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    --gradient-danger: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    --gradient-teal: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+    --gradient-purple: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
 }
 
 /* Welcome Header */
@@ -352,6 +479,18 @@
     background: var(--gradient-info);
 }
 
+.stat-card-danger .stat-card-icon {
+    background: var(--gradient-danger);
+}
+
+.stat-card-teal .stat-card-icon {
+    background: var(--gradient-teal);
+}
+
+.stat-card-purple .stat-card-icon {
+    background: var(--gradient-purple);
+}
+
 .stat-label {
     display: block;
     color: #6b7280;
@@ -393,10 +532,128 @@
     -webkit-text-fill-color: transparent;
 }
 
+.stat-card-danger .stat-value {
+    background: var(--gradient-danger);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.stat-card-teal .stat-value {
+    background: var(--gradient-teal);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.stat-card-purple .stat-value {
+    background: var(--gradient-purple);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
 .stat-footer {
     color: #9ca3af;
     font-size: 0.85rem;
     margin-top: 0.5rem;
+}
+
+/* Shift Active Cards */
+.shift-active-card {
+    background: white;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 1rem;
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+.shift-active-card:hover {
+    border-color: var(--apotek-success);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+    transform: translateY(-2px);
+}
+
+.shift-active-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.shift-active-avatar {
+    width: 48px;
+    height: 48px;
+    background: var(--gradient-success);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.5rem;
+    margin-right: 0.75rem;
+    flex-shrink: 0;
+}
+
+.shift-active-info {
+    flex: 1;
+}
+
+.shift-active-name {
+    font-weight: 700;
+    color: #1f2937;
+    font-size: 0.95rem;
+    margin-bottom: 0.25rem;
+}
+
+.shift-active-role {
+    font-size: 0.8rem;
+    color: #6b7280;
+}
+
+.shift-active-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.shift-detail-item {
+    display: flex;
+    align-items: center;
+    font-size: 0.85rem;
+    color: #4b5563;
+}
+
+.shift-detail-item i {
+    width: 20px;
+    color: var(--apotek-success);
+    margin-right: 0.5rem;
+}
+
+.shift-active-status {
+    text-align: center;
+}
+
+.bg-success-soft {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--apotek-success);
+    font-size: 0.75rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    font-weight: 600;
+}
+
+.pulse-dot {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
 }
 
 /* Modern Cards */
@@ -573,18 +830,16 @@
     .welcome-title {
         font-size: 1.5rem;
     }
-    
-    .stat-value {
-        font-size: 1.5rem;
-    }
-    
-    .shift-badge-large {
-        margin-top: 1rem;
-    }
+.stat-value {
+    font-size: 1.5rem;
+}
+
+.shift-badge-large {
+    margin-top: 1rem;
+}
 }
 </style>
-@endsection
-
+@endpush
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>

@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Penjualan;
 use App\Models\Barang;
 use App\Models\Shift;
+use App\Models\DetailPenjualan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Carbon\Carbon;
 
 class DashboardController extends Controller
 {
@@ -21,18 +23,25 @@ class DashboardController extends Controller
         // Total Penjualan Bulan Ini
         $penjualanBulanIni = Penjualan::thisMonth()->sum('grand_total');
         
+        // ✅ BARU: Laba Hari Ini
+        $labaHariIni = $this->hitungLaba('today');
+        
+        // ✅ BARU: Laba Bulan Ini
+        $labaBulanIni = $this->hitungLaba('thisMonth');
+        
         // Jumlah Barang dengan Stok Minimum
         $barangStokMinimum = Barang::stokMinimum()->count();
         
-        // ✅ PERBAIKAN: Shift Aktif - ubah 'open' menjadi 'aktif' atau gunakan whereNull
+        // ✅ Shift Aktif User Login
         $shiftAktif = Shift::where('user_id', Auth::id())
-            ->whereNull('waktu_tutup')  // ✅ Cara terbaik: cek waktu_tutup NULL
+            ->whereNull('waktu_tutup')
             ->first();
         
-        // Alternative jika pakai kolom status:
-        // $shiftAktif = Shift::where('user_id', Auth::id())
-        //     ->where('status', 'aktif')  // ✅ Sesuai dengan ShiftController
-        //     ->first();
+        // ✅ BARU: Semua Shift Aktif (untuk ditampilkan)
+        $shiftAktifSemua = Shift::whereNull('waktu_tutup')
+            ->with('user')
+            ->orderBy('waktu_buka', 'desc')
+            ->get();
         
         // Top 5 Barang Terlaris Bulan Ini
         $barangTerlaris = DB::table('detail_penjualan')
@@ -42,7 +51,7 @@ class DashboardController extends Controller
             ->whereYear('penjualan.tanggal_penjualan', now()->year)
             ->select(
                 'barang.nama_barang',
-                DB::raw('SUM(detail_penjualan.jumlah) as total_terjual'),  // ✅ Ubah qty ke jumlah
+                DB::raw('SUM(detail_penjualan.jumlah) as total_terjual'),
                 DB::raw('SUM(detail_penjualan.subtotal) as total_pendapatan')
             )
             ->groupBy('barang.id', 'barang.nama_barang')
@@ -70,11 +79,45 @@ class DashboardController extends Controller
             'penjualanHariIni',
             'transaksiHariIni',
             'penjualanBulanIni',
+            'labaHariIni',          // ✅ BARU
+            'labaBulanIni',         // ✅ BARU
             'barangStokMinimum',
             'shiftAktif',
+            'shiftAktifSemua',      // ✅ BARU
             'barangTerlaris',
             'penjualan7Hari',
             'barangHabis'
         ));
+    }
+    
+    /**
+     * ✅ FUNGSI BARU: Menghitung Laba Berdasarkan Period
+     * 
+     * @param string $period 'today' atau 'thisMonth'
+     * @return float
+     */
+    private function hitungLaba($period)
+    {
+        $query = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
+            ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id');
+        
+        // Filter berdasarkan periode
+        if ($period === 'today') {
+            $query->whereDate('penjualan.tanggal_penjualan', Carbon::today());
+        } elseif ($period === 'thisMonth') {
+            $query->whereMonth('penjualan.tanggal_penjualan', now()->month)
+                  ->whereYear('penjualan.tanggal_penjualan', now()->year);
+        }
+        
+        // Hitung: Total Penjualan - Total HPP
+        $hasil = $query->select(
+            DB::raw('SUM(detail_penjualan.subtotal) as total_penjualan'),
+            DB::raw('SUM(detail_penjualan.jumlah * barang.harga_beli) as total_hpp')
+        )->first();
+        
+        $totalPenjualan = $hasil->total_penjualan ?? 0;
+        $totalHpp = $hasil->total_hpp ?? 0;
+        
+        return $totalPenjualan - $totalHpp;
     }
 }

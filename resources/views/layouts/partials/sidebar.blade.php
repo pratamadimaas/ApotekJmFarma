@@ -1,4 +1,12 @@
-<div class="sidebar">
+<div class="sidebar" id="sidebar">
+    <!-- 🔥 TOMBOL CLOSE untuk Mobile -->
+    <div class="d-lg-none p-3 border-bottom">
+        <button class="btn btn-link float-end" id="sidebarClose" type="button">
+            <i class="bi bi-x-lg fs-4" style="color: var(--text-secondary);"></i>
+        </button>
+        <h5 class="mb-0">Menu</h5>
+    </div>
+    
     <nav class="nav flex-column">
         {{-- DASHBOARD (Akses universal) --}}
         <a class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}">
@@ -28,7 +36,6 @@
             </a>
 
             <div class="collapse {{ request()->routeIs('shift.*') ? 'show' : '' }}" id="shiftMenu">
-
                 <nav class="nav flex-column ms-3">
                     <a class="nav-link {{ request()->routeIs('shift.buka.form') ? 'active' : '' }}"
                     href="{{ route('shift.buka.form') }}">
@@ -140,7 +147,7 @@
                     </nav>
                 </div>
             </div>
-        @endif {{-- 🛑 END: AREA KHUSUS ADMINISTRATOR --}}
+        @endif 
         
     </nav>
     

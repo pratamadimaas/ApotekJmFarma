@@ -33,10 +33,105 @@ class PembelianController extends Controller
             $query->where('supplier_id', $request->supplier_id);
         }
 
+        // ✅ Filter Status (tidak termasuk pending)
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        } else {
+            // Default: tampilkan semua kecuali pending
+            $query->whereNotIn('status', ['pending']);
+        }
+
         $pembelian = $query->orderBy('tanggal_pembelian', 'desc')->paginate(20);
         $suppliers = Supplier::all();
 
         return view('pages.pembelian.index', compact('pembelian', 'suppliers'));
+    }
+
+    // ✅ FITUR BARU: Daftar Pembelian Pending
+    public function pending(Request $request)
+    {
+        $query = Pembelian::with(['supplier', 'user', 'detailPembelian.barang'])
+                         ->where('status', 'pending');
+
+        if ($request->filled('tanggal_dari')) {
+            $query->whereDate('tanggal_pembelian', '>=', $request->tanggal_dari); 
+        }
+
+        if ($request->filled('tanggal_sampai')) {
+            $query->whereDate('tanggal_pembelian', '<=', $request->tanggal_sampai); 
+        }
+
+        if ($request->filled('no_faktur')) {
+            $query->where('nomor_pembelian', 'LIKE', "%{$request->no_faktur}%"); 
+        }
+
+        if ($request->filled('supplier_id')) {
+            $query->where('supplier_id', $request->supplier_id);
+        }
+
+        $pembelian = $query->orderBy('tanggal_pembelian', 'desc')->paginate(20);
+        $suppliers = Supplier::all();
+
+        return view('pages.pembelian.pending', compact('pembelian', 'suppliers'));
+    }
+
+    // ✅ FITUR BARU: Approve Pembelian Pending
+    public function approve($id)
+    {
+        DB::beginTransaction();
+        try {
+            $pembelian = Pembelian::with('detailPembelian.barang')->findOrFail($id);
+
+            if ($pembelian->status !== 'pending') {
+                return back()->with('error', 'Pembelian ini sudah diproses!');
+            }
+
+            // Update stok saat approve
+            foreach ($pembelian->detailPembelian as $detail) {
+                $barang = $detail->barang;
+                
+                $qtyDasar = $detail->jumlah;
+                if ($detail->satuan !== $barang->satuan_terkecil) {
+                    $konversi = SatuanKonversi::where('barang_id', $barang->id)
+                                             ->where('nama_satuan', $detail->satuan)
+                                             ->first();
+                    if ($konversi) {
+                        $qtyDasar = $detail->jumlah * $konversi->jumlah_konversi;
+                    }
+                }
+
+                // Tambah stok
+                $barang->increment('stok', $qtyDasar);
+
+                // Update harga jual di satuan konversi atau barang
+                if ($detail->satuan !== $barang->satuan_terkecil) {
+                    $konversi = SatuanKonversi::where('barang_id', $barang->id)
+                                             ->where('nama_satuan', $detail->satuan)
+                                             ->first();
+                    if ($konversi && isset($detail->harga_jual_baru)) {
+                        $konversi->update(['harga_jual' => $detail->harga_jual_baru]);
+                    }
+                } else {
+                    if (isset($detail->harga_jual_baru)) {
+                        $barang->update([
+                            'harga_beli' => $detail->harga_beli,
+                            'harga_jual' => $detail->harga_jual_baru
+                        ]);
+                    }
+                }
+            }
+
+            $pembelian->update(['status' => 'approved']);
+
+            DB::commit();
+
+            return redirect()->route('pembelian.show', $pembelian->id)
+                           ->with('success', 'Pembelian berhasil diapprove dan stok telah ditambahkan!');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Error: ' . $e->getMessage());
+        }
     }
 
     public function create()
@@ -47,7 +142,7 @@ class PembelianController extends Controller
         return view('pages.pembelian.create', compact('suppliers', 'barang'));
     }
 
-    // ✅ Store Pembelian - HANDLE MULTI SATUAN & UPDATE HARGA
+    // ✅ Store Pembelian dengan opsi PENDING atau APPROVED
     public function store(Request $request)
     {
         $request->validate([
@@ -62,10 +157,14 @@ class PembelianController extends Controller
             'items.*.harga_jual' => 'required|numeric|min:0',
             'total_harga' => 'required|numeric|min:0',
             'total_bayar' => 'required|numeric|min:0',
+            'status' => 'nullable|in:pending,approved', // ✅ Validasi status
         ]);
 
         DB::beginTransaction();
         try {
+            // ✅ Tentukan status (default: approved jika tidak ada)
+            $status = $request->status ?? 'approved';
+
             $pembelian = Pembelian::create([
                 'nomor_pembelian' => $request->no_faktur,
                 'tanggal_pembelian' => $request->tanggal,
@@ -75,11 +174,11 @@ class PembelianController extends Controller
                 'pajak' => $request->ppn ?? 0,
                 'grand_total' => $request->total_bayar,
                 'user_id' => Auth::id(),
-                'status' => $request->status ?? 'approved',
+                'status' => $status, // ✅ Simpan status
                 'keterangan' => $request->keterangan
             ]);
 
-            // ✅ Simpan Detail & Update Harga Per Satuan
+            // ✅ Simpan Detail & Update Stok/Harga (hanya jika APPROVED)
             foreach ($request->items as $item) {
                 $barang = Barang::findOrFail($item['barang_id']);
 
@@ -95,7 +194,7 @@ class PembelianController extends Controller
                     }
                 }
 
-                // Simpan detail
+                // Simpan detail dengan harga jual baru
                 DetailPembelian::create([
                     'pembelian_id' => $pembelian->id,
                     'barang_id' => $barang->id,
@@ -104,35 +203,40 @@ class PembelianController extends Controller
                     'harga_beli' => $item['harga_beli'],
                     'subtotal' => $item['qty'] * $item['harga_beli'],
                     'tanggal_kadaluarsa' => $item['tanggal_kadaluarsa'] ?? null,
+                    'harga_jual_baru' => $item['harga_jual'], // ✅ Simpan harga jual baru
                 ]);
 
-                // Tambah stok
-                $barang->increment('stok', $qtyDasar);
+                // ✅ Update stok dan harga HANYA jika status APPROVED
+                if ($status === 'approved') {
+                    // Tambah stok
+                    $barang->increment('stok', $qtyDasar);
 
-                // ✅ UPDATE HARGA: Jika satuan bukan dasar, update di satuan_konversi
-                if ($item['satuan'] !== $barang->satuan_terkecil) {
-                    $konversi = SatuanKonversi::where('barang_id', $barang->id)
-                                             ->where('nama_satuan', $item['satuan'])
-                                             ->first();
-                    
-                    if ($konversi) {
-                        $konversi->update([
+                    // Update harga jual
+                    if ($item['satuan'] !== $barang->satuan_terkecil) {
+                        $konversi = SatuanKonversi::where('barang_id', $barang->id)
+                                                 ->where('nama_satuan', $item['satuan'])
+                                                 ->first();
+                        
+                        if ($konversi) {
+                            $konversi->update(['harga_jual' => $item['harga_jual']]);
+                        }
+                    } else {
+                        $barang->update([
+                            'harga_beli' => $item['harga_beli'],
                             'harga_jual' => $item['harga_jual']
                         ]);
                     }
-                } else {
-                    // Update harga dasar di tabel barang
-                    $barang->update([
-                        'harga_beli' => $item['harga_beli'],
-                        'harga_jual' => $item['harga_jual']
-                    ]);
                 }
             }
 
             DB::commit();
 
+            $message = $status === 'pending' 
+                ? 'Pembelian berhasil disimpan sebagai PENDING!' 
+                : 'Pembelian berhasil disimpan dan APPROVED!';
+
             return redirect()->route('pembelian.show', $pembelian->id)
-                             ->with('success', 'Pembelian berhasil disimpan!');
+                             ->with('success', $message);
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -156,7 +260,7 @@ class PembelianController extends Controller
         return view('pages.pembelian.edit', compact('pembelian', 'suppliers', 'barang'));
     }
 
-    // ✅ Update Pembelian - HANDLE MULTI SATUAN
+    // ✅ Update Pembelian dengan status handling
     public function update(Request $request, $id)
     {
         $request->validate([
@@ -164,34 +268,39 @@ class PembelianController extends Controller
             'no_faktur' => 'required|string|unique:pembelian,nomor_pembelian,' . $id,
             'tanggal' => 'required|date',
             'items' => 'required|array|min:1',
-            'items.*.barang_id' => 'required|exists:barang,id', // ✅ TAMBAHKAN validasi ini
+            'items.*.barang_id' => 'required|exists:barang,id',
             'items.*.qty' => 'required|numeric|min:1',
             'items.*.satuan' => 'required|string',
             'items.*.harga_beli' => 'required|numeric|min:0',
-            'items.*.harga_jual' => 'required|numeric|min:0', // ✅ TAMBAHKAN validasi ini
+            'items.*.harga_jual' => 'required|numeric|min:0',
             'total_harga' => 'required|numeric|min:0',
             'total_bayar' => 'required|numeric|min:0',
+            'status' => 'nullable|in:pending,approved',
         ]);
 
         DB::beginTransaction();
         try {
             $pembelian = Pembelian::findOrFail($id);
+            $statusLama = $pembelian->status;
+            $statusBaru = $request->status ?? 'approved';
 
-            // Kembalikan stok lama
-            foreach ($pembelian->detailPembelian as $detail) {
-                $barang = $detail->barang;
-                
-                $qtyDasar = $detail->jumlah;
-                if ($detail->satuan !== $barang->satuan_terkecil) {
-                    $konversi = SatuanKonversi::where('barang_id', $barang->id)
-                                             ->where('nama_satuan', $detail->satuan)
-                                             ->first();
-                    if ($konversi) {
-                        $qtyDasar = $detail->jumlah * $konversi->jumlah_konversi;
+            // ✅ Jika status lama APPROVED, kembalikan stok dulu
+            if ($statusLama === 'approved') {
+                foreach ($pembelian->detailPembelian as $detail) {
+                    $barang = $detail->barang;
+                    
+                    $qtyDasar = $detail->jumlah;
+                    if ($detail->satuan !== $barang->satuan_terkecil) {
+                        $konversi = SatuanKonversi::where('barang_id', $barang->id)
+                                                 ->where('nama_satuan', $detail->satuan)
+                                                 ->first();
+                        if ($konversi) {
+                            $qtyDasar = $detail->jumlah * $konversi->jumlah_konversi;
+                        }
                     }
+                    
+                    $barang->decrement('stok', $qtyDasar);
                 }
-                
-                $barang->decrement('stok', $qtyDasar);
             }
 
             // Hapus detail lama
@@ -206,7 +315,7 @@ class PembelianController extends Controller
                 'diskon' => $request->diskon ?? 0,
                 'pajak' => $request->ppn ?? 0,
                 'grand_total' => $request->total_bayar ?? $request->total_harga,
-                'status' => $request->status ?? 'approved',
+                'status' => $statusBaru,
                 'keterangan' => $request->keterangan
             ]);
 
@@ -231,24 +340,28 @@ class PembelianController extends Controller
                     'satuan' => $item['satuan'],
                     'harga_beli' => $item['harga_beli'],
                     'subtotal' => $item['qty'] * $item['harga_beli'],
-                    'tanggal_kadaluarsa' => $item['tanggal_kadaluarsa'] ?? null
+                    'tanggal_kadaluarsa' => $item['tanggal_kadaluarsa'] ?? null,
+                    'harga_jual_baru' => $item['harga_jual'],
                 ]);
 
-                $barang->increment('stok', $qtyDasar);
-                
-                // Update harga
-                if ($item['satuan'] !== $barang->satuan_terkecil) {
-                    $konversi = SatuanKonversi::where('barang_id', $barang->id)
-                                             ->where('nama_satuan', $item['satuan'])
-                                             ->first();
-                    if ($konversi) {
-                        $konversi->update(['harga_jual' => $item['harga_jual']]);
+                // ✅ Update stok dan harga HANYA jika status baru APPROVED
+                if ($statusBaru === 'approved') {
+                    $barang->increment('stok', $qtyDasar);
+                    
+                    // Update harga
+                    if ($item['satuan'] !== $barang->satuan_terkecil) {
+                        $konversi = SatuanKonversi::where('barang_id', $barang->id)
+                                                 ->where('nama_satuan', $item['satuan'])
+                                                 ->first();
+                        if ($konversi) {
+                            $konversi->update(['harga_jual' => $item['harga_jual']]);
+                        }
+                    } else {
+                        $barang->update([
+                            'harga_beli' => $item['harga_beli'],
+                            'harga_jual' => $item['harga_jual']
+                        ]);
                     }
-                } else {
-                    $barang->update([
-                        'harga_beli' => $item['harga_beli'],
-                        'harga_jual' => $item['harga_jual']
-                    ]);
                 }
             }
 
@@ -269,21 +382,23 @@ class PembelianController extends Controller
         try {
             $pembelian = Pembelian::findOrFail($id);
 
-            // Kembalikan stok
-            foreach ($pembelian->detailPembelian as $detail) {
-                $barang = $detail->barang;
-                
-                $qtyDasar = $detail->jumlah;
-                if ($detail->satuan !== $barang->satuan_terkecil) {
-                    $konversi = SatuanKonversi::where('barang_id', $barang->id)
-                                             ->where('nama_satuan', $detail->satuan)
-                                             ->first();
-                    if ($konversi) {
-                        $qtyDasar = $detail->jumlah * $konversi->jumlah_konversi;
+            // ✅ Kembalikan stok HANYA jika status APPROVED
+            if ($pembelian->status === 'approved') {
+                foreach ($pembelian->detailPembelian as $detail) {
+                    $barang = $detail->barang;
+                    
+                    $qtyDasar = $detail->jumlah;
+                    if ($detail->satuan !== $barang->satuan_terkecil) {
+                        $konversi = SatuanKonversi::where('barang_id', $barang->id)
+                                                 ->where('nama_satuan', $detail->satuan)
+                                                 ->first();
+                        if ($konversi) {
+                            $qtyDasar = $detail->jumlah * $konversi->jumlah_konversi;
+                        }
                     }
+                    
+                    $barang->decrement('stok', $qtyDasar);
                 }
-                
-                $barang->decrement('stok', $qtyDasar);
             }
 
             $pembelian->delete();

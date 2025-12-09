@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 
 class ShiftController extends Controller
 {
-    // Halaman Buka Shift (formBuka) - KODE AMAN
+    // Halaman Buka Shift (formBuka)
     public function formBuka()
     {
         // Cek apakah user sudah punya shift aktif
@@ -25,7 +25,7 @@ class ShiftController extends Controller
         return view('pages.shift.buka');
     }
 
-    // Proses Buka Shift (buka) - KODE AMAN
+    // Proses Buka Shift (buka)
     public function buka(Request $request)
     {
         $request->validate([
@@ -52,7 +52,7 @@ class ShiftController extends Controller
         return redirect()->route('penjualan.index')->with('success', 'Shift berhasil dibuka!');
     }
 
-    // Halaman Tutup Shift (formTutup) - KOREKSI LOGIKA TUNAI
+    // Halaman Tutup Shift (formTutup) - BLIND CLOSING: Tidak tampilkan data penjualan
     public function formTutup()
     {
         $shift = Shift::where('user_id', Auth::id())
@@ -63,26 +63,11 @@ class ShiftController extends Controller
             return redirect()->route('shift.buka.form')->with('error', 'Tidak ada shift aktif!');
         }
 
-        // Penjualan dalam shift ini
-        $penjualanShift = Penjualan::where('shift_id', $shift->id);
-
-        // Hitung total penjualan (Grand Total)
-        $totalPenjualan = $penjualanShift->sum('grand_total');
-        $jumlahTransaksi = $penjualanShift->count();
-
-        // Hitung per metode pembayaran (Menggunakan grand_total/total penjualan)
-        $tunai = (clone $penjualanShift)->where('metode_pembayaran', 'cash')->sum('grand_total');
-
-        // Non-tunai mencakup debit, kredit, qris
-        $nonTunai = (clone $penjualanShift)->whereIn('metode_pembayaran', ['debit', 'credit', 'qris'])->sum('grand_total');
-        
-        // Uang Tunai yang seharusnya ada di laci (Modal Awal + Total Penjualan Tunai)
-        $uangDilaci = $shift->modal_awal + $tunai;
-
-        return view('pages.shift.tutup', compact('shift', 'totalPenjualan', 'jumlahTransaksi', 'tunai', 'nonTunai', 'uangDilaci'));
+        // HANYA kirim data shift, TANPA data penjualan untuk blind closing
+        return view('pages.shift.tutup', compact('shift'));
     }
 
-    // Proses Tutup Shift (tutup) - KOREKSI LOGIKA TUNAI
+    // Proses Tutup Shift (tutup) - Hitung dan tampilkan hasil
     public function tutup(Request $request)
     {
         $request->validate([
@@ -94,13 +79,22 @@ class ShiftController extends Controller
                      ->whereNull('waktu_tutup')
                      ->firstOrFail();
 
-        // Hitung total penjualan tunai (Grand Total dari transaksi tunai)
+        // Hitung total penjualan tunai (Grand Total dari transaksi tunai/cash)
         $totalTunai = Penjualan::where('shift_id', $shift->id)
                              ->where('metode_pembayaran', 'cash')
                              ->sum('grand_total');
                              
         $totalPenjualan = Penjualan::where('shift_id', $shift->id)->sum('grand_total');
         $jumlahTransaksi = Penjualan::where('shift_id', $shift->id)->count();
+
+        // Hitung per metode pembayaran untuk laporan
+        $tunai = Penjualan::where('shift_id', $shift->id)
+                         ->where('metode_pembayaran', 'cash')
+                         ->sum('grand_total');
+        
+        $nonTunai = Penjualan::where('shift_id', $shift->id)
+                            ->whereIn('metode_pembayaran', ['debit', 'credit', 'qris'])
+                            ->sum('grand_total');
 
         $uangSeharusnya = $shift->modal_awal + $totalTunai;
         $selisih = $request->uang_fisik - $uangSeharusnya;
@@ -116,10 +110,41 @@ class ShiftController extends Controller
             'status' => 'tutup'
         ]);
 
-        return redirect()->route('dashboard')->with('success', 'Shift berhasil ditutup!');
+        // Redirect ke halaman hasil tutup shift dengan data lengkap
+        return redirect()->route('shift.hasil', $shift->id)
+                        ->with('success', 'Shift berhasil ditutup!');
     }
 
-    // Riwayat Shift (riwayat) - KODE AMAN (Mengirimkan $shifts)
+    // Halaman Hasil Tutup Shift - Tampilkan hasil setelah tutup shift
+    public function hasil($id)
+    {
+        $shift = Shift::with('user')->findOrFail($id);
+
+        // Pastikan hanya admin atau pemilik shift yang bisa lihat
+        if (Auth::user()->role !== 'admin' && $shift->user_id !== Auth::id()) {
+            abort(403);
+        }
+
+        // Pastikan shift sudah ditutup
+        if (!$shift->waktu_tutup) {
+            return redirect()->route('shift.tutup.form')->with('error', 'Shift belum ditutup!');
+        }
+
+        // Hitung detail per metode pembayaran
+        $tunai = Penjualan::where('shift_id', $shift->id)
+                         ->where('metode_pembayaran', 'cash')
+                         ->sum('grand_total');
+        
+        $nonTunai = Penjualan::where('shift_id', $shift->id)
+                            ->whereIn('metode_pembayaran', ['debit', 'credit', 'qris'])
+                            ->sum('grand_total');
+
+        $uangSeharusnya = $shift->modal_awal + $tunai;
+
+        return view('pages.shift.hasil', compact('shift', 'tunai', 'nonTunai', 'uangSeharusnya'));
+    }
+
+    // Riwayat Shift (riwayat)
     public function riwayat(Request $request)
     {
         $query = Shift::with('user')->whereNotNull('waktu_tutup');
@@ -139,15 +164,15 @@ class ShiftController extends Controller
 
         $shifts = $query->orderBy('waktu_tutup', 'desc')->paginate(20);
 
-        return view('pages.shift.riwayat', compact('shifts')); // ✅ Mengirimkan $shifts
+        return view('pages.shift.riwayat', compact('shifts'));
     }
 
-    // Detail Shift (detail) - KOREKSI EAGER LOADING
+    // Detail Shift (detail)
     public function detail($id)
     {
-        // ✅ Eager load penjualan dan detail barangnya
+        // Eager load penjualan dan detail barangnya
         $shift = Shift::with(['user', 'penjualan' => function($q) {
-            $q->with('detailPenjualan.barang'); // Memuat detail penjualan dan barangnya
+            $q->with('detailPenjualan.barang');
         }])->findOrFail($id);
 
         // Pastikan hanya admin atau pemilik shift yang bisa lihat
@@ -158,7 +183,7 @@ class ShiftController extends Controller
         return view('pages.shift.detail', compact('shift'));
     }
 
-    // Cetak Laporan Shift (cetakLaporan) - KODE AMAN
+    // Cetak Laporan Shift ukuran 58mm (cetakLaporan)
     public function cetakLaporan($id)
     {
         $shift = Shift::with(['user', 'penjualan'])->findOrFail($id);
@@ -168,6 +193,6 @@ class ShiftController extends Controller
             abort(403);
         }
 
-        return view('pages.shift.laporan', compact('shift'));
+        return view('pages.shift.laporan_58mm', compact('shift'));
     }
 }

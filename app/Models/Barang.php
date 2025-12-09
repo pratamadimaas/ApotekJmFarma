@@ -27,10 +27,10 @@ class Barang extends Model
     ];
 
     protected $casts = [
-        'harga_beli' => 'decimal:2',
-        'harga_jual' => 'decimal:2',
-        'stok' => 'decimal:2',
-        'stok_minimal' => 'decimal:2',
+        'harga_beli' => 'integer',
+        'harga_jual' => 'integer',
+        'stok' => 'integer',
+        'stok_minimal' => 'integer',
         'aktif' => 'boolean',
     ];
 

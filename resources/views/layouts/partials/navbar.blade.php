@@ -1,8 +1,11 @@
-<nav class="navbar navbar-expand-lg navbar-dark navbar-custom fixed-top">
+<nav class="navbar navbar-expand-lg navbar-custom">
     <div class="container-fluid">
+        <button class="btn btn-link d-lg-none me-2" id="sidebarToggle" type="button">
+            <i class="bi bi-list fs-4" style="color: var(--primary-color);"></i>
+        </button>
+        
         <a class="navbar-brand" href="{{ route('dashboard') }}">
-            <i class="bi bi-capsule me-2"></i>
-            <strong>APOTEK JM FARMA</strong>
+            <i class="bi bi-heart-pulse-fill"></i> Apotek JM Farma
         </a>
         
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">

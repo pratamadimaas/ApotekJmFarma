@@ -39,6 +39,7 @@
                             <label class="form-label fw-bold">Pembayaran</label>
                             <select class="form-select">
                                 <option>Tunai</option>
+                                <option>Transfer</option>
                             </select>
                         </div>
                         <div class="col-12">

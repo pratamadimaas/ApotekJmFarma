@@ -30,26 +30,95 @@
     <div class="card shadow mb-4">
         <div class="card-header py-3 bg-primary text-white">
             <h6 class="m-0 font-weight-bold">
-                <i class="bi bi-upc-scan me-2"></i>Scan Barcode
+                <i class="bi bi-upc-scan me-2"></i>Input Barcode
             </h6>
         </div>
         <div class="card-body">
             <div class="row">
                 <div class="col-md-8">
-                    <div class="input-group input-group-lg">
-                        <span class="input-group-text bg-light">
-                            <i class="bi bi-upc-scan"></i>
-                        </span>
-                        <input type="text" 
-                               id="barcodeInput" 
-                               class="form-control form-control-lg" 
-                               placeholder="Scan atau ketik barcode disini..." 
-                               autofocus>
-                        <button class="btn btn-primary" type="button" id="btnScan">
-                            <i class="bi bi-search me-1"></i> Cari
-                        </button>
+                    {{-- Tab Mode Input --}}
+                    <ul class="nav nav-tabs mb-3" id="inputModeTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="manual-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#manual" type="button" role="tab">
+                                <i class="bi bi-keyboard me-1"></i> Manual / Scanner
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="camera-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#camera" type="button" role="tab">
+                                <i class="bi bi-camera me-1"></i> Scan dengan Kamera
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="search-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#search" type="button" role="tab">
+                                <i class="bi bi-search me-1"></i> Cari Nama Barang
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="inputModeTabContent">
+                        {{-- Tab Manual/Scanner --}}
+                        <div class="tab-pane fade show active" id="manual" role="tabpanel">
+                            <div class="input-group input-group-lg">
+                                <span class="input-group-text bg-light">
+                                    <i class="bi bi-upc-scan"></i>
+                                </span>
+                                <input type="text" 
+                                       id="barcodeInput" 
+                                       class="form-control form-control-lg" 
+                                       placeholder="Scan atau ketik barcode disini..." 
+                                       autofocus>
+                                <button class="btn btn-primary" type="button" id="btnScan">
+                                    <i class="bi bi-search me-1"></i> Cari
+                                </button>
+                            </div>
+                            <small class="text-muted">Tekan Enter atau klik tombol Cari setelah scan barcode</small>
+                        </div>
+
+                        {{-- Tab Kamera --}}
+                        <div class="tab-pane fade" id="camera" role="tabpanel">
+                            <div class="text-center">
+                                <div id="cameraContainer" class="mb-3" style="position: relative; max-width: 100%; margin: 0 auto;">
+                                    <video id="cameraPreview" style="width: 100%; max-width: 640px; border: 2px solid #ddd; border-radius: 8px; display: none;"></video>
+                                    <canvas id="canvasElement" style="display: none;"></canvas>
+                                    <div id="cameraPlaceholder" class="p-5 bg-light border rounded">
+                                        <i class="bi bi-camera-video" style="font-size: 4rem; color: #ccc;"></i>
+                                        <p class="mt-3 text-muted">Klik tombol "Aktifkan Kamera" untuk memulai scan</p>
+                                    </div>
+                                </div>
+                                <button type="button" id="btnStartCamera" class="btn btn-success btn-lg">
+                                    <i class="bi bi-camera-video me-2"></i>Aktifkan Kamera
+                                </button>
+                                <button type="button" id="btnStopCamera" class="btn btn-danger btn-lg" style="display: none;">
+                                    <i class="bi bi-stop-circle me-2"></i>Matikan Kamera
+                                </button>
+                                <div id="cameraStatus" class="mt-3"></div>
+                            </div>
+                        </div>
+
+                        {{-- Tab Pencarian --}}
+                        <div class="tab-pane fade" id="search" role="tabpanel">
+                            <div class="mb-3">
+                                <div class="input-group input-group-lg">
+                                    <span class="input-group-text bg-light">
+                                        <i class="bi bi-search"></i>
+                                    </span>
+                                    <input type="text" 
+                                           id="searchInput" 
+                                           class="form-control form-control-lg" 
+                                           placeholder="Cari nama barang atau kode barang...">
+                                </div>
+                            </div>
+                            
+                            <div id="searchResults" class="list-group" style="max-height: 400px; overflow-y: auto;">
+                                <div class="text-center text-muted py-3">
+                                    <i class="bi bi-search"></i> Ketik untuk mencari barang...
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <small class="text-muted">Tekan Enter atau klik tombol Cari setelah scan barcode</small>
                 </div>
                 <div class="col-md-4">
                     <div class="alert alert-info mb-0">
@@ -232,6 +301,9 @@
 @endsection
 
 @push('scripts')
+<!-- QuaggaJS untuk Barcode Scanner -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const barcodeInput = document.getElementById('barcodeInput');
@@ -239,21 +311,27 @@ document.addEventListener('DOMContentLoaded', function() {
     const tbody = document.getElementById('tbodyScanned');
     const sesiId = {{ $sesiAktif->id }};
     const csrfToken = '{{ csrf_token() }}';
+    
+    let cameraStream = null;
+    let isScanning = false;
 
-    // Focus ke input barcode dan maintain focus
+    // ========================
+    // 1. MANUAL INPUT / SCANNER
+    // ========================
     barcodeInput.focus();
     
-    // Auto refocus setiap 2 detik untuk pastikan scanner bisa input
     setInterval(function() {
         if (document.activeElement.tagName !== 'INPUT' || 
             (document.activeElement.id !== 'barcodeInput' && 
              !document.activeElement.classList.contains('stok-fisik-input') &&
-             !document.activeElement.classList.contains('expired-date-input'))) {
-            barcodeInput.focus();
+             !document.activeElement.classList.contains('expired-date-input') &&
+             document.activeElement.id !== 'searchInput')) {
+            if (document.getElementById('manual').classList.contains('show')) {
+                barcodeInput.focus();
+            }
         }
     }, 2000);
 
-    // Scan barcode (Enter atau klik tombol)
     barcodeInput.addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -263,15 +341,199 @@ document.addEventListener('DOMContentLoaded', function() {
 
     btnScan.addEventListener('click', scanBarcode);
 
+    // ========================
+    // 2. KAMERA BARCODE SCANNER
+    // ========================
+    const btnStartCamera = document.getElementById('btnStartCamera');
+    const btnStopCamera = document.getElementById('btnStopCamera');
+    const cameraPreview = document.getElementById('cameraPreview');
+    const cameraPlaceholder = document.getElementById('cameraPlaceholder');
+    const cameraStatus = document.getElementById('cameraStatus');
+
+    btnStartCamera.addEventListener('click', startCamera);
+    btnStopCamera.addEventListener('click', stopCamera);
+
+    function startCamera() {
+        cameraPlaceholder.style.display = 'none';
+        cameraPreview.style.display = 'block';
+        btnStartCamera.style.display = 'none';
+        btnStopCamera.style.display = 'inline-block';
+        
+        cameraStatus.innerHTML = '<div class="spinner-border spinner-border-sm text-primary"></div> Memulai kamera...';
+
+        Quagga.init({
+            inputStream: {
+                name: "Live",
+                type: "LiveStream",
+                target: cameraPreview,
+                constraints: {
+                    facingMode: "environment" // Kamera belakang
+                }
+            },
+            decoder: {
+                readers: [
+                    "code_128_reader",
+                    "ean_reader",
+                    "ean_8_reader",
+                    "code_39_reader",
+                    "code_39_vin_reader",
+                    "codabar_reader",
+                    "upc_reader",
+                    "upc_e_reader"
+                ]
+            },
+            locate: true
+        }, function(err) {
+            if (err) {
+                console.error('Error starting camera:', err);
+                cameraStatus.innerHTML = '<div class="alert alert-danger">Gagal mengakses kamera! Pastikan browser memiliki izin akses kamera.</div>';
+                stopCamera();
+                return;
+            }
+            
+            cameraStatus.innerHTML = '<div class="alert alert-success"><i class="bi bi-camera-video-fill me-2"></i>Kamera aktif! Arahkan ke barcode...</div>';
+            Quagga.start();
+            isScanning = true;
+        });
+
+        Quagga.onDetected(function(result) {
+            if (isScanning && result.codeResult && result.codeResult.code) {
+                const code = result.codeResult.code;
+                
+                // Beep sound
+                playBeep();
+                
+                // Show detected code
+                cameraStatus.innerHTML = `<div class="alert alert-info">✓ Terdeteksi: <strong>${code}</strong></div>`;
+                
+                // Process barcode
+                processBarcode(code);
+                
+                // Pause untuk mencegah scan berulang
+                isScanning = false;
+                setTimeout(() => {
+                    isScanning = true;
+                    cameraStatus.innerHTML = '<div class="alert alert-success"><i class="bi bi-camera-video-fill me-2"></i>Kamera aktif! Arahkan ke barcode...</div>';
+                }, 2000);
+            }
+        });
+    }
+
+    function stopCamera() {
+        if (Quagga) {
+            Quagga.stop();
+        }
+        cameraPreview.style.display = 'none';
+        cameraPlaceholder.style.display = 'block';
+        btnStartCamera.style.display = 'inline-block';
+        btnStopCamera.style.display = 'none';
+        cameraStatus.innerHTML = '';
+        isScanning = false;
+    }
+
+    function playBeep() {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = 800;
+        oscillator.type = 'sine';
+        
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.1);
+    }
+
+    // Tab change handler
+    document.querySelectorAll('#inputModeTabs button').forEach(tab => {
+        tab.addEventListener('shown.bs.tab', function (e) {
+            if (e.target.id === 'camera-tab') {
+                // Jangan auto-start kamera
+            } else {
+                stopCamera();
+            }
+        });
+    });
+
+    // ========================
+    // 3. SEARCH BARANG
+    // ========================
+    const searchInput = document.getElementById('searchInput');
+    const searchResults = document.getElementById('searchResults');
+    let searchTimeout;
+
+    searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        const query = this.value.trim();
+        
+        if (query.length < 2) {
+            searchResults.innerHTML = '<div class="text-center text-muted py-3"><i class="bi bi-search"></i> Ketik minimal 2 karakter...</div>';
+            return;
+        }
+
+        searchResults.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> Mencari...</div>';
+
+        searchTimeout = setTimeout(() => {
+            fetch(`/barang/search?q=${encodeURIComponent(query)}`, {
+                headers: {
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.length === 0) {
+                    searchResults.innerHTML = '<div class="text-center text-muted py-3">Tidak ada barang ditemukan</div>';
+                    return;
+                }
+
+                searchResults.innerHTML = data.map(barang => `
+                    <a href="#" class="list-group-item list-group-item-action search-item" data-barcode="${barang.barcode || barang.kode_barang}">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">${barang.nama_barang}</h6>
+                            <small class="text-muted">Stok: ${barang.stok}</small>
+                        </div>
+                        <p class="mb-1"><small class="text-muted">${barang.kode_barang}</small></p>
+                    </a>
+                `).join('');
+
+                // Add click handlers
+                document.querySelectorAll('.search-item').forEach(item => {
+                    item.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const barcode = this.getAttribute('data-barcode');
+                        processBarcode(barcode);
+                        searchInput.value = '';
+                        searchResults.innerHTML = '<div class="text-center text-muted py-3"><i class="bi bi-search"></i> Ketik untuk mencari barang...</div>';
+                    });
+                });
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                searchResults.innerHTML = '<div class="alert alert-danger">Gagal mencari barang</div>';
+            });
+        }, 500);
+    });
+
+    // ========================
+    // SHARED FUNCTIONS
+    // ========================
     function scanBarcode() {
         const barcode = barcodeInput.value.trim();
-        
+        processBarcode(barcode);
+    }
+
+    function processBarcode(barcode) {
         if (!barcode) {
             showToast('warning', 'Silakan masukkan barcode!');
             return;
         }
 
-        // Show loading
         btnScan.disabled = true;
         btnScan.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Memproses...';
 
@@ -289,21 +551,15 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Hapus empty row jika ada
                 const emptyRow = document.getElementById('emptyRow');
                 if (emptyRow) emptyRow.remove();
 
-                // Tambah baris baru
                 addItemRow(data.detail);
-                
-                // Update ringkasan
                 updateRingkasan();
                 
-                // Clear input dan focus kembali
                 barcodeInput.value = '';
                 barcodeInput.focus();
                 
-                // Show success message
                 showToast('success', data.message);
             } else {
                 showToast('warning', data.message);
@@ -359,7 +615,7 @@ document.addEventListener('DOMContentLoaded', function() {
         tbody.insertBefore(row, tbody.firstChild);
     }
 
-    // Update item (stok fisik atau expired date)
+    // Update item
     tbody.addEventListener('change', function(e) {
         if (e.target.classList.contains('stok-fisik-input') || 
             e.target.classList.contains('expired-date-input')) {
@@ -388,7 +644,6 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Update selisih
                 const selisih = data.detail.selisih;
                 const selisihCell = row.querySelector('.selisih-cell');
                 
@@ -400,10 +655,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     selisihCell.innerHTML = `<span class="badge bg-secondary">0</span>`;
                 }
 
-                // Update status expired
                 updateExpiredStatus(row, expiredDate);
-                
-                // Update ringkasan
                 updateRingkasan();
             }
         })
@@ -413,6 +665,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // ✅ FUNCTION INI YANG BENAR (Hanya 1 versi)
     function updateExpiredStatus(row, expiredDate) {
         const statusCell = row.querySelector('.status-cell');
         

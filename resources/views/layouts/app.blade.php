@@ -43,21 +43,25 @@
             background: linear-gradient(to bottom, #f8fafc 0%, #f1f5f9 100%);
             color: var(--text-primary);
             overflow-x: hidden;
+            padding-top: 76px; /* ✅ PENTING: Ruang untuk navbar fixed */
         }
         
         /* ========================================
            NAVBAR MODERN
            ======================================== */
         .navbar-custom {
-            background: rgba(255, 255, 255, 0.85) !important;
+            background: rgba(255, 255, 255, 0.95) !important;
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             border-bottom: 1px solid var(--border-color);
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
             padding: 1rem 2rem;
             position: fixed;
+            top: 0; /* ✅ PENTING: Tetap di atas */
+            left: 0;
+            right: 0;
             width: 100%;
-            z-index: 1000;
+            z-index: 1050; /* ✅ PENTING: Z-index tertinggi */
             transition: all 0.3s ease;
         }
         
@@ -116,7 +120,7 @@
             height: 100%;
             background: rgba(0, 0, 0, 0.5);
             backdrop-filter: blur(4px);
-            z-index: 998;
+            z-index: 1030; /* ✅ Di bawah sidebar mobile */
             opacity: 0;
             transition: opacity 0.3s ease;
         }
@@ -130,17 +134,17 @@
            SIDEBAR ULTRA MODERN
            ======================================== */
         .sidebar {
-            min-height: 100vh;
+            min-height: calc(100vh - 76px);
             background: linear-gradient(180deg, #ffffff 0%, #fafbff 100%);
             color: var(--text-primary);
             position: fixed;
-            top: 76px;
+            top: 76px; /* Posisi di bawah navbar */
             left: 0;
             width: 280px;
             padding: 2rem 0;
             border-right: 1px solid var(--border-color);
             box-shadow: var(--shadow-sm);
-            z-index: 999;
+            z-index: 1040; /* ✅ Di bawah navbar, di atas overlay */
             overflow-y: auto;
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
@@ -218,7 +222,7 @@
            ======================================== */
         .main-content {
             margin-left: 280px;
-            margin-top: 76px;
+            margin-top: 0; /* ✅ Tidak perlu margin-top karena body sudah punya padding-top */
             padding: 2.5rem;
             min-height: calc(100vh - 76px);
         }
@@ -487,12 +491,16 @@
            RESPONSIVE MOBILE
            ======================================== */
         @media (max-width: 991px) {
+            body {
+                padding-top: 70px; /* Sesuaikan untuk mobile */
+            }
+            
             .sidebar {
-                top: 0;
+                top: 0; /* Full screen di mobile */
                 height: 100vh;
                 transform: translateX(-100%);
                 box-shadow: var(--shadow-xl);
-                z-index: 1001;
+                z-index: 1045; /* ✅ Lebih tinggi dari navbar di mobile */
             }
             
             .sidebar.show {
@@ -506,6 +514,7 @@
             
             .main-content {
                 padding: 1.5rem;
+                margin-top: 0;
             }
             
             .navbar-custom {

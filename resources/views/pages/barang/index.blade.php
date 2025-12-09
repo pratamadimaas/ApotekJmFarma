@@ -19,6 +19,7 @@
                     <label for="search" class="form-label visually-hidden">Cari Barang</label>
                     <input type="text" name="search" class="form-control" placeholder="Cari nama/kode/barcode..." value="{{ request('search') }}">
                 </div>
+                
                 <div class="col-md-3">
                     <label for="kategori" class="form-label visually-hidden">Kategori</label>
                     <select name="kategori" class="form-select">
@@ -28,6 +29,24 @@
                         @endforeach
                     </select>
                 </div>
+                
+                <div class="col-md-3">
+                    <label for="stok_filter" class="form-label visually-hidden">Filter Stok</label>
+                    <select name="stok_filter" class="form-select">
+                        <option value="">Semua Stok</option>
+                        <option value="rendah" {{ request('stok_filter') == 'rendah' ? 'selected' : '' }}>Stok Rendah/Minimal</option>
+                        
+                        {{-- 🚀 Menambahkan opsi stok < N --}}
+                        @if(isset($stokFilterOptions))
+                            @foreach($stokFilterOptions as $value => $label)
+                            <option value="{{ $value }}" {{ request('stok_filter') == $value ? 'selected' : '' }}>{{ $label }}</option>
+                            @endforeach
+                        @endif
+                        {{-- 🚀 Akhir opsi stok < N --}}
+                        
+                    </select>
+                </div>
+
                 <div class="col-auto">
                     <button type="submit" class="btn btn-secondary"><i class="bi bi-filter me-1"></i> Filter</button>
                     <a href="{{ route('barang.index') }}" class="btn btn-light">Reset</a>
@@ -39,7 +58,7 @@
                     <thead>
                         <tr>
                             <th>Kode</th>
-                            <th>Barcode</th> {{-- ✅ KOLOM BARCODE BARU --}}
+                            <th>Barcode</th>
                             <th>Nama Barang</th>
                             <th>Kategori</th>
                             <th>Harga Beli</th>
@@ -54,7 +73,6 @@
                         <tr>
                             <td>{{ $item->kode_barang }}</td>
                             <td>
-                                {{-- ✅ TAMPILAN BARCODE dengan icon --}}
                                 @if($item->barcode)
                                     <span class="badge bg-info text-dark">
                                         <i class="bi bi-upc-scan"></i> {{ $item->barcode }}
@@ -87,7 +105,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="9" class="text-center py-4">Tidak ada data barang yang ditemukan.</td> {{-- ✅ COLSPAN disesuaikan menjadi 9 --}}
+                            <td colspan="9" class="text-center py-4">Tidak ada data barang yang ditemukan.</td>
                         </tr>
                         @endforelse
                     </tbody>
