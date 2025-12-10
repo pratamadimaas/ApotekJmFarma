@@ -79,7 +79,6 @@
                                         </div>
                                     </div>
                                 </div>
-                                {{-- Asumsi Anda memiliki rute laporan.labaRugi (sesuai controller) --}}
                                 <a href="{{ route('laporan.labaRugi') }}" class="stretched-link"></a>
                             </div>
                         </div>
@@ -104,6 +103,29 @@
                                     </div>
                                 </div>
                                 <a href="{{ route('laporan.stok') }}" class="stretched-link"></a>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- ✅ BARU: Card Kartu Stok --}}
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <div class="card card-stats h-100">
+                            <div class="card-body p-3">
+                                <div class="row">
+                                    <div class="col-8">
+                                        <div class="numbers">
+                                            <p class="text-sm mb-0 text-uppercase font-weight-bold">Laporan</p>
+                                            <h5 class="font-weight-bolder">Kartu Stok</h5>
+                                            <p class="mb-0 text-sm text-secondary">Riwayat keluar-masuk per barang.</p>
+                                        </div>
+                                    </div>
+                                    <div class="col-4 text-end">
+                                        <div class="icon icon-shape bg-gradient-secondary shadow-secondary text-center rounded-circle">
+                                            <i class="fas fa-clipboard-list text-lg opacity-10" aria-hidden="true"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                                <a href="{{ route('laporan.kartuStok') }}" class="stretched-link"></a>
                             </div>
                         </div>
                     </div>

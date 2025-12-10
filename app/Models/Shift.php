@@ -13,6 +13,7 @@ class Shift extends Model
 
     protected $fillable = [
         'user_id',
+        'kode_shift',
         'waktu_buka',
         'waktu_tutup',
         'saldo_awal',

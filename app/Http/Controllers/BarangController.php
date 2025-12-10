@@ -14,44 +14,42 @@ class BarangController extends Controller
     // ------------------------------------
 
     public function index(Request $request)
-{
-    $query = Barang::query();
-    
-    // 1. Pencarian
-    if ($request->filled('search')) {
-        $search = $request->search;
-        $query->search($search);
-    }
-    
-    // 2. Filter Kategori
-    if ($request->filled('kategori')) {
-        $query->where('kategori', $request->kategori);
-    }
-
-    // 3. Filter Stok (Disesuaikan untuk menerima nilai numerik)
-    if ($request->filled('stok_filter')) {
-        $filterValue = $request->stok_filter;
+    {
+        $query = Barang::query();
         
-        if ($filterValue === 'rendah') {
-            $query->stokRendah(); // Menggunakan scopeStokRendah()
-        } elseif (is_numeric($filterValue) && $filterValue > 0) {
-            // Filter stok kurang dari nilai yang diberikan (e.g., < 50, < 20)
-            $query->where('stok', '<', (float) $filterValue);
+        // 1. Pencarian
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->search($search);
         }
+        
+        // 2. Filter Kategori
+        if ($request->filled('kategori')) {
+            $query->where('kategori', $request->kategori);
+        }
+
+        // 3. Filter Stok
+        if ($request->filled('stok_filter')) {
+            $filterValue = $request->stok_filter;
+            
+            if ($filterValue === 'rendah') {
+                $query->stokRendah();
+            } elseif (is_numeric($filterValue) && $filterValue > 0) {
+                $query->where('stok', '<', (float) $filterValue);
+            }
+        }
+        
+        $barang = $query->orderBy('nama_barang', 'asc')->paginate(20);
+        $kategoriList = Barang::select('kategori')->distinct()->pluck('kategori');
+        
+        $stokFilterOptions = [
+            10 => '< 10 Unit',
+            20 => '< 20 Unit',
+            50 => '< 50 Unit',
+        ];
+        
+        return view('pages.barang.index', compact('barang', 'kategoriList', 'stokFilterOptions'));
     }
-    
-    $barang = $query->orderBy('nama_barang', 'asc')->paginate(20);
-    $kategoriList = Barang::select('kategori')->distinct()->pluck('kategori');
-    
-    // Opsi Filter Stok Baru untuk dikirim ke View
-    $stokFilterOptions = [
-        10 => '< 10 Unit',
-        20 => '< 20 Unit',
-        50 => '< 50 Unit',
-    ];
-    
-    return view('pages.barang.index', compact('barang', 'kategoriList', 'stokFilterOptions'));
-}
 
     public function create()
     {
@@ -245,7 +243,7 @@ class BarangController extends Controller
         return redirect()->route('barang.index')->with('success', 'Adjustment stok berhasil!');
     }
 
-    // ✅ API Search untuk Stok Opname
+    // ✅ API Search untuk Stok Opname (Fungsi Lama - TETAP ADA)
     public function search(Request $request)
     {
         $query = $request->get('q', '');
@@ -264,23 +262,71 @@ class BarangController extends Controller
         return response()->json($barang);
     }
 
+    // ✅ BARU: API Search untuk Kasir/POS (dengan eager loading satuan_konversi)
+    public function cariBarang(Request $request)
+    {
+        $keyword = $request->get('q', '');
+        
+        if (strlen($keyword) < 1) {
+            return response()->json([]);
+        }
+
+        // 🔥 PENTING: Eager load satuanKonversi untuk kasir
+        $barang = Barang::with('satuanKonversi')
+                     ->where('stok', '>', 0)
+                     ->where('aktif', 1)
+                     ->where(function($query) use ($keyword) {
+                         $query->where('nama_barang', 'LIKE', "%{$keyword}%")
+                               ->orWhere('kode_barang', 'LIKE', "%{$keyword}%")
+                               ->orWhere('barcode', 'LIKE', "%{$keyword}%");
+                     })
+                     ->select('id', 'kode_barang', 'barcode', 'nama_barang', 'kategori', 
+                              'satuan_terkecil', 'harga_jual', 'stok', 'stok_minimal')
+                     ->limit(10)
+                     ->get();
+
+        return response()->json($barang);
+    }
+
+    // ✅ Get Detail Barang untuk Kasir (dengan satuan konversi)
+    public function getBarang($id)
+    {
+        $barang = Barang::with('satuanKonversi')->findOrFail($id);
+        
+        $satuanKonversi = $barang->satuanKonversi->map(function($konv) {
+            return [
+                'nama_satuan' => $konv->nama_satuan,
+                'jumlah_konversi' => $konv->jumlah_konversi,
+                'harga_jual' => $konv->harga_jual,
+                'is_default' => $konv->is_default
+            ];
+        });
+
+        return response()->json([
+            'id' => $barang->id,
+            'kode_barang' => $barang->kode_barang,
+            'barcode' => $barang->barcode,
+            'nama_barang' => $barang->nama_barang,
+            'harga_jual' => $barang->harga_jual,
+            'stok' => $barang->stok,
+            'satuan_dasar' => $barang->satuan_terkecil,
+            'satuan_konversi' => $satuanKonversi,
+        ]);
+    }
+
     // Daftar Harga Satuan
     public function hargaSatuan(Request $request)
     {
-        // 1. Inisialisasi Query
         $query = Barang::with('satuanKonversi')->where('aktif', 1);
-
 
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->search($search); // Menggunakan scopeSearch dari model Barang
+            $query->search($search);
         }
-
 
         if ($request->filled('kategori')) {
             $query->where('kategori', $request->kategori);
         }
-
 
         if ($request->filled('stok_filter')) {
             $stokLimit = (int) $request->stok_filter;
@@ -289,18 +335,13 @@ class BarangController extends Controller
             }
         }
         
-        // Menambahkan filter stok rendah/minimal secara default (jika relevan)
         if ($request->get('stok_rendah') == 'true') {
             $query->stokRendah();
         }
 
-        // 5. Eksekusi Query dan Pagination
         $barang = $query->orderBy('nama_barang', 'asc')->paginate(20);
-
-        // 6. Ambil daftar kategori unik untuk filter
         $kategoriList = Barang::select('kategori')->distinct()->pluck('kategori');
 
-        // 7. Data untuk filter stok
         $stokFilterOptions = [
             10 => '< 10',
             15 => '< 15',
@@ -310,6 +351,7 @@ class BarangController extends Controller
 
         return view('pages.barang.harga-satuan', compact('barang', 'kategoriList', 'stokFilterOptions'));
     }
+
     // AJAX Get Satuan Konversi
     public function getSatuan($id)
     {
@@ -331,7 +373,7 @@ class BarangController extends Controller
         ]);
     }
 
-    // ✅ Cari Barang by Barcode (Future Use)
+    // ✅ Cari Barang by Barcode Langsung
     public function getByBarcode(Request $request)
     {
         $barcode = $request->barcode;
@@ -342,11 +384,22 @@ class BarangController extends Controller
 
         $barang = Barang::with('satuanKonversi')
                         ->where('barcode', $barcode)
+                        ->where('aktif', 1)
+                        ->where('stok', '>', 0)
                         ->first();
 
         if (!$barang) {
             return response()->json(['error' => 'Barang dengan barcode tersebut tidak ditemukan'], 404);
         }
+
+        $satuanKonversi = $barang->satuanKonversi->map(function($konv) {
+            return [
+                'nama_satuan' => $konv->nama_satuan,
+                'jumlah_konversi' => $konv->jumlah_konversi,
+                'harga_jual' => $konv->harga_jual,
+                'is_default' => $konv->is_default
+            ];
+        });
 
         return response()->json([
             'success' => true,
@@ -359,8 +412,73 @@ class BarangController extends Controller
                 'satuan_terkecil' => $barang->satuan_terkecil,
                 'harga_jual' => $barang->harga_jual,
                 'stok' => $barang->stok,
-                'satuan_konversi' => $barang->satuanKonversi,
+                'satuan_dasar' => $barang->satuan_terkecil,
+                'satuan_konversi' => $satuanKonversi,
             ]
         ]);
+    }
+
+    // ✅ IMPORT EXPORT EXCEL
+    public function importForm()
+    {
+        return view('pages.barang.import');
+    }
+
+    public function importExcel(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls,csv|max:2048'
+        ]);
+
+        try {
+            $import = new \App\Imports\BarangImport();
+            
+            \Maatwebsite\Excel\Facades\Excel::import($import, $request->file('file'));
+
+            $imported = $import->getImportedCount();
+            $skipped = $import->getSkippedCount();
+            $errors = $import->getErrors();
+
+            $message = "Import berhasil! {$imported} data ditambahkan";
+            
+            if ($skipped > 0) {
+                $message .= ", {$skipped} data dilewati (duplikat atau error)";
+            }
+
+            if (!empty($errors)) {
+                session()->flash('import_errors', $errors);
+            }
+
+            return redirect()->route('barang.index')->with('success', $message);
+
+        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
+            $failures = $e->failures();
+            $errors = [];
+            
+            foreach ($failures as $failure) {
+                $errors[] = "Baris {$failure->row()}: " . implode(', ', $failure->errors());
+            }
+            
+            return back()->with('error', 'Validasi gagal')->with('import_errors', $errors);
+
+        } catch (\Exception $e) {
+            return back()->with('error', 'Error: ' . $e->getMessage());
+        }
+    }
+
+    public function downloadTemplate()
+    {
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\BarangTemplateExport(), 
+            'template_import_barang.xlsx'
+        );
+    }
+
+    public function exportExcel()
+    {
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\BarangExport(), 
+            'data_barang_' . date('Y-m-d') . '.xlsx'
+        );
     }
 }

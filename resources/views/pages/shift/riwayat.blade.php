@@ -23,12 +23,12 @@
                 <div class="col-md-3">
                     <label for="tanggal_dari" class="form-label">Tanggal Buka Dari</label>
                     <input type="date" class="form-control" id="tanggal_dari" name="tanggal_dari" 
-                           value="{{ request('tanggal_dari') }}">
+                            value="{{ request('tanggal_dari') }}">
                 </div>
                 <div class="col-md-3">
                     <label for="tanggal_sampai" class="form-label">Tanggal Buka Sampai</label>
                     <input type="date" class="form-control" id="tanggal_sampai" name="tanggal_sampai" 
-                           value="{{ request('tanggal_sampai') }}">
+                            value="{{ request('tanggal_sampai') }}">
                 </div>
                 {{-- Anda bisa tambahkan filter User ID di sini jika perlu --}}
                 <div class="col-md-3">
@@ -64,7 +64,14 @@
                         @forelse ($shifts as $s)
                         <tr>
                             <td class="text-center">
-                                <strong>#{{ $s->id }}</strong>
+                                {{-- PERUBAHAN DI SINI: Menggunakan kode_shift atau fallback ke id --}}
+                                <strong>
+                                    @if($s->kode_shift)
+                                        #{{ $s->kode_shift }} 
+                                    @else
+                                        #{{ $s->id }}
+                                    @endif
+                                </strong>
                             </td>
                             <td>{{ $s->user->name ?? 'N/A' }}</td>
                             <td>{{ $s->waktu_buka->format('d M Y H:i') }}</td>
@@ -99,6 +106,15 @@
                                 <a href="{{ route('shift.cetakLaporan', $s->id) }}" target="_blank" class="btn btn-sm btn-success" title="Cetak Laporan">
                                     <i class="bi bi-printer"></i>
                                 </a>
+                                {{-- ✅ TOMBOL DELETE (Hanya tampil untuk Admin) --}}
+                                @if(Auth::user()->role === 'admin')
+                                <form action="{{ route('shift.destroy', $s->id) }}" method="POST" class="d-inline" 
+                                    onsubmit="return confirm('APAKAH ANDA YAKIN INGIN MENGHAPUS SHIFT {{ $s->kode_shift ?? $s->id }}? Menghapus shift akan menghapus semua data penjualan di dalamnya.')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button class="btn btn-sm btn-danger" title="Hapus"><i class="bi bi-trash"></i></button>
+                                </form>
+                                @endif
                             </td>
                         </tr>
                         @empty

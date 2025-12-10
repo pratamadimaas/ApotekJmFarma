@@ -33,11 +33,9 @@ class PembelianController extends Controller
             $query->where('supplier_id', $request->supplier_id);
         }
 
-        // ✅ Filter Status (tidak termasuk pending)
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         } else {
-            // Default: tampilkan semua kecuali pending
             $query->whereNotIn('status', ['pending']);
         }
 
@@ -47,7 +45,6 @@ class PembelianController extends Controller
         return view('pages.pembelian.index', compact('pembelian', 'suppliers'));
     }
 
-    // ✅ FITUR BARU: Daftar Pembelian Pending
     public function pending(Request $request)
     {
         $query = Pembelian::with(['supplier', 'user', 'detailPembelian.barang'])
@@ -75,7 +72,6 @@ class PembelianController extends Controller
         return view('pages.pembelian.pending', compact('pembelian', 'suppliers'));
     }
 
-    // ✅ FITUR BARU: Approve Pembelian Pending
     public function approve($id)
     {
         DB::beginTransaction();
@@ -86,39 +82,13 @@ class PembelianController extends Controller
                 return back()->with('error', 'Pembelian ini sudah diproses!');
             }
 
-            // Update stok saat approve
             foreach ($pembelian->detailPembelian as $detail) {
                 $barang = $detail->barang;
                 
-                $qtyDasar = $detail->jumlah;
-                if ($detail->satuan !== $barang->satuan_terkecil) {
-                    $konversi = SatuanKonversi::where('barang_id', $barang->id)
-                                             ->where('nama_satuan', $detail->satuan)
-                                             ->first();
-                    if ($konversi) {
-                        $qtyDasar = $detail->jumlah * $konversi->jumlah_konversi;
-                    }
-                }
-
-                // Tambah stok
+                $qtyDasar = $this->convertToStokDasar($detail->jumlah, $detail->satuan, $barang);
                 $barang->increment('stok', $qtyDasar);
 
-                // Update harga jual di satuan konversi atau barang
-                if ($detail->satuan !== $barang->satuan_terkecil) {
-                    $konversi = SatuanKonversi::where('barang_id', $barang->id)
-                                             ->where('nama_satuan', $detail->satuan)
-                                             ->first();
-                    if ($konversi && isset($detail->harga_jual_baru)) {
-                        $konversi->update(['harga_jual' => $detail->harga_jual_baru]);
-                    }
-                } else {
-                    if (isset($detail->harga_jual_baru)) {
-                        $barang->update([
-                            'harga_beli' => $detail->harga_beli,
-                            'harga_jual' => $detail->harga_jual_baru
-                        ]);
-                    }
-                }
+                $this->updateHargaJual($detail, $barang);
             }
 
             $pembelian->update(['status' => 'approved']);
@@ -142,7 +112,7 @@ class PembelianController extends Controller
         return view('pages.pembelian.create', compact('suppliers', 'barang'));
     }
 
-    // ✅ Store Pembelian dengan opsi PENDING atau APPROVED
+    // 🔥 Store dengan handling satuan konversi
     public function store(Request $request)
     {
         $request->validate([
@@ -154,15 +124,13 @@ class PembelianController extends Controller
             'items.*.qty' => 'required|numeric|min:1',
             'items.*.satuan' => 'required|string',
             'items.*.harga_beli' => 'required|numeric|min:0',
-            'items.*.harga_jual' => 'required|numeric|min:0',
             'total_harga' => 'required|numeric|min:0',
             'total_bayar' => 'required|numeric|min:0',
-            'status' => 'nullable|in:pending,approved', // ✅ Validasi status
+            'status' => 'nullable|in:pending,approved',
         ]);
 
         DB::beginTransaction();
         try {
-            // ✅ Tentukan status (default: approved jika tidak ada)
             $status = $request->status ?? 'approved';
 
             $pembelian = Pembelian::create([
@@ -174,27 +142,17 @@ class PembelianController extends Controller
                 'pajak' => $request->ppn ?? 0,
                 'grand_total' => $request->total_bayar,
                 'user_id' => Auth::id(),
-                'status' => $status, // ✅ Simpan status
+                'status' => $status,
                 'keterangan' => $request->keterangan
             ]);
 
-            // ✅ Simpan Detail & Update Stok/Harga (hanya jika APPROVED)
             foreach ($request->items as $item) {
                 $barang = Barang::findOrFail($item['barang_id']);
 
-                // Hitung qty dalam satuan terkecil
-                $qtyDasar = $item['qty'];
-                
-                if ($item['satuan'] !== $barang->satuan_terkecil) {
-                    $konversi = SatuanKonversi::where('barang_id', $barang->id)
-                                             ->where('nama_satuan', $item['satuan'])
-                                             ->first();
-                    if ($konversi) {
-                        $qtyDasar = $item['qty'] * $konversi->jumlah_konversi;
-                    }
-                }
+                // Konversi qty ke satuan terkecil
+                $qtyDasar = $this->convertToStokDasar($item['qty'], $item['satuan'], $barang);
 
-                // Simpan detail dengan harga jual baru
+                // Simpan detail pembelian
                 DetailPembelian::create([
                     'pembelian_id' => $pembelian->id,
                     'barang_id' => $barang->id,
@@ -203,28 +161,20 @@ class PembelianController extends Controller
                     'harga_beli' => $item['harga_beli'],
                     'subtotal' => $item['qty'] * $item['harga_beli'],
                     'tanggal_kadaluarsa' => $item['tanggal_kadaluarsa'] ?? null,
-                    'harga_jual_baru' => $item['harga_jual'], // ✅ Simpan harga jual baru
                 ]);
 
-                // ✅ Update stok dan harga HANYA jika status APPROVED
-                if ($status === 'approved') {
-                    // Tambah stok
-                    $barang->increment('stok', $qtyDasar);
+                // 🔥 Update/Insert Satuan Konversi jika ada
+                if (isset($item['satuan_konversi']) && is_array($item['satuan_konversi'])) {
+                    $this->updateSatuanKonversi($barang->id, $item['satuan_konversi']);
+                }
 
-                    // Update harga jual
-                    if ($item['satuan'] !== $barang->satuan_terkecil) {
-                        $konversi = SatuanKonversi::where('barang_id', $barang->id)
-                                                 ->where('nama_satuan', $item['satuan'])
-                                                 ->first();
-                        
-                        if ($konversi) {
-                            $konversi->update(['harga_jual' => $item['harga_jual']]);
-                        }
-                    } else {
-                        $barang->update([
-                            'harga_beli' => $item['harga_beli'],
-                            'harga_jual' => $item['harga_jual']
-                        ]);
+                // Update stok dan harga HANYA jika APPROVED
+                if ($status === 'approved') {
+                    $barang->increment('stok', $qtyDasar);
+                    
+                    // Update harga beli barang (satuan dasar)
+                    if ($item['satuan'] === $barang->satuan_terkecil) {
+                        $barang->update(['harga_beli' => $item['harga_beli']]);
                     }
                 }
             }
@@ -260,7 +210,7 @@ class PembelianController extends Controller
         return view('pages.pembelian.edit', compact('pembelian', 'suppliers', 'barang'));
     }
 
-    // ✅ Update Pembelian dengan status handling
+    // 🔥 Update dengan handling satuan konversi
     public function update(Request $request, $id)
     {
         $request->validate([
@@ -272,7 +222,6 @@ class PembelianController extends Controller
             'items.*.qty' => 'required|numeric|min:1',
             'items.*.satuan' => 'required|string',
             'items.*.harga_beli' => 'required|numeric|min:0',
-            'items.*.harga_jual' => 'required|numeric|min:0',
             'total_harga' => 'required|numeric|min:0',
             'total_bayar' => 'required|numeric|min:0',
             'status' => 'nullable|in:pending,approved',
@@ -284,21 +233,11 @@ class PembelianController extends Controller
             $statusLama = $pembelian->status;
             $statusBaru = $request->status ?? 'approved';
 
-            // ✅ Jika status lama APPROVED, kembalikan stok dulu
+            // Kembalikan stok jika status lama APPROVED
             if ($statusLama === 'approved') {
                 foreach ($pembelian->detailPembelian as $detail) {
                     $barang = $detail->barang;
-                    
-                    $qtyDasar = $detail->jumlah;
-                    if ($detail->satuan !== $barang->satuan_terkecil) {
-                        $konversi = SatuanKonversi::where('barang_id', $barang->id)
-                                                 ->where('nama_satuan', $detail->satuan)
-                                                 ->first();
-                        if ($konversi) {
-                            $qtyDasar = $detail->jumlah * $konversi->jumlah_konversi;
-                        }
-                    }
-                    
+                    $qtyDasar = $this->convertToStokDasar($detail->jumlah, $detail->satuan, $barang);
                     $barang->decrement('stok', $qtyDasar);
                 }
             }
@@ -322,16 +261,7 @@ class PembelianController extends Controller
             // Simpan detail baru
             foreach ($request->items as $item) {
                 $barang = Barang::findOrFail($item['barang_id']);
-
-                $qtyDasar = $item['qty'];
-                if ($item['satuan'] !== $barang->satuan_terkecil) {
-                    $konversi = SatuanKonversi::where('barang_id', $barang->id)
-                                             ->where('nama_satuan', $item['satuan'])
-                                             ->first();
-                    if ($konversi) {
-                        $qtyDasar = $item['qty'] * $konversi->jumlah_konversi;
-                    }
-                }
+                $qtyDasar = $this->convertToStokDasar($item['qty'], $item['satuan'], $barang);
 
                 DetailPembelian::create([
                     'pembelian_id' => $pembelian->id,
@@ -341,26 +271,19 @@ class PembelianController extends Controller
                     'harga_beli' => $item['harga_beli'],
                     'subtotal' => $item['qty'] * $item['harga_beli'],
                     'tanggal_kadaluarsa' => $item['tanggal_kadaluarsa'] ?? null,
-                    'harga_jual_baru' => $item['harga_jual'],
                 ]);
 
-                // ✅ Update stok dan harga HANYA jika status baru APPROVED
+                // 🔥 Update Satuan Konversi
+                if (isset($item['satuan_konversi']) && is_array($item['satuan_konversi'])) {
+                    $this->updateSatuanKonversi($barang->id, $item['satuan_konversi']);
+                }
+
+                // Update stok jika status baru APPROVED
                 if ($statusBaru === 'approved') {
                     $barang->increment('stok', $qtyDasar);
                     
-                    // Update harga
-                    if ($item['satuan'] !== $barang->satuan_terkecil) {
-                        $konversi = SatuanKonversi::where('barang_id', $barang->id)
-                                                 ->where('nama_satuan', $item['satuan'])
-                                                 ->first();
-                        if ($konversi) {
-                            $konversi->update(['harga_jual' => $item['harga_jual']]);
-                        }
-                    } else {
-                        $barang->update([
-                            'harga_beli' => $item['harga_beli'],
-                            'harga_jual' => $item['harga_jual']
-                        ]);
+                    if ($item['satuan'] === $barang->satuan_terkecil) {
+                        $barang->update(['harga_beli' => $item['harga_beli']]);
                     }
                 }
             }
@@ -382,21 +305,10 @@ class PembelianController extends Controller
         try {
             $pembelian = Pembelian::findOrFail($id);
 
-            // ✅ Kembalikan stok HANYA jika status APPROVED
             if ($pembelian->status === 'approved') {
                 foreach ($pembelian->detailPembelian as $detail) {
                     $barang = $detail->barang;
-                    
-                    $qtyDasar = $detail->jumlah;
-                    if ($detail->satuan !== $barang->satuan_terkecil) {
-                        $konversi = SatuanKonversi::where('barang_id', $barang->id)
-                                                 ->where('nama_satuan', $detail->satuan)
-                                                 ->first();
-                        if ($konversi) {
-                            $qtyDasar = $detail->jumlah * $konversi->jumlah_konversi;
-                        }
-                    }
-                    
+                    $qtyDasar = $this->convertToStokDasar($detail->jumlah, $detail->satuan, $barang);
                     $barang->decrement('stok', $qtyDasar);
                 }
             }
@@ -411,6 +323,86 @@ class PembelianController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Error: ' . $e->getMessage());
+        }
+    }
+
+    // 🔥 HELPER METHODS
+
+    /**
+     * Konversi qty ke satuan terkecil (stok dasar)
+     */
+    private function convertToStokDasar($qty, $satuan, $barang)
+    {
+        if ($satuan === $barang->satuan_terkecil) {
+            return $qty;
+        }
+
+        $konversi = SatuanKonversi::where('barang_id', $barang->id)
+                                 ->where('nama_satuan', $satuan)
+                                 ->first();
+
+        return $konversi ? ($qty * $konversi->jumlah_konversi) : $qty;
+    }
+
+    /**
+     * Update harga jual berdasarkan detail pembelian
+     */
+    private function updateHargaJual($detail, $barang)
+    {
+        if (!isset($detail->harga_jual_baru)) {
+            return;
+        }
+
+        if ($detail->satuan === $barang->satuan_terkecil) {
+            $barang->update([
+                'harga_beli' => $detail->harga_beli,
+                'harga_jual' => $detail->harga_jual_baru
+            ]);
+        } else {
+            $konversi = SatuanKonversi::where('barang_id', $barang->id)
+                                     ->where('nama_satuan', $detail->satuan)
+                                     ->first();
+            
+            if ($konversi) {
+                $konversi->update(['harga_jual' => $detail->harga_jual_baru]);
+            }
+        }
+    }
+
+    /**
+     * 🔥 Update atau Insert Satuan Konversi
+     */
+    private function updateSatuanKonversi($barangId, $satuanData)
+    {
+        foreach ($satuanData as $satuan => $data) {
+            // Skip jika data tidak lengkap
+            if (empty($data['nama_satuan']) || empty($data['jumlah_konversi'])) {
+                continue;
+            }
+
+            $dataToUpdate = [
+                'barang_id' => $barangId,
+                'nama_satuan' => $data['nama_satuan'],
+                'jumlah_konversi' => $data['jumlah_konversi'],
+                'harga_jual' => $data['harga_jual'] ?? 0,
+                'is_default' => isset($data['is_default']) ? 1 : 0,
+            ];
+
+            // Jika ada ID, update; jika tidak, insert baru
+            if (!empty($data['id'])) {
+                SatuanKonversi::where('id', $data['id'])->update($dataToUpdate);
+            } else {
+                // Cek apakah satuan sudah ada
+                $existing = SatuanKonversi::where('barang_id', $barangId)
+                                         ->where('nama_satuan', $data['nama_satuan'])
+                                         ->first();
+                
+                if ($existing) {
+                    $existing->update($dataToUpdate);
+                } else {
+                    SatuanKonversi::create($dataToUpdate);
+                }
+            }
         }
     }
 }

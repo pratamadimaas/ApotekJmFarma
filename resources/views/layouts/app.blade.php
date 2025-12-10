@@ -30,6 +30,8 @@
             --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
             --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
             --shadow-xl: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+            --sidebar-width: 280px;
+            --sidebar-collapsed-width: 0px;
         }
         
         * {
@@ -43,7 +45,7 @@
             background: linear-gradient(to bottom, #f8fafc 0%, #f1f5f9 100%);
             color: var(--text-primary);
             overflow-x: hidden;
-            padding-top: 76px; /* ✅ PENTING: Ruang untuk navbar fixed */
+            padding-top: 76px;
         }
         
         /* ========================================
@@ -57,11 +59,11 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
             padding: 1rem 2rem;
             position: fixed;
-            top: 0; /* ✅ PENTING: Tetap di atas */
+            top: 0;
             left: 0;
             right: 0;
             width: 100%;
-            z-index: 1050; /* ✅ PENTING: Z-index tertinggi */
+            z-index: 1050;
             transition: all 0.3s ease;
         }
         
@@ -109,6 +111,44 @@
         }
         
         /* ========================================
+           🔥 TOMBOL TOGGLE SIDEBAR (Desktop)
+           ======================================== */
+        .sidebar-toggle-btn {
+            position: fixed;
+            top: 85px;
+            left: 15px;
+            width: 40px;
+            height: 40px;
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1045;
+            box-shadow: var(--shadow-md);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .sidebar-toggle-btn:hover {
+            background: var(--primary-gradient);
+            color: white;
+            transform: scale(1.1);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .sidebar-toggle-btn i {
+            font-size: 1.2rem;
+            transition: all 0.3s ease;
+        }
+        
+        /* Tombol tetap di posisi kiri saat sidebar collapsed */
+        body.sidebar-collapsed .sidebar-toggle-btn {
+            left: 15px;
+        }
+        
+        /* ========================================
            SIDEBAR OVERLAY (Mobile)
            ======================================== */
         .sidebar-overlay {
@@ -120,7 +160,7 @@
             height: 100%;
             background: rgba(0, 0, 0, 0.5);
             backdrop-filter: blur(4px);
-            z-index: 1030; /* ✅ Di bawah sidebar mobile */
+            z-index: 1030;
             opacity: 0;
             transition: opacity 0.3s ease;
         }
@@ -131,22 +171,23 @@
         }
         
         /* ========================================
-           SIDEBAR ULTRA MODERN
+           🔥 SIDEBAR ULTRA MODERN (DENGAN COLLAPSE)
            ======================================== */
         .sidebar {
             min-height: calc(100vh - 76px);
             background: linear-gradient(180deg, #ffffff 0%, #fafbff 100%);
             color: var(--text-primary);
             position: fixed;
-            top: 76px; /* Posisi di bawah navbar */
+            top: 76px;
             left: 0;
-            width: 280px;
+            width: var(--sidebar-width);
             padding: 2rem 0;
             border-right: 1px solid var(--border-color);
             box-shadow: var(--shadow-sm);
-            z-index: 1040; /* ✅ Di bawah navbar, di atas overlay */
+            z-index: 1040;
             overflow-y: auto;
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-x: hidden;
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
         .sidebar::before {
@@ -161,6 +202,19 @@
             border-radius: 0 0 50% 50%;
         }
         
+        /* 🔥 STATE: Sidebar Collapsed - BENAR-BENAR TERSEMBUNYI */
+        body.sidebar-collapsed .sidebar {
+            width: var(--sidebar-collapsed-width);
+            overflow: hidden;
+            border-right: none;
+        }
+        
+        /* Hide semua konten saat collapsed */
+        body.sidebar-collapsed .sidebar * {
+            opacity: 0;
+            visibility: hidden;
+        }
+        
         .sidebar .nav-link {
             color: var(--text-secondary);
             padding: 0.875rem 1.5rem;
@@ -171,6 +225,9 @@
             font-size: 0.95rem;
             position: relative;
             overflow: hidden;
+            display: flex;
+            align-items: center;
+            white-space: nowrap;
         }
         
         .sidebar .nav-link::before {
@@ -210,6 +267,11 @@
             justify-content: center;
             border-radius: 8px;
             transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+        
+        .sidebar .nav-link span {
+            transition: opacity 0.3s ease, visibility 0.3s ease;
         }
         
         .sidebar .nav-link:hover i,
@@ -218,13 +280,18 @@
         }
         
         /* ========================================
-           MAIN CONTENT MODERN
+           🔥 MAIN CONTENT (RESPONSIVE TO SIDEBAR)
            ======================================== */
         .main-content {
-            margin-left: 280px;
-            margin-top: 0; /* ✅ Tidak perlu margin-top karena body sudah punya padding-top */
+            margin-left: var(--sidebar-width);
+            margin-top: 0;
             padding: 2.5rem;
             min-height: calc(100vh - 76px);
+            transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        body.sidebar-collapsed .main-content {
+            margin-left: var(--sidebar-collapsed-width);
         }
         
         /* ========================================
@@ -355,10 +422,10 @@
         }
         
         /* ========================================
-           FOOTER MODERN
+           🔥 FOOTER (RESPONSIVE TO SIDEBAR)
            ======================================== */
         .footer {
-            margin-left: 280px;
+            margin-left: var(--sidebar-width);
             padding: 1.5rem 2.5rem;
             background: rgba(255, 255, 255, 0.8);
             backdrop-filter: blur(20px);
@@ -367,6 +434,11 @@
             color: var(--text-secondary);
             font-size: 0.9rem;
             font-weight: 500;
+            transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        body.sidebar-collapsed .footer {
+            margin-left: var(--sidebar-collapsed-width);
         }
         
         /* ========================================
@@ -492,21 +564,42 @@
            ======================================== */
         @media (max-width: 991px) {
             body {
-                padding-top: 70px; /* Sesuaikan untuk mobile */
+                padding-top: 70px;
             }
             
+            /* Sidebar di mobile - keluar dari kiri */
             .sidebar {
-                top: 0; /* Full screen di mobile */
+                top: 0;
                 height: 100vh;
                 transform: translateX(-100%);
                 box-shadow: var(--shadow-xl);
-                z-index: 1045; /* ✅ Lebih tinggi dari navbar di mobile */
+                z-index: 1045;
+                width: var(--sidebar-width) !important;
+                border-right: none;
             }
             
+            /* Tampilkan semua konten di mobile */
+            .sidebar *,
+            body.sidebar-collapsed .sidebar * {
+                opacity: 1 !important;
+                visibility: visible !important;
+            }
+            
+            .sidebar .nav-link {
+                justify-content: flex-start !important;
+                padding: 0.875rem 1.5rem !important;
+            }
+            
+            .sidebar .nav-link i {
+                margin-right: 12px !important;
+            }
+            
+            /* Sidebar muncul saat show */
             .sidebar.show {
                 transform: translateX(0);
             }
             
+            /* Reset margin di mobile */
             .main-content,
             .footer {
                 margin-left: 0 !important;
@@ -519,6 +612,18 @@
             
             .navbar-custom {
                 padding: 1rem 1.5rem;
+            }
+            
+            /* Hide toggle button di mobile */
+            .sidebar-toggle-btn {
+                display: none !important;
+            }
+            
+            /* Disable collapse state di mobile */
+            body.sidebar-collapsed .sidebar {
+                width: var(--sidebar-width) !important;
+                overflow-y: auto;
+                overflow-x: hidden;
             }
         }
         
@@ -546,6 +651,11 @@
     @stack('styles')
 </head>
 <body>
+    <!-- 🔥 TOMBOL TOGGLE SIDEBAR (Desktop Only) -->
+    <div class="sidebar-toggle-btn d-none d-lg-flex" id="desktopSidebarToggle" title="Toggle Sidebar">
+        <i class="bi bi-chevron-left"></i>
+    </div>
+    
     <!-- Navbar -->
     @include('layouts.partials.navbar')
     
@@ -597,29 +707,63 @@
         });
         
         // ========================================
-        // SIDEBAR TOGGLE untuk Mobile
+        // 🔥 SIDEBAR TOGGLE (Desktop & Mobile)
         // ========================================
         document.addEventListener('DOMContentLoaded', function() {
             const sidebar = document.getElementById('sidebar');
             const sidebarToggle = document.getElementById('sidebarToggle');
             const sidebarClose = document.getElementById('sidebarClose');
             const sidebarOverlay = document.getElementById('sidebarOverlay');
+            const desktopSidebarToggle = document.getElementById('desktopSidebarToggle');
             
-            // Function untuk buka sidebar
+            // Function untuk buka sidebar (Mobile)
             function openSidebar() {
                 sidebar.classList.add('show');
                 sidebarOverlay.classList.add('show');
                 document.body.classList.add('sidebar-open');
             }
             
-            // Function untuk tutup sidebar
+            // Function untuk tutup sidebar (Mobile)
             function closeSidebar() {
                 sidebar.classList.remove('show');
                 sidebarOverlay.classList.remove('show');
                 document.body.classList.remove('sidebar-open');
             }
             
-            // Event listener untuk toggle button
+            // 🔥 Function untuk toggle collapse sidebar (Desktop)
+            function toggleSidebarCollapse() {
+                document.body.classList.toggle('sidebar-collapsed');
+                
+                // Update icon
+                const icon = desktopSidebarToggle.querySelector('i');
+                if (document.body.classList.contains('sidebar-collapsed')) {
+                    icon.classList.remove('bi-chevron-left');
+                    icon.classList.add('bi-chevron-right');
+                    desktopSidebarToggle.title = 'Expand Sidebar';
+                    
+                    // Simpan state ke localStorage
+                    localStorage.setItem('sidebarCollapsed', 'true');
+                } else {
+                    icon.classList.remove('bi-chevron-right');
+                    icon.classList.add('bi-chevron-left');
+                    desktopSidebarToggle.title = 'Collapse Sidebar';
+                    
+                    // Simpan state ke localStorage
+                    localStorage.setItem('sidebarCollapsed', 'false');
+                }
+            }
+            
+            // 🔥 Load saved state dari localStorage
+            const savedState = localStorage.getItem('sidebarCollapsed');
+            if (savedState === 'true') {
+                document.body.classList.add('sidebar-collapsed');
+                const icon = desktopSidebarToggle.querySelector('i');
+                icon.classList.remove('bi-chevron-left');
+                icon.classList.add('bi-chevron-right');
+                desktopSidebarToggle.title = 'Expand Sidebar';
+            }
+            
+            // Event listener untuk toggle button (Mobile)
             if (sidebarToggle) {
                 sidebarToggle.addEventListener('click', function(e) {
                     e.stopPropagation();
@@ -627,7 +771,7 @@
                 });
             }
             
-            // Event listener untuk close button
+            // Event listener untuk close button (Mobile)
             if (sidebarClose) {
                 sidebarClose.addEventListener('click', function(e) {
                     e.stopPropagation();
@@ -635,7 +779,15 @@
                 });
             }
             
-            // Event listener untuk overlay (klik di luar sidebar untuk tutup)
+            // 🔥 Event listener untuk desktop toggle
+            if (desktopSidebarToggle) {
+                desktopSidebarToggle.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    toggleSidebarCollapse();
+                });
+            }
+            
+            // Event listener untuk overlay (klik di luar sidebar untuk tutup - Mobile)
             if (sidebarOverlay) {
                 sidebarOverlay.addEventListener('click', function() {
                     closeSidebar();

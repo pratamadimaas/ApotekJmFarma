@@ -128,7 +128,7 @@
 
     <!-- Header -->
     <div class="header">
-        <h3>APOTEK SEHAT SELALU</h3>
+        <h3>APOTEK JM Farma</h3>
         <p>LAPORAN TUTUP SHIFT KASIR</p>
         <p class="small-text">{{ now()->format('d/m/Y H:i:s') }}</p>
     </div>

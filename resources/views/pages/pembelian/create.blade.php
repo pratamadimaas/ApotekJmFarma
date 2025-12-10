@@ -49,7 +49,7 @@
                                 <option value="">Pilih Supplier</option>
                                 @foreach($suppliers as $supplier)
                                     <option value="{{ $supplier->id }}" {{ old('supplier_id') == $supplier->id ? 'selected' : '' }}>
-                                        {{ $supplier->nama_supplier }} {{-- ✅ KOREKSI: Menggunakan nama_supplier --}}
+                                        {{ $supplier->nama_supplier }}
                                     </option>
                                 @endforeach
                             </select>
@@ -68,51 +68,72 @@
 
                 <h5>Detail Barang yang Dibeli <span class="text-danger">*</span></h5>
                 <div id="items-container">
-                    {{-- Baris Item Pertama (Template) --}}
-                    <div class="item-row row mb-2 border p-2">
-                        <div class="col-md-4">
-                            <label>Barang</label>
-                            <select class="form-control barang-select" name="items[0][barang_id]" required>
-                                <option value="">Pilih Barang</option>
-                                @foreach($barang as $brg)
-                                    <option value="{{ $brg->id }}">{{ $brg->nama_barang }}</option>
-                                @endforeach
-                            </select>
+                    {{-- Baris Item Pertama --}}
+                    <div class="item-row border rounded p-3 mb-3 bg-light">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label>Barang <span class="text-danger">*</span></label>
+                                <select class="form-control barang-select" name="items[0][barang_id]" required>
+                                    <option value="">Pilih Barang</option>
+                                    @foreach($barang as $brg)
+                                        <option value="{{ $brg->id }}" data-satuan-terkecil="{{ $brg->satuan_terkecil }}">{{ $brg->nama_barang }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label>Qty <span class="text-danger">*</span></label>
+                                <input type="number" step="1" min="1" class="form-control qty-input" name="items[0][qty]" value="1" required>
+                            </div>
+                            <div class="col-md-2">
+                                <label>Satuan <span class="text-danger">*</span></label>
+                                <select class="form-control satuan-select" name="items[0][satuan]" required>
+                                    <option value="">Pilih Satuan</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label>Harga Beli <span class="text-danger">*</span></label>
+                                <input type="number" step="0.01" min="0" class="form-control harga-beli-input" name="items[0][harga_beli]" value="0" required>
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button type="button" class="btn btn-danger btn-sm remove-item w-100" disabled>
+                                    <i class="bi bi-trash"></i> Hapus
+                                </button>
+                            </div>
                         </div>
-                        <div class="col-md-2">
-                            <label>Qty</label>
-                            <input type="number" step="1" min="1" class="form-control qty-input" name="items[0][qty]" value="1" required>
+                        
+                        <div class="row mt-3">
+                            <div class="col-md-4">
+                                <label>Tgl. Kadaluarsa</label>
+                                <input type="date" class="form-control" name="items[0][tanggal_kadaluarsa]">
+                            </div>
+                            <div class="col-md-4">
+                                <label>Subtotal (Otomatis)</label>
+                                <input type="text" class="form-control subtotal-input" value="0" readonly>
+                            </div>
                         </div>
-                        <div class="col-md-2">
-                            <label>Satuan</label>
-                            <select class="form-control satuan-select" name="items[0][satuan]" required>
-                                <option value="">Pilih Satuan</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label>Harga Beli (Satuan)</label>
-                            <input type="number" step="0.01" min="0" class="form-control harga-beli-input" name="items[0][harga_beli]" value="0" required>
-                        </div>
-                        {{-- 🟢 INPUT BARU: HARGA JUAL --}}
-                        <div class="col-md-2">
-                            <label>Harga Jual (Satuan)</label>
-                            <input type="number" step="0.01" min="0" class="form-control harga-jual-input" name="items[0][harga_jual]" value="0" required>
-                        </div>
-                        <div class="col-md-2 d-flex align-items-end"> {{-- DIUBAH: 1 -> 2 UNTUK MUDAHKAN TATA LETAK --}}
-                            <button type="button" class="btn btn-danger btn-sm remove-item" style="height: 38px;" disabled>-</button>
-                        </div>
-                        <div class="col-md-4 mt-2">
-                            <label>Tgl. Kadaluarsa (Opsional)</label>
-                            <input type="date" class="form-control" name="items[0][tanggal_kadaluarsa]">
-                        </div>
-                        <div class="col-md-4 mt-2">
-                            <label>Subtotal (Otomatis)</label>
-                            <input type="text" class="form-control subtotal-input" value="0" readonly>
+
+                        {{-- 🔥 SECTION BARU: KELOLA SATUAN KONVERSI --}}
+                        <div class="satuan-konversi-section mt-3 p-3 border rounded bg-white" style="display: none;">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="mb-0 text-primary">
+                                    <i class="bi bi-diagram-3"></i> Kelola Satuan & Harga Jual
+                                </h6>
+                                <button type="button" class="btn btn-success btn-sm add-satuan-btn">
+                                    <i class="bi bi-plus-circle"></i> Tambah Satuan Baru
+                                </button>
+                            </div>
+                            
+                            {{-- Container untuk satuan-satuan --}}
+                            <div class="satuan-list">
+                                {{-- Satuan dasar akan ditambahkan via JS --}}
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <button type="button" id="add-item-btn" class="btn btn-success btn-sm mt-3">+ Tambah Barang</button>
+                <button type="button" id="add-item-btn" class="btn btn-success btn-sm mt-3">
+                    <i class="bi bi-plus-circle"></i> Tambah Barang
+                </button>
                 <hr>
                 
                 <div class="row">
@@ -146,72 +167,193 @@
                     </div>
                 </div>
 
-
                 <div class="mt-4">
-                    <button type="submit" class="btn btn-primary">Simpan Pembelian</button>
-                    <a href="{{ route('pembelian.index') }}" class="btn btn-secondary">Batal</a>
+                    <button type="submit" class="btn btn-primary" name="status" value="approved">
+                        <i class="bi bi-check-circle"></i> Simpan & Approve
+                    </button>
+                    <button type="submit" class="btn btn-warning" name="status" value="pending">
+                        <i class="bi bi-clock-history"></i> Simpan sebagai Pending
+                    </button>
+                    <a href="{{ route('pembelian.index') }}" class="btn btn-secondary">
+                        <i class="bi bi-x-circle"></i> Batal
+                    </a>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
+@push('styles')
+<style>
+    .satuan-item {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 10px;
+        transition: all 0.3s ease;
+    }
+    
+    .satuan-item:hover {
+        background: #e9ecef;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .satuan-item.is-default {
+        border-color: #0d6efd;
+        background: #e7f1ff;
+    }
+    
+    .satuan-item input[type="checkbox"]:checked + label {
+        font-weight: bold;
+        color: #0d6efd;
+    }
+    
+    .badge-satuan {
+        font-size: 0.75rem;
+        padding: 4px 8px;
+    }
+</style>
+@endpush
+
 @push('scripts')
 <script>
     let itemIndex = 0;
-
-    // Fungsi untuk mendapatkan template baris item baru
-    function getItemTemplate(index) {
-        // Mendapatkan opsi barang dari template blade yang sudah dirender di halaman
-        let barangOptions = `
-            <option value="">Pilih Barang</option>
-            @foreach($barang as $brg)
-                <option value="{{ $brg->id }}">{{ $brg->nama_barang }}</option>
-            @endforeach
-        `;
-
+    
+    // 🔥 Template untuk satuan item
+    function getSatuanItemTemplate(itemIdx, satuanData, isNew = false) {
+        const isDefault = satuanData.is_default || false;
+        const satuanName = satuanData.nama_satuan || '';
+        const konversi = satuanData.jumlah_konversi || 1;
+        const hargaJual = satuanData.harga_jual || 0;
+        const satuanId = satuanData.id || '';
+        
         return `
-            <div class="item-row row mb-2 border p-2" data-index="${index}">
-                <div class="col-md-4">
-                    <label>Barang</label>
-                    <select class="form-control barang-select" name="items[${index}][barang_id]" required>
-                        ${barangOptions}
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label>Qty</label>
-                    <input type="number" step="1" min="1" class="form-control qty-input" name="items[${index}][qty]" value="1" required>
-                </div>
-                <div class="col-md-2">
-                    <label>Satuan</label>
-                    <select class="form-control satuan-select" name="items[${index}][satuan]" required>
-                        <option value="">Pilih Satuan</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label>Harga Beli (Satuan)</label>
-                    <input type="number" step="0.01" min="0" class="form-control harga-beli-input" name="items[${index}][harga_beli]" value="0" required>
-                </div>
-                <div class="col-md-2">
-                    <label>Harga Jual (Satuan)</label>
-                    <input type="number" step="0.01" min="0" class="form-control harga-jual-input" name="items[${index}][harga_jual]" value="0" required>
-                </div>
-                <div class="col-md-1 d-flex align-items-end">
-                    <button type="button" class="btn btn-danger btn-sm remove-item" style="height: 38px;">-</button>
-                </div>
-                <div class="col-md-4 mt-2">
-                    <label>Tgl. Kadaluarsa (Opsional)</label>
-                    <input type="date" class="form-control" name="items[${index}][tanggal_kadaluarsa]">
-                </div>
-                <div class="col-md-4 mt-2">
-                    <label>Subtotal (Otomatis)</label>
-                    <input type="text" class="form-control subtotal-input" value="0" readonly>
+            <div class="satuan-item ${isDefault ? 'is-default' : ''}" data-satuan-name="${satuanName}">
+                <div class="row align-items-center">
+                    <div class="col-md-3">
+                        <label class="form-label small mb-1">Nama Satuan</label>
+                        <input type="text" 
+                               class="form-control form-control-sm satuan-nama-input" 
+                               name="items[${itemIdx}][satuan_konversi][${satuanName || 'new'}][nama_satuan]" 
+                               value="${satuanName}" 
+                               ${!isNew ? 'readonly' : ''} 
+                               required>
+                        ${satuanId ? `<input type="hidden" name="items[${itemIdx}][satuan_konversi][${satuanName}][id]" value="${satuanId}">` : ''}
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small mb-1">Konversi</label>
+                        <input type="number" 
+                               step="1" 
+                               min="1" 
+                               class="form-control form-control-sm konversi-input" 
+                               name="items[${itemIdx}][satuan_konversi][${satuanName || 'new'}][jumlah_konversi]" 
+                               value="${konversi}" 
+                               ${isDefault ? 'readonly' : ''} 
+                               required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small mb-1">Harga Jual</label>
+                        <input type="number" 
+                               step="0.01" 
+                               min="0" 
+                               class="form-control form-control-sm harga-jual-satuan-input" 
+                               name="items[${itemIdx}][satuan_konversi][${satuanName || 'new'}][harga_jual]" 
+                               value="${hargaJual}" 
+                               required>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small mb-1">Default</label>
+                        <div class="form-check">
+                            <input class="form-check-input is-default-check" 
+                                   type="checkbox" 
+                                   name="items[${itemIdx}][satuan_konversi][${satuanName || 'new'}][is_default]" 
+                                   value="1" 
+                                   ${isDefault ? 'checked disabled' : ''}>
+                            <label class="form-check-label small">
+                                ${isDefault ? '<span class="badge badge-satuan bg-primary">Default</span>' : 'Set Default'}
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-2 text-end">
+                        ${!isDefault ? `
+                            <button type="button" class="btn btn-danger btn-sm remove-satuan-btn" title="Hapus Satuan">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        ` : '<small class="text-muted">Satuan Dasar</small>'}
+                    </div>
                 </div>
             </div>
         `;
     }
 
-    // Fungsi untuk menghitung total harga per baris
+    // 🔥 Template untuk item barang
+    function getItemTemplate(index) {
+        let barangOptions = `
+            <option value="">Pilih Barang</option>
+            @foreach($barang as $brg)
+                <option value="{{ $brg->id }}" data-satuan-terkecil="{{ $brg->satuan_terkecil }}">{{ $brg->nama_barang }}</option>
+            @endforeach
+        `;
+
+        return `
+            <div class="item-row border rounded p-3 mb-3 bg-light" data-index="${index}">
+                <div class="row">
+                    <div class="col-md-4">
+                        <label>Barang <span class="text-danger">*</span></label>
+                        <select class="form-control barang-select" name="items[${index}][barang_id]" required>
+                            ${barangOptions}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label>Qty <span class="text-danger">*</span></label>
+                        <input type="number" step="1" min="1" class="form-control qty-input" name="items[${index}][qty]" value="1" required>
+                    </div>
+                    <div class="col-md-2">
+                        <label>Satuan <span class="text-danger">*</span></label>
+                        <select class="form-control satuan-select" name="items[${index}][satuan]" required>
+                            <option value="">Pilih Satuan</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label>Harga Beli <span class="text-danger">*</span></label>
+                        <input type="number" step="0.01" min="0" class="form-control harga-beli-input" name="items[${index}][harga_beli]" value="0" required>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="button" class="btn btn-danger btn-sm remove-item w-100">
+                            <i class="bi bi-trash"></i> Hapus
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="row mt-3">
+                    <div class="col-md-4">
+                        <label>Tgl. Kadaluarsa</label>
+                        <input type="date" class="form-control" name="items[${index}][tanggal_kadaluarsa]">
+                    </div>
+                    <div class="col-md-4">
+                        <label>Subtotal (Otomatis)</label>
+                        <input type="text" class="form-control subtotal-input" value="0" readonly>
+                    </div>
+                </div>
+
+                <div class="satuan-konversi-section mt-3 p-3 border rounded bg-white" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0 text-primary">
+                            <i class="bi bi-diagram-3"></i> Kelola Satuan & Harga Jual
+                        </h6>
+                        <button type="button" class="btn btn-success btn-sm add-satuan-btn">
+                            <i class="bi bi-plus-circle"></i> Tambah Satuan Baru
+                        </button>
+                    </div>
+                    
+                    <div class="satuan-list">
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     function calculateSubtotal(row) {
         const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
         const hargaBeli = parseFloat(row.querySelector('.harga-beli-input').value) || 0;
@@ -220,7 +362,6 @@
         calculateGrandTotal();
     }
 
-    // Fungsi untuk menghitung grand total pembelian
     function calculateGrandTotal() {
         let grandTotal = 0;
         document.querySelectorAll('.item-row').forEach(row => {
@@ -234,63 +375,81 @@
         document.getElementById('total_harga').value = grandTotal.toFixed(2);
 
         let totalBayar = grandTotal;
-
-        // Hitung Diskon
         const nilaiDiskon = totalBayar * (diskonPersen / 100);
         totalBayar -= nilaiDiskon;
         
-        // Hitung PPN
         const nilaiPpn = totalBayar * (ppnPersen / 100);
         totalBayar += nilaiPpn;
 
         document.getElementById('total_bayar').value = Math.max(0, totalBayar).toFixed(2);
     }
 
-    // Fungsi AJAX untuk mendapatkan satuan konversi barang
-    function fetchSatuanKonversi(barangId, selectElement) {
+    // 🔥 Fetch satuan konversi dari server
+    function fetchSatuanKonversi(barangId, row) {
         if (!barangId) {
-            selectElement.innerHTML = '<option value="">Pilih Satuan</option>';
+            row.querySelector('.satuan-select').innerHTML = '<option value="">Pilih Satuan</option>';
+            row.querySelector('.satuan-konversi-section').style.display = 'none';
             return;
         }
 
-        fetch(`/barang/${barangId}/satuan`) 
+        const itemIdx = row.dataset.index || Array.from(row.parentElement.children).indexOf(row);
+
+        fetch(`/barang/${barangId}/satuan`)
             .then(response => response.json())
             .then(data => {
+                const satuanSelect = row.querySelector('.satuan-select');
+                const satuanList = row.querySelector('.satuan-list');
+                
+                // Update dropdown satuan
                 let options = '<option value="">Pilih Satuan</option>';
-                // Tambahkan satuan dasar
                 options += `<option value="${data.satuan_dasar}">${data.satuan_dasar} (Dasar)</option>`;
                 
-                // Tambahkan satuan konversi
                 data.konversi.forEach(konv => {
-                    options += `<option value="${konv.satuan_konversi}">${konv.satuan_konversi}</option>`;
+                    options += `<option value="${konv.nama_satuan}">${konv.nama_satuan}</option>`;
                 });
-                selectElement.innerHTML = options;
+                satuanSelect.innerHTML = options;
+                
+                // 🔥 Populate satuan konversi section
+                satuanList.innerHTML = '';
+                
+                // Tambahkan satuan dasar
+                const satuanDasar = {
+                    nama_satuan: data.satuan_dasar,
+                    jumlah_konversi: 1,
+                    harga_jual: data.harga_jual || 0,
+                    is_default: true,
+                    id: ''
+                };
+                satuanList.insertAdjacentHTML('beforeend', getSatuanItemTemplate(itemIdx, satuanDasar));
+                
+                // Tambahkan satuan konversi yang ada
+                data.konversi.forEach(konv => {
+                    const satuanData = {
+                        nama_satuan: konv.nama_satuan,
+                        jumlah_konversi: konv.jumlah_konversi,
+                        harga_jual: konv.harga_jual,
+                        is_default: false,
+                        id: konv.id
+                    };
+                    satuanList.insertAdjacentHTML('beforeend', getSatuanItemTemplate(itemIdx, satuanData));
+                });
+                
+                // Tampilkan section
+                row.querySelector('.satuan-konversi-section').style.display = 'block';
             })
             .catch(error => {
                 console.error('Error fetching satuan:', error);
-                selectElement.innerHTML = '<option value="">Error Ambil Satuan</option>';
+                row.querySelector('.satuan-select').innerHTML = '<option value="">Error Ambil Satuan</option>';
             });
     }
 
     document.addEventListener('DOMContentLoaded', function () {
-        // --- Initialization and Setup ---
-        
-        // Jika baris pertama ada, pastikan itemIndex diinisialisasi untuk baris berikutnya
+        // Inisialisasi baris pertama
         const initialRow = document.querySelector('.item-row');
         if (initialRow) {
-            itemIndex = 0; // Baris pertama diinisialisasi 0
-            
-            // Ambil Satuan untuk baris pertama (jika barang sudah dipilih saat old input)
-            const initialBarangSelect = initialRow.querySelector('.barang-select');
-            const initialBarangId = initialBarangSelect.value;
-            const initialSatuanSelect = initialRow.querySelector('.satuan-select');
-            if (initialBarangId) {
-                fetchSatuanKonversi(initialBarangId, initialSatuanSelect);
-            }
+            itemIndex = 0;
         }
-        itemIndex++; // Persiapan index untuk baris baru (mulai dari 1)
-
-        // --- Event Listeners ---
+        itemIndex++;
 
         // 1. Tambah Barang
         document.getElementById('add-item-btn').addEventListener('click', function() {
@@ -299,9 +458,9 @@
             itemIndex++;
         });
 
-        // 2. Delegasi Event Listener untuk Aksi Item
+        // 2. Delegasi Event: Hapus Item
         document.getElementById('items-container').addEventListener('click', function(e) {
-            if (e.target.classList.contains('remove-item')) {
+            if (e.target.closest('.remove-item')) {
                 const row = e.target.closest('.item-row');
                 if (document.querySelectorAll('.item-row').length > 1) {
                     row.remove();
@@ -310,21 +469,65 @@
                     alert('Minimal harus ada 1 barang dalam pembelian.');
                 }
             }
+            
+            // 🔥 Hapus Satuan Konversi
+            if (e.target.closest('.remove-satuan-btn')) {
+                const satuanItem = e.target.closest('.satuan-item');
+                if (confirm('Hapus satuan ini?')) {
+                    satuanItem.remove();
+                }
+            }
+            
+            // 🔥 Tambah Satuan Baru
+            if (e.target.closest('.add-satuan-btn')) {
+                const row = e.target.closest('.item-row');
+                const itemIdx = row.dataset.index || Array.from(row.parentElement.children).indexOf(row);
+                const satuanList = row.querySelector('.satuan-list');
+                const barangSelect = row.querySelector('.barang-select');
+                const selectedOption = barangSelect.options[barangSelect.selectedIndex];
+                const satuanTerkecil = selectedOption.dataset.satuanTerkecil || 'Unit';
+                
+                // Input nama satuan baru
+                const namaSatuan = prompt('Masukkan nama satuan baru (contoh: Box, Karton, Lusin):');
+                if (!namaSatuan) return;
+                
+                // Cek duplikasi
+                const existingSatuan = Array.from(satuanList.querySelectorAll('.satuan-nama-input'))
+                    .map(input => input.value.toLowerCase());
+                if (existingSatuan.includes(namaSatuan.toLowerCase())) {
+                    alert('Satuan ini sudah ada!');
+                    return;
+                }
+                
+                const newSatuan = {
+                    nama_satuan: namaSatuan,
+                    jumlah_konversi: 1,
+                    harga_jual: 0,
+                    is_default: false,
+                    id: ''
+                };
+                
+                satuanList.insertAdjacentHTML('beforeend', getSatuanItemTemplate(itemIdx, newSatuan, true));
+                
+                // Update dropdown satuan
+                const satuanSelect = row.querySelector('.satuan-select');
+                const newOption = document.createElement('option');
+                newOption.value = namaSatuan;
+                newOption.textContent = namaSatuan;
+                satuanSelect.appendChild(newOption);
+            }
         });
 
-        // 3. Delegasi Event Listener untuk Perubahan Item (select, qty, harga)
+        // 3. Delegasi Event: Perubahan Barang
         document.getElementById('items-container').addEventListener('change', function(e) {
             const row = e.target.closest('.item-row');
 
             if (e.target.classList.contains('barang-select')) {
                 const barangId = e.target.value;
-                const satuanSelect = row.querySelector('.satuan-select');
-                fetchSatuanKonversi(barangId, satuanSelect);
+                fetchSatuanKonversi(barangId, row);
                 
-                // Reset Qty/Harga saat barang berubah
                 row.querySelector('.qty-input').value = 1;
                 row.querySelector('.harga-beli-input').value = 0;
-                row.querySelector('.harga-jual-input').value = 0;
                 calculateSubtotal(row); 
 
             } else if (e.target.classList.contains('qty-input') || e.target.classList.contains('harga-beli-input')) {
@@ -332,7 +535,7 @@
             }
         });
         
-        // 4. Delegasi Event Listener untuk Input Cepat (qty, harga)
+        // 4. Delegasi Event: Input Cepat
         document.getElementById('items-container').addEventListener('input', function(e) {
             const row = e.target.closest('.item-row');
             if (e.target.classList.contains('qty-input') || e.target.classList.contains('harga-beli-input')) {
@@ -340,12 +543,11 @@
             }
         });
 
-
-        // 5. Event listener untuk Diskon dan PPN
+        // 5. Event: Diskon dan PPN
         document.getElementById('diskon').addEventListener('input', calculateGrandTotal);
         document.getElementById('ppn').addEventListener('input', calculateGrandTotal);
 
-        // Hitung total awal saat halaman dimuat
+        // Hitung total awal
         calculateGrandTotal();
     });
 

@@ -17,6 +17,7 @@ use App\Http\Controllers\StokOpnameController;
 |--------------------------------------------------------------------------
 | Guest Routes
 |--------------------------------------------------------------------------
+| Rute yang hanya dapat diakses oleh pengguna yang belum terautentikasi (seperti Login).
 */
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -27,6 +28,7 @@ Route::middleware('guest')->group(function () {
 |--------------------------------------------------------------------------
 | Authenticated Routes (Semua User)
 |--------------------------------------------------------------------------
+| Rute yang dapat diakses oleh semua pengguna yang sudah login (Admin & Kasir).
 */
 Route::middleware('auth')->group(function () {
 
@@ -40,35 +42,39 @@ Route::middleware('auth')->group(function () {
         Route::get('/', [PenjualanController::class, 'index'])->name('index');
         Route::post('/store', [PenjualanController::class, 'store'])->name('store');
         Route::get('/riwayat', [PenjualanController::class, 'riwayat'])->name('riwayat');
-        Route::get('/{id}', [PenjualanController::class, 'show'])->name('show');
-        Route::get('/print/{id}', [PenjualanController::class, 'printStruk'])->name('print');
+        
+        // Route untuk search & get barang (untuk barcode scanner)
         Route::get('/search-barang', [PenjualanController::class, 'cariBarang'])->name('search-barang');
         Route::get('/barang/{id}', [PenjualanController::class, 'getBarang'])->name('get-barang');
+        
+        // Route untuk return barang
+        Route::get('/cari-nota/{nomorNota}', [PenjualanController::class, 'cariNota'])->name('cari-nota');
+        Route::post('/return', [PenjualanController::class, 'prosesReturn'])->name('return');
+        
+        // Route detail & print
+        Route::get('/{id}', [PenjualanController::class, 'show'])->name('show');
+        Route::get('/print/{id}', [PenjualanController::class, 'printStruk'])->name('print');
     });
 
-    // --- Master Barang (CRUD Penuh) ---
-    Route::get('/barang/search', [StokOpnameController::class, 'searchBarang'])->name('barang.search');
+    // ---------------------------------------------------------------------
+    // --- Master Barang (API untuk Kasir & Stok Opname) ---
+    // Rute ini harus dapat diakses oleh Kasir/Stok Opname untuk fungsionalitas transaksi.
+    // ---------------------------------------------------------------------
+    Route::get('/barang/search-kasir', [BarangController::class, 'cariBarang'])->name('barang.search-kasir');
     Route::get('/barang/harga-satuan', [BarangController::class, 'hargaSatuan'])->name('barang.harga-satuan');
-    Route::resource('barang', BarangController::class);
+    Route::get('/barang/by-barcode', [BarangController::class, 'getByBarcode'])->name('barang.by-barcode');
     Route::get('/barang/{id}/satuan', [BarangController::class, 'getSatuan'])->name('barang.satuan');
-    
-    // --- Shift Management (UPDATED - Blind Closing System) ---
+    Route::get('/barang/{id}/detail', [BarangController::class, 'getBarang'])->name('barang.detail');
+
+    // --- Shift Management (Blind Closing System) ---
     Route::prefix('shift')->name('shift.')->group(function () {
-        // Buka Shift
         Route::get('/buka', [ShiftController::class, 'formBuka'])->name('buka.form');
         Route::post('/buka', [ShiftController::class, 'buka'])->name('buka.store');
-        
-        // Tutup Shift (Blind Closing - Tidak tampilkan data penjualan)
         Route::get('/tutup', [ShiftController::class, 'formTutup'])->name('tutup.form');
         Route::post('/tutup', [ShiftController::class, 'tutup'])->name('tutup.store');
-        
         Route::get('/hasil/{id}', [ShiftController::class, 'hasil'])->name('hasil');
-        
-        // Riwayat & Detail Shift
         Route::get('/riwayat', [ShiftController::class, 'riwayat'])->name('riwayat');
         Route::get('/riwayat/{id}', [ShiftController::class, 'detail'])->name('detail');
-        
-        // ✅ UPDATED: Cetak Laporan 58mm (Thermal Printer Format)
         Route::get('/riwayat/{id}/cetak', [ShiftController::class, 'cetakLaporan'])->name('cetakLaporan');
     });
 
@@ -81,37 +87,23 @@ Route::middleware('auth')->group(function () {
         Route::get('/laba-rugi', [LaporanController::class, 'labaRugi'])->name('labaRugi');
         Route::get('/export-excel', [LaporanController::class, 'exportExcel'])->name('export-excel');
         Route::get('/export-pdf', [LaporanController::class, 'exportPdf'])->name('export-pdf');
+        Route::get('/kartu-stok', [LaporanController::class, 'kartuStok'])->name('kartuStok');
     });
 
     // --- Profile & Self-Service Password Change (Semua User) ---
     Route::get('/profile', [AuthController::class, 'profile'])->name('profile');
     Route::post('/profile/update', [AuthController::class, 'updateProfile'])->name('profile.update');
-    
-    // Tambahan: Ubah Password Mandiri
     Route::get('/change-password', [UserController::class, 'showChangePasswordForm'])->name('change.password.form');
     Route::post('/change-password', [UserController::class, 'changePassword'])->name('change.password');
 
-    // ✅ --- Stok Opname dengan Scan Barcode (SEMUA USER: Admin & Kasir) ---
+    // --- Stok Opname dengan Scan Barcode (SEMUA USER: Admin & Kasir) ---
     Route::prefix('stokopname')->name('stokopname.')->group(function () {
-        // Halaman utama (daftar riwayat SO)
         Route::get('/', [StokOpnameController::class, 'index'])->name('index');
-        
-        // Halaman scan barcode (create sesi baru)
         Route::get('/create', [StokOpnameController::class, 'create'])->name('create');
-        
-        // API untuk scan barcode
         Route::post('/scan', [StokOpnameController::class, 'scanBarcode'])->name('scan');
-        
-        // Update item (stok fisik & expired date)
         Route::put('/item/{id}', [StokOpnameController::class, 'updateItem'])->name('update-item');
-        
-        // Delete item dari sesi
         Route::delete('/item/{id}', [StokOpnameController::class, 'deleteItem'])->name('delete-item');
-        
-        // Finalize SO (selesaikan dan update stok sistem)
         Route::post('/{id}/finalize', [StokOpnameController::class, 'finalize'])->name('finalize');
-        
-        // Lihat detail sesi SO yang sudah selesai
         Route::get('/{id}', [StokOpnameController::class, 'show'])->name('show');
     });
 
@@ -119,8 +111,26 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     | Admin Only Routes
     |--------------------------------------------------------------------------
+    | Rute yang hanya dapat diakses oleh pengguna dengan peran 'admin'.
     */
     Route::middleware('admin')->group(function () {
+
+        // ---------------------------------------------------------------------
+        // ✅ --- Master Barang (CRUD Penuh & Import/Export - Admin Only) ---
+        // ---------------------------------------------------------------------
+        Route::prefix('barang')->name('barang.')->group(function () {
+            // Rute khusus pencarian (jika dibutuhkan oleh Admin)
+            Route::get('/search', [BarangController::class, 'search'])->name('search'); 
+            
+            // Import/Export Barang
+            Route::get('/import', [BarangController::class, 'importForm'])->name('import-form');
+            Route::post('/import-excel', [BarangController::class, 'importExcel'])->name('import-excel');
+            Route::get('/download-template', [BarangController::class, 'downloadTemplate'])->name('download-template');
+            Route::get('/export-excel', [BarangController::class, 'exportExcel'])->name('export-excel');
+        });
+        
+        // Resource route untuk CRUD barang: index, create, store, show, edit, update, destroy
+        Route::resource('barang', BarangController::class);
 
         // --- Pembelian ---
         Route::prefix('pembelian')->name('pembelian.')->group(function () {
@@ -141,6 +151,9 @@ Route::middleware('auth')->group(function () {
         Route::resource('users', UserController::class);
         Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.resetPassword');
 
+        // --- Shift Management (Delete History - Admin Only) ---
+        Route::delete('/shift/{id}', [ShiftController::class, 'destroy'])->name('shift.destroy');
+        
         // --- Settings ---
         Route::prefix('settings')->name('settings.')->group(function () {
             Route::get('/', [SettingController::class, 'index'])->name('index');

@@ -23,7 +23,12 @@ class PenjualanController extends Controller
             return redirect()->route('shift.buka.form')->with('error', 'Anda harus membuka shift terlebih dahulu!');
         }
 
-        $barang = Barang::where('stok', '>', 0)->where('aktif', 1)->get();
+        // 🔥 FIX: Eager load satuanKonversi agar data muncul di modal
+        $barang = Barang::with('satuanKonversi')
+                       ->where('stok', '>', 0)
+                       ->where('aktif', 1)
+                       ->orderBy('nama_barang', 'asc')
+                       ->get();
         
         return view('pages.penjualan.kasir', compact('shift', 'barang'));
     }
@@ -32,11 +37,14 @@ class PenjualanController extends Controller
     {
         $keyword = $request->get('q');
         
-        $barang = Barang::where('stok', '>', 0)
+        // 🔥 FIX: Eager load satuanKonversi untuk pencarian
+        $barang = Barang::with('satuanKonversi')
+                         ->where('stok', '>', 0)
                          ->where('aktif', 1)
                          ->where(function($query) use ($keyword) {
                              $query->where('nama_barang', 'LIKE', "%{$keyword}%")
-                                   ->orWhere('kode_barang', 'LIKE', "%{$keyword}%");
+                                   ->orWhere('kode_barang', 'LIKE', "%{$keyword}%")
+                                   ->orWhere('barcode', 'LIKE', "%{$keyword}%");
                          })
                          ->limit(10)
                          ->get();
@@ -45,31 +53,29 @@ class PenjualanController extends Controller
     }
 
     public function getBarang($id)
-{
-    $barang = Barang::with('satuanKonversi')->findOrFail($id);
-    
-    // ✅ Satuan konversi dengan harga spesifik
-    $satuanKonversi = $barang->satuanKonversi->map(function($konv) {
-        return [
-            'nama_satuan' => $konv->nama_satuan,
-            'jumlah_konversi' => $konv->jumlah_konversi,
-            'harga_jual' => $konv->harga_jual,
-            'is_default' => $konv->is_default
-        ];
-    });
+    {
+        $barang = Barang::with('satuanKonversi')->findOrFail($id);
+        
+        $satuanKonversi = $barang->satuanKonversi->map(function($konv) {
+            return [
+                'nama_satuan' => $konv->nama_satuan,
+                'jumlah_konversi' => $konv->jumlah_konversi,
+                'harga_jual' => $konv->harga_jual,
+                'is_default' => $konv->is_default
+            ];
+        });
 
-    return response()->json([
-        'id' => $barang->id,
-        'kode_barang' => $barang->kode_barang,  
-        'nama_barang' => $barang->nama_barang,
-        'harga_jual' => $barang->harga_jual,
-        'stok' => $barang->stok,
-        'satuan_dasar' => $barang->satuan_terkecil,
-        'satuan_konversi' => $satuanKonversi,
-    ]);
-}
+        return response()->json([
+            'id' => $barang->id,
+            'kode_barang' => $barang->kode_barang,  
+            'nama_barang' => $barang->nama_barang,
+            'harga_jual' => $barang->harga_jual,
+            'stok' => $barang->stok,
+            'satuan_dasar' => $barang->satuan_terkecil,
+            'satuan_konversi' => $satuanKonversi,
+        ]);
+    }
 
-    // ✅ Store Transaksi - HANDLE MULTI SATUAN
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -81,7 +87,8 @@ class PenjualanController extends Controller
             'total_bayar' => 'required|numeric|min:0',
             'uang_dibayar' => 'required|numeric|min:0',
             'diskon' => 'nullable|numeric|min:0',
-            'metode_pembayaran' => 'nullable|string|in:cash,debit,credit,qris',
+            'metode_pembayaran' => 'nullable|string|in:cash,debit,credit,qris,transfer',
+            'nomor_referensi' => 'nullable|string|max:100',
         ]);
 
         $shift = Shift::where('user_id', Auth::id())
@@ -114,14 +121,15 @@ class PenjualanController extends Controller
                 'jumlah_bayar' => $request->uang_dibayar,
                 'kembalian' => $kembalian,
                 'metode_pembayaran' => $request->metode_pembayaran ?? 'cash',
+                'nomor_referensi' => $request->nomor_referensi,
                 'keterangan' => $request->keterangan,
             ]);
 
-            // ✅ Simpan Detail & Kurangi Stok
+            // Simpan Detail & Kurangi Stok
             foreach ($request->items as $item) {
                 $barang = Barang::findOrFail($item['barang_id']);
 
-                // ✅ Hitung qty dalam satuan terkecil
+                // Hitung qty dalam satuan terkecil
                 $qtyDasar = $item['qty'];
                 
                 if ($item['satuan'] !== $barang->satuan_terkecil) {
@@ -200,5 +208,87 @@ class PenjualanController extends Controller
         $penjualan = Penjualan::with(['detailPenjualan.barang', 'user'])->findOrFail($id);
         
         return view('pages.penjualan.struk', compact('penjualan'));
+    }
+
+    public function cariNota($nomorNota)
+    {
+        $penjualan = Penjualan::with(['detailPenjualan.barang'])
+                              ->where('nomor_nota', $nomorNota)
+                              ->first();
+        
+        if (!$penjualan) {
+            return response()->json(['success' => false, 'message' => 'Nota tidak ditemukan'], 404);
+        }
+        
+        $items = $penjualan->detailPenjualan->map(function($detail) {
+            return [
+                'id' => $detail->id,
+                'barang_id' => $detail->barang_id,
+                'nama_barang' => $detail->barang->nama_barang,
+                'jumlah' => $detail->jumlah,
+                'satuan' => $detail->satuan,
+                'harga_jual' => $detail->harga_jual,
+                'subtotal' => $detail->subtotal
+            ];
+        });
+        
+        return response()->json([
+            'success' => true,
+            'penjualan_id' => $penjualan->id,
+            'items' => $items
+        ]);
+    }
+
+    public function prosesReturn(Request $request)
+    {
+        $validated = $request->validate([
+            'items' => 'required|array',
+            'items.*' => 'required|exists:detail_penjualan,id'
+        ]);
+        
+        DB::beginTransaction();
+        try {
+            foreach ($request->items as $detailId) {
+                $detail = DetailPenjualan::with('barang')->findOrFail($detailId);
+                
+                // Kembalikan stok
+                $barang = Barang::findOrFail($detail->barang_id);
+                
+                // Hitung qty dalam satuan terkecil
+                $qtyDasar = $detail->jumlah;
+                
+                if ($detail->satuan !== $barang->satuan_terkecil) {
+                    $konversi = SatuanKonversi::where('barang_id', $barang->id)
+                                             ->where('nama_satuan', $detail->satuan)
+                                             ->first();
+                    if ($konversi) {
+                        $qtyDasar = $detail->jumlah * $konversi->jumlah_konversi;
+                    }
+                }
+                
+                // Tambah stok kembali
+                $barang->increment('stok', $qtyDasar);
+                
+                // Tandai detail sebagai return
+                $detail->update([
+                    'is_return' => true,
+                    'return_date' => now()
+                ]);
+            }
+            
+            DB::commit();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Return berhasil diproses'
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 }

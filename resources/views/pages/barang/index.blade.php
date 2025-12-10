@@ -4,16 +4,33 @@
 
 @section('content')
 <div class="container-fluid">
-    <div class="d-flex justify-content-between mb-4">
-        <h2>Daftar Barang</h2>
-        <a href="{{ route('barang.create') }}" class="btn btn-primary">
-            <i class="bi bi-plus-circle me-2"></i>Tambah Barang
-        </a>
-    </div>
-
     <div class="card shadow mb-4">
+        
+        {{-- CARD HEADER (MENGGABUNGKAN HEADER LAMA DAN BARU) --}}
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h2 class="h4 mb-0 text-gray-800">Daftar Barang</h2>
+            <div class="btn-group" role="group" aria-label="Aksi Barang">
+                {{-- Tombol Import --}}
+                <a href="{{ route('barang.import-form') }}" class="btn btn-info text-white me-2" title="Import Data dari Excel">
+                    <i class="bi bi-file-earmark-spreadsheet me-1"></i> Import
+                </a>
+                
+                {{-- Tombol Export --}}
+                <a href="{{ route('barang.export-excel', request()->query()) }}" class="btn btn-success me-2" title="Export Data ke Excel">
+                    {{-- Melewatkan query string agar filter juga diekspor --}}
+                    <i class="bi bi-download me-1"></i> Export
+                </a>
+                
+                {{-- Tombol Tambah --}}
+                <a href="{{ route('barang.create') }}" class="btn btn-primary" title="Tambah Barang Baru">
+                    <i class="bi bi-plus-circle me-1"></i> Tambah
+                </a>
+            </div>
+        </div>
+        
         <div class="card-body">
             
+            {{-- FORM FILTER DAN PENCARIAN --}}
             <form method="GET" class="row g-2 mb-4 align-items-end">
                 <div class="col-md-4">
                     <label for="search" class="form-label visually-hidden">Cari Barang</label>
@@ -53,6 +70,7 @@
                 </div>
             </form>
 
+            {{-- TABEL DATA BARANG --}}
             <div class="table-responsive">
                 <table class="table table-striped table-hover table-vertical-align-middle">
                     <thead>
@@ -96,7 +114,7 @@
                                     <i class="bi bi-pencil"></i>
                                 </a>
                                 <form action="{{ route('barang.destroy', $item->id) }}" method="POST" class="d-inline" 
-                                        onsubmit="return confirm('Yakin ingin menghapus barang {{ $item->nama_barang }}?')">
+                                        onsubmit="return confirm('Yakin ingin menghapus barang {{ $item->nama_barang }}? Tindakan ini TIDAK dapat dibatalkan.')">
                                     @csrf
                                     @method('DELETE')
                                     <button class="btn btn-sm btn-danger" title="Hapus"><i class="bi bi-trash"></i></button>
@@ -105,13 +123,16 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="9" class="text-center py-4">Tidak ada data barang yang ditemukan.</td>
+                            <td colspan="9" class="text-center py-4">
+                                <i class="bi bi-box-seam me-2"></i> Tidak ada data barang yang ditemukan.
+                            </td>
                         </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
             
+            {{-- PAGINATION --}}
             {{ $barang->links('pagination::bootstrap-5') }}
         </div>
     </div>

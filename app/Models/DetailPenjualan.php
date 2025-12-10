@@ -18,14 +18,18 @@ class DetailPenjualan extends Model
         'satuan',
         'harga_jual',
         'diskon_item',
-        'subtotal'
+        'subtotal',
+        'is_return',
+        'return_date',
     ];
 
     protected $casts = [
         'jumlah' => 'integer',
-        'harga_jual' => 'decimal:2',
-        'diskon_item' => 'decimal:2',
-        'subtotal' => 'decimal:2'
+        'harga_jual' => 'integer',
+        'diskon_item' => 'integer',
+        'subtotal' => 'integer',
+        'is_return' => 'boolean',
+        'return_date' => 'datetime',
     ];
 
     // Relationship: Detail milik Penjualan

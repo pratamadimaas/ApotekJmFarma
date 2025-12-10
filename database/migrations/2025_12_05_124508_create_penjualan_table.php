@@ -21,7 +21,7 @@ return new class extends Migration
             $table->decimal('grand_total', 15, 2)->default(0);
             $table->decimal('jumlah_bayar', 15, 2)->default(0);
             $table->decimal('kembalian', 15, 2)->default(0);
-            $table->enum('metode_pembayaran', ['cash', 'debit', 'credit', 'qris'])->default('cash');
+            $table->enum('metode_pembayaran', ['cash', 'debit', 'credit', 'qris', 'transfer'])->default('cash');
             $table->text('keterangan')->nullable();
             $table->timestamps();
             
