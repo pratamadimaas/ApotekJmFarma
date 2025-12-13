@@ -23,7 +23,8 @@ class Barang extends Model
         'stok_minimal',
         'lokasi_rak',
         'deskripsi',
-        'aktif'
+        'aktif',
+        'cabang_id'  // ✅ Tambahkan ini!
     ];
 
     protected $casts = [
@@ -35,8 +36,45 @@ class Barang extends Model
     ];
 
     // ============================================
+    // ✅ BOOT METHOD - Auto Set cabang_id
+    // ============================================
+    protected static function boot()
+    {
+        parent::boot();
+
+        // ✅ Sebelum create, pastikan cabang_id terisi
+        static::creating(function ($barang) {
+            // Jika cabang_id masih kosong, set dari user yang login
+            if (empty($barang->cabang_id)) {
+                $user = auth()->user();
+                
+                // Untuk Super Admin, gunakan session atau default
+                if ($user && method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) {
+                    $barang->cabang_id = session('selected_cabang_id') ?? $user->cabang_id;
+                } else {
+                    // Untuk user biasa, ambil dari user->cabang_id
+                    $barang->cabang_id = $user->cabang_id ?? null;
+                }
+                
+                \Log::info('Barang Boot Creating', [
+                    'barang_id' => $barang->id ?? 'new',
+                    'auto_set_cabang_id' => $barang->cabang_id,
+                    'user_id' => $user->id ?? null,
+                    'user_role' => $user->role ?? null
+                ]);
+            }
+        });
+    }
+
+    // ============================================
     // RELASI
     // ============================================
+
+    // ✅ Relasi ke Cabang
+    public function cabang()
+    {
+        return $this->belongsTo(Cabang::class, 'cabang_id');
+    }
 
     // Relasi ke Satuan Konversi
     public function satuanKonversi()

@@ -399,7 +399,13 @@
             .then(data => {
                 const satuanSelect = row.querySelector('.satuan-select');
                 const satuanList = row.querySelector('.satuan-list');
+                const hargaBeliInput = row.querySelector('.harga-beli-input');
                 
+                 // ✅ SET HARGA BELI TERAKHIR OTOMATIS
+                if (data.harga_beli && data.harga_beli > 0) {
+                    hargaBeliInput.value = data.harga_beli;
+                    calculateSubtotal(row); // Hitung subtotal otomatis
+                }
                 // Update dropdown satuan
                 let options = '<option value="">Pilih Satuan</option>';
                 options += `<option value="${data.satuan_dasar}">${data.satuan_dasar} (Dasar)</option>`;
@@ -408,7 +414,7 @@
                     options += `<option value="${konv.nama_satuan}">${konv.nama_satuan}</option>`;
                 });
                 satuanSelect.innerHTML = options;
-                
+            
                 // 🔥 Populate satuan konversi section
                 satuanList.innerHTML = '';
                 
@@ -527,8 +533,7 @@
                 fetchSatuanKonversi(barangId, row);
                 
                 row.querySelector('.qty-input').value = 1;
-                row.querySelector('.harga-beli-input').value = 0;
-                calculateSubtotal(row); 
+                
 
             } else if (e.target.classList.contains('qty-input') || e.target.classList.contains('harga-beli-input')) {
                 calculateSubtotal(row);

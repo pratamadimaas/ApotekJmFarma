@@ -16,13 +16,44 @@
         
         <hr class="text-white opacity-50 mx-3">
 
-        {{-- 🛒 AREA OPERASIONAL (DIIZINKAN UNTUK SEMUA ROLE, TERMASUK ADMIN) --}}
+        {{-- 🛒 AREA OPERASIONAL (DIIZINKAN UNTUK SEMUA ROLE) --}}
 
-        {{-- KASIR (PENJUALAN) --}}
-        <a class="nav-link {{ request()->routeIs('penjualan.*') ? 'active' : '' }}" href="{{ route('penjualan.index') }}">
-            <i class="bi bi-cart-check"></i>
-            Kasir (Penjualan)
-        </a>
+        {{-- KASIR (PENJUALAN) - DENGAN DROPDOWN --}}
+<div class="nav-item">
+    <a class="nav-link {{ request()->routeIs('penjualan.*') ? 'active' : '' }}" 
+        data-bs-toggle="collapse" 
+        href="#penjualanMenu" 
+        role="button">
+        <i class="bi bi-cart-check"></i>
+        Kasir (Penjualan)
+        <i class="bi bi-chevron-down float-end"></i>
+    </a>
+
+    <div class="collapse {{ request()->routeIs('penjualan.*') ? 'show' : '' }}" id="penjualanMenu">
+        <nav class="nav flex-column ms-3">
+            {{-- KASIR POS --}}
+            <a class="nav-link {{ request()->routeIs('penjualan.index') ? 'active' : '' }}"
+               href="{{ route('penjualan.index') }}">
+                <i class="bi bi-cart-plus"></i>
+                Kasir POS
+            </a>
+
+            {{-- LAPORAN RETURN BARANG --}}
+            <a class="nav-link {{ request()->routeIs('penjualan.laporan-return') ? 'active' : '' }}"
+               href="{{ route('penjualan.laporan-return') }}">
+                <i class="bi bi-arrow-return-left"></i>
+                Laporan Return
+            </a>
+
+            {{-- LAPORAN INVOICE --}}
+            <a class="nav-link {{ request()->routeIs('penjualan.laporan-invoice') ? 'active' : '' }}"
+               href="{{ route('penjualan.laporan-invoice') }}">
+                <i class="bi bi-file-earmark-text"></i>
+                Laporan Penjualan
+            </a>
+        </nav>
+    </div>
+</div>
         
         {{-- SHIFT KASIR --}}
         <div class="nav-item">
@@ -67,8 +98,8 @@
 
         <hr class="text-white opacity-50 mx-3">
 
-        {{-- ⚙️ AREA KHUSUS ADMINISTRATOR (Hanya Admin yang melihat di bawah ini) --}}
-        @if(auth()->user()->role == 'admin')
+        {{-- ⚙️ AREA KHUSUS ADMINISTRATOR (Super Admin & Admin Cabang) --}}
+        @if(auth()->user()->isSuperAdmin() || auth()->user()->isAdminCabang())
 
             {{-- PEMBELIAN --}}
             <a class="nav-link {{ request()->routeIs('pembelian.*') ? 'active' : '' }}" href="{{ route('pembelian.index') }}">
@@ -78,9 +109,9 @@
             
             <hr class="text-white opacity-50 mx-3">
             
-            {{-- MASTER DATA (BARANG, SUPPLIER) --}}
+            {{-- MASTER DATA (BARANG, SUPPLIER, CABANG) --}}
             <div class="nav-item">
-                <a class="nav-link {{ request()->routeIs(['barang.*', 'supplier.*']) ? 'active' : '' }}" 
+                <a class="nav-link {{ request()->routeIs(['barang.*', 'supplier.*', 'cabang.*']) ? 'active' : '' }}" 
                     data-bs-toggle="collapse" 
                     href="#masterDataMenu" 
                     role="button">
@@ -88,7 +119,7 @@
                     Master Data
                     <i class="bi bi-chevron-down float-end"></i>
                 </a>
-                <div class="collapse {{ request()->routeIs(['barang.*', 'supplier.*']) ? 'show' : '' }}" id="masterDataMenu">
+                <div class="collapse {{ request()->routeIs(['barang.*', 'supplier.*', 'cabang.*']) ? 'show' : '' }}" id="masterDataMenu">
                     <nav class="nav flex-column ms-3">
                         <a class="nav-link {{ request()->routeIs('barang.index') ? 'active' : '' }}" 
                             href="{{ route('barang.index') }}">
@@ -96,7 +127,6 @@
                             Barang/Obat
                         </a>
                         
-                        {{-- ✅ NEW LINK: DAFTAR HARGA SATUAN --}}
                         <a class="nav-link {{ request()->routeIs('barang.harga-satuan') ? 'active' : '' }}" 
                             href="{{ route('barang.harga-satuan') }}">
                             <i class="bi bi-tag"></i>
@@ -108,6 +138,15 @@
                             <i class="bi bi-truck"></i>
                             Supplier
                         </a>
+
+                        {{-- MENU CABANG (Super Admin Only) --}}
+                        @if(auth()->user()->isSuperAdmin())
+                        <a class="nav-link {{ request()->routeIs('cabang.*') ? 'active' : '' }}" 
+                            href="{{ route('cabang.index') }}">
+                            <i class="bi bi-building"></i>
+                            Cabang
+                        </a>
+                        @endif
                     </nav>
                 </div>
             </div>

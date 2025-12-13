@@ -12,8 +12,8 @@
         </div>
         <div class="d-flex gap-2 align-items-center">
             <div>
-                <label class="form-label mb-1 small">Metode Pembayaran</label>
-                <select class="form-select form-select-sm" id="metodePembayaran" style="min-width: 200px;">
+                <label class="form-label mb-1 small">Metode Pembayaran <kbd>F7</kbd></label>
+                <select class="form-select form-select-sm" id="metodePembayaran" style="min-width: 200px;" tabindex="-1">
                     <option value="cash">💵 Cash</option>
                     <option value="transfer">🏦 Transfer Bank</option>
                     <option value="qris">📱 QRIS</option>
@@ -25,12 +25,12 @@
                 <div class="mt-2" id="divReferensi" style="display: none;">
                     <label class="form-label mb-1 small">No. Referensi / Approval Code</label>
                     <input type="text" class="form-control form-control-sm" id="nomorReferensi" 
-                        placeholder="Masukkan nomor referensi...">
+                        placeholder="Masukkan nomor referensi..." tabindex="-1">
                 </div>
             </div>
             <div>
                 <label class="form-label mb-1 small">Sales</label>
-                <select class="form-select form-select-sm" style="min-width: 150px;">
+                <select class="form-select form-select-sm" style="min-width: 150px;" tabindex="-1">
                     <option>-</option>
                 </select>
             </div>
@@ -45,17 +45,17 @@
                 <div class="card-body p-2">
                     <div class="row g-2 align-items-end">
                         <div class="col-md-2">
-                            <label class="form-label mb-1 small fw-bold">Jumlah</label>
-                            <input type="number" id="inputJumlah" class="form-control" value="1" min="1">
+                            <label class="form-label mb-1 small fw-bold">Jumlah <kbd>F1</kbd></label>
+                            <input type="number" id="inputJumlah" class="form-control" value="1" min="1" tabindex="-1">
                         </div>
                         <div class="col-md-7">
-                            <label class="form-label mb-1 small fw-bold">Kode Item / ENTER</label>
+                            <label class="form-label mb-1 small fw-bold">Kode Item / Barcode <kbd>ENTER</kbd></label>
                             <input type="text" id="inputKodeBarang" class="form-control" 
-                                   placeholder="Ketik kode atau tekan ENTER untuk cari..." autofocus>
+                                   placeholder="Scan barcode atau ketik kode..." autofocus>
                         </div>
                         <div class="col-md-3">
-                            <button class="btn btn-primary w-100" onclick="bukaModalBarang()">
-                                <i class="bi bi-search me-1"></i>Detail Item [F2]
+                            <button class="btn btn-primary w-100" onclick="bukaModalBarang()" tabindex="-1">
+                                <i class="bi bi-search me-1"></i>Detail Item <kbd>F2</kbd>
                             </button>
                         </div>
                     </div>
@@ -94,14 +94,14 @@
 
             <!-- Action Buttons Bottom -->
             <div class="d-flex gap-2 mt-2">
-                <button class="btn btn-secondary" onclick="bukaModalReturn()">
-                    <i class="bi bi-arrow-return-left me-1"></i>Return
+                <button class="btn btn-secondary" onclick="bukaModalReturn()" tabindex="-1">
+                    <i class="bi bi-arrow-return-left me-1"></i>Return <kbd>F8</kbd>
                 </button>
-                <button class="btn btn-info" onclick="tampilkanPending()">
-                    <i class="bi bi-list-ul me-1"></i>Lihat Pending [F6]
+                <button class="btn btn-info" onclick="tampilkanPending()" tabindex="-1">
+                    <i class="bi bi-list-ul me-1"></i>Lihat Pending <kbd>F6</kbd>
                 </button>
-                <button class="btn btn-danger ms-auto" onclick="clearKeranjang()">
-                    <i class="bi bi-x-circle me-1"></i>Batal [ESC]
+                <button class="btn btn-danger ms-auto" onclick="clearKeranjang()" tabindex="-1">
+                    <i class="bi bi-x-circle me-1"></i>Batal <kbd>ESC</kbd>
                 </button>
             </div>
         </div>
@@ -120,55 +120,55 @@
                     <div class="row g-2 mb-3 small">
                         <div class="col-6">
                             <label class="form-label mb-1">Sub Total</label>
-                            <input type="text" class="form-control form-control-sm text-end" id="subTotal" value="0" readonly>
+                            <input type="text" class="form-control form-control-sm text-end" id="subTotal" value="0" readonly tabindex="-1">
                         </div>
                         <div class="col-6">
-                            <label class="form-label mb-1">Potongan</label>
-                            <input type="text" class="form-control form-control-sm text-end" id="potongan" value="0">
+                            <label class="form-label mb-1">Potongan <kbd>F4</kbd></label>
+                            <input type="text" class="form-control form-control-sm text-end" id="potongan" value="0" tabindex="-1">
                         </div>
                         <div class="col-6">
                             <label class="form-label mb-1">Pajak</label>
-                            <input type="text" class="form-control form-control-sm text-end" id="pajak" value="0" readonly>
+                            <input type="text" class="form-control form-control-sm text-end" id="pajak" value="0" readonly tabindex="-1">
                         </div>
                         <div class="col-6">
                             <label class="form-label mb-1">Biaya Lain</label>
-                            <input type="text" class="form-control form-control-sm text-end" id="biayaLain" value="0">
+                            <input type="text" class="form-control form-control-sm text-end" id="biayaLain" value="0" tabindex="-1">
                         </div>
                     </div>
 
                     <!-- Pembayaran -->
                     <div class="mb-2">
                         <label class="form-label mb-1 fw-bold">PPn</label>
-                        <select class="form-select form-select-sm">
+                        <select class="form-select form-select-sm" tabindex="-1">
                             <option>Non</option>
                         </select>
                     </div>
 
                     <div class="mb-2">
                         <label class="form-label mb-1 fw-bold">Keterangan</label>
-                        <textarea class="form-control form-control-sm" rows="2" id="keterangan"></textarea>
+                        <textarea class="form-control form-control-sm" rows="2" id="keterangan" tabindex="-1"></textarea>
                     </div>
 
                     <!-- Bayar -->
                     <div class="mb-3">
-                        <label class="form-label mb-1 fw-bold" id="labelBayar">Bayar [F3]</label>
+                        <label class="form-label mb-1 fw-bold" id="labelBayar">Bayar <kbd>F3</kbd></label>
                         <input type="text" id="uangDibayar" class="form-control form-control-lg text-end fw-bold bg-light" 
-                               placeholder="0">
+                               placeholder="0" tabindex="-1">
                     </div>
 
                     <!-- Quick Amount (only for cash) -->
                     <div class="row g-1 mb-3" id="divQuickAmount">
                         <div class="col-3">
-                            <button class="btn btn-outline-primary btn-sm w-100" onclick="setUangPas()">Uang Pas</button>
+                            <button class="btn btn-outline-primary btn-sm w-100" onclick="setUangPas()" tabindex="-1">Uang Pas</button>
                         </div>
                         <div class="col-3">
-                            <button class="btn btn-outline-primary btn-sm w-100" onclick="addAmount(10000)">10K</button>
+                            <button class="btn btn-outline-primary btn-sm w-100" onclick="addAmount(10000)" tabindex="-1">10K</button>
                         </div>
                         <div class="col-3">
-                            <button class="btn btn-outline-primary btn-sm w-100" onclick="addAmount(50000)">50K</button>
+                            <button class="btn btn-outline-primary btn-sm w-100" onclick="addAmount(50000)" tabindex="-1">50K</button>
                         </div>
                         <div class="col-3">
-                            <button class="btn btn-outline-primary btn-sm w-100" onclick="addAmount(100000)">100K</button>
+                            <button class="btn btn-outline-primary btn-sm w-100" onclick="addAmount(100000)" tabindex="-1">100K</button>
                         </div>
                     </div>
 
@@ -176,19 +176,19 @@
                     <div class="mb-3" id="divKembalian">
                         <label class="form-label mb-1 fw-bold">Kembalian</label>
                         <input type="text" id="kembalian" class="form-control form-control-lg text-end fw-bold bg-warning" 
-                               value="0" readonly>
+                               value="0" readonly tabindex="-1">
                     </div>
 
                     <!-- Action Buttons -->
                     <div class="d-grid gap-2">
-                        <button class="btn btn-warning btn-lg" onclick="simpanPending()">
-                            <i class="bi bi-save me-2"></i>Pending [F5]
+                        <button class="btn btn-warning btn-lg" onclick="simpanPending()" tabindex="-1">
+                            <i class="bi bi-save me-2"></i>Pending <kbd>F5</kbd>
                         </button>
-                        <button class="btn btn-success btn-lg" id="btnSimpan" onclick="prosesTransaksi()">
-                            <i class="bi bi-check-circle me-2"></i>Simpan [ENTER]
+                        <button class="btn btn-success btn-lg" id="btnSimpan" onclick="prosesTransaksi()" tabindex="-1">
+                            <i class="bi bi-check-circle me-2"></i>Simpan <kbd>CTRL+S</kbd>
                         </button>
-                        <button class="btn btn-danger btn-lg" onclick="tutupTransaksi()">
-                            <i class="bi bi-box-arrow-right me-2"></i>Tutup
+                        <button class="btn btn-danger btn-lg" onclick="tutupTransaksi()" tabindex="-1">
+                            <i class="bi bi-box-arrow-right me-2"></i>Tutup <kbd>F10</kbd>
                         </button>
                     </div>
                 </div>
@@ -197,19 +197,30 @@
     </div>
 </div>
 
+<!-- Keyboard Shortcuts Help -->
+<div id="keyboardHelp" class="position-fixed bg-dark text-white p-2 rounded" 
+     style="bottom: 10px; right: 10px; font-size: 0.75rem; opacity: 0.7; z-index: 1000;">
+    <div><kbd>F1</kbd> Jumlah | <kbd>F2</kbd> Cari | <kbd>F3</kbd> Bayar | <kbd>F4</kbd> Diskon</div>
+    <div><kbd>F5</kbd> Pending | <kbd>F6</kbd> Lihat Pending | <kbd>F7</kbd> Metode | <kbd>F8</kbd> Return</div>
+    <div><kbd>CTRL+S</kbd> Simpan | <kbd>ESC</kbd> Batal | <kbd>F10</kbd> Tutup</div>
+</div>
+
+<!-- Toast Notification Container -->
+<div id="toastContainer" style="position: fixed; top: 80px; right: 20px; z-index: 9999;"></div>
+
 <!-- Modal Pilih Obat/Barang -->
 <div class="modal fade" id="modalPilihObat" tabindex="-1" data-bs-backdrop="static">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
+    <div class="modal-dialog modal-fullscreen-xl-down" style="max-width: 98%; margin: 1vh auto;">
+        <div class="modal-content" style="height: 98vh;">
             <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title"><i class="bi bi-search me-2"></i>PILIH OBAT</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" style="overflow: hidden; display: flex; flex-direction: column;">
                 <input type="text" id="searchObat" class="form-control form-control-lg mb-3" 
-                       placeholder="Cari obat..." autofocus>
+                       placeholder="Cari obat... (ESC untuk tutup)" autofocus>
 
-                <div class="table-responsive" style="max-height: 500px;">
+                <div class="table-responsive" style="flex: 1; overflow-y: auto;">
                     <table class="table table-bordered table-hover table-sm">
                         <thead class="table-light sticky-top">
                             <tr>
@@ -331,10 +342,14 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <div class="alert alert-info small mb-2">
+                    <i class="bi bi-info-circle me-1"></i> Gunakan angka <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> untuk pilih cepat
+                </div>
                 <div class="table-responsive">
                     <table class="table table-bordered table-hover mb-0" id="tableSatuan">
                         <thead class="table-light">
                             <tr>
+                                <th width="10%">No</th>
                                 <th>Satuan</th>
                                 <th class="text-center">Konversi</th>
                                 <th class="text-end">Harga</th>
@@ -359,7 +374,7 @@
             <div class="modal-body">
                 <div class="mb-3">
                     <label class="form-label">No Nota</label>
-                    <input type="text" class="form-control" id="returnNota" placeholder="Masukkan nomor nota">
+                    <input type="text" class="form-control" id="returnNota" placeholder="Masukkan nomor nota (ENTER untuk cari)">
                 </div>
                 <button class="btn btn-primary" onclick="cariNota()">
                     <i class="bi bi-search me-1"></i>Cari
@@ -463,6 +478,36 @@ input::-webkit-inner-spin-button {
 input[type=number] {
     -moz-appearance: textfield;
 }
+
+kbd {
+    background-color: #343a40;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.75rem;
+}
+
+/* Highlight untuk active focus */
+input:focus, textarea:focus, select:focus {
+    border-color: #0d6efd !important;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25) !important;
+}
+
+/* Animation untuk toast */
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.toast-notification {
+    animation: slideInRight 0.3s ease-out;
+}
 </style>
 
 @endsection
@@ -473,6 +518,7 @@ let keranjang = [];
 let currentBarangData = null;
 let pendingList = [];
 let modalPilihObat, modalPilihSatuan, modalReturn, modalPending;
+let isProcessing = false; // Prevent double submission
 
 $(document).ready(function() {
     modalPilihObat = new bootstrap.Modal(document.getElementById('modalPilihObat'));
@@ -481,6 +527,7 @@ $(document).ready(function() {
     modalPending = new bootstrap.Modal(document.getElementById('modalPending'));
     
     loadPendingFromStorage();
+    setupKeyboardShortcuts();
     
     // ✅ Handle metode pembayaran
     $('#metodePembayaran').on('change', function() {
@@ -510,13 +557,12 @@ $(document).ready(function() {
         }
         
         hitungKembalian();
+        $('#inputKodeBarang').focus();
     });
     
-    // Search obat
-        // Search obat - menggunakan event delegation agar tetap bekerja
+    // Search obat - menggunakan event delegation
     $(document).on('keyup input', '#searchObat', function() {
         let keyword = $(this).val().toLowerCase().trim();
-        console.log('Searching for:', keyword); // Debug
         
         let found = 0;
         $('.obat-row').each(function() {
@@ -531,8 +577,6 @@ $(document).ready(function() {
                 $(this).hide();
             }
         });
-        
-        console.log('Found items:', found); // Debug
     });
     
     // Check all return
@@ -545,60 +589,149 @@ $(document).ready(function() {
         hitungKembalian();
     });
     
-    // Keyboard shortcuts
-    $(document).on('keydown', function(e) {
-        if (e.key === 'F2') {
+    // Return nota search dengan Enter
+    $('#returnNota').on('keypress', function(e) {
+        if (e.key === 'Enter') {
             e.preventDefault();
-            bukaModalBarang();
-        }
-        
-        if (e.key === 'F5') {
-            e.preventDefault();
-            simpanPending();
-        }
-        
-        if (e.key === 'F6') {
-            e.preventDefault();
-            tampilkanPending();
-        }
-        
-        if (e.key === 'Escape') {
-            e.preventDefault();
-            clearKeranjang();
+            cariNota();
         }
     });
     
-    // Auto-focus input kode barang
+    // Auto-focus input kode barang setelah modal tutup
+    $('#modalPilihObat, #modalPilihSatuan').on('hidden.bs.modal', function() {
+        $('#inputKodeBarang').focus();
+    });
+    
+    // Input kode barang - ENTER handler
     $('#inputKodeBarang').on('keypress', function(e) {
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        const kode = $(this).val().trim();
-        
-        if (kode) {
-            // Disable input untuk mencegah double scan
-            $(this).prop('disabled', true);
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const kode = $(this).val().trim();
             
-            $.get('/penjualan/search-barang', { q: kode }, function(data) {
-                if (data.length === 1) {
-                    tambahBarangOtomatis(data[0].id);
-                } else if (data.length > 1) {
-                    bukaModalBarang();
-                    $('#searchObat').val(kode).trigger('keyup');
-                    $('#inputKodeBarang').prop('disabled', false);
-                } else {
-                    alert('Barang tidak ditemukan!');
+            if (kode) {
+                $(this).prop('disabled', true);
+                
+                $.get('/penjualan/search-barang', { q: kode }, function(data) {
+                    if (data.length === 1) {
+                        tambahBarangOtomatis(data[0].id);
+                    } else if (data.length > 1) {
+                        bukaModalBarang();
+                        $('#searchObat').val(kode).trigger('keyup');
+                        $('#inputKodeBarang').prop('disabled', false);
+                    } else {
+                        showErrorToast('❌ Barang tidak ditemukan!');
+                        $('#inputKodeBarang').val('').prop('disabled', false).focus();
+                    }
+                }).fail(function() {
+                    showErrorToast('❌ Terjadi kesalahan!');
                     $('#inputKodeBarang').val('').prop('disabled', false).focus();
-                }
-            }).fail(function() {
-                alert('Terjadi kesalahan!');
-                $('#inputKodeBarang').val('').prop('disabled', false).focus();
-            });
-        } else {
-            bukaModalBarang();
+                });
+            } else {
+                bukaModalBarang();
+            }
         }
-    }
+    });
 });
-});
+
+// ==================== KEYBOARD SHORTCUTS ====================
+function setupKeyboardShortcuts() {
+    $(document).on('keydown', function(e) {
+        // Jangan handle keyboard jika sedang mengetik di input/textarea (kecuali F-keys)
+        const isInputActive = $(e.target).is('input, textarea');
+        
+        // F1 - Focus Jumlah
+        if (e.key === 'F1') {
+            e.preventDefault();
+            $('#inputJumlah').focus().select();
+            return;
+        }
+        
+        // F2 - Buka Modal Barang
+        if (e.key === 'F2') {
+            e.preventDefault();
+            bukaModalBarang();
+            return;
+        }
+        
+        // F3 - Focus Bayar
+        if (e.key === 'F3') {
+            e.preventDefault();
+            $('#uangDibayar').focus().select();
+            return;
+        }
+        
+        // F4 - Focus Potongan
+        if (e.key === 'F4') {
+            e.preventDefault();
+            $('#potongan').focus().select();
+            return;
+        }
+        
+        // F5 - Simpan Pending
+        if (e.key === 'F5') {
+            e.preventDefault();
+            simpanPending();
+            return;
+        }
+        
+        // F6 - Lihat Pending
+        if (e.key === 'F6') {
+            e.preventDefault();
+            tampilkanPending();
+            return;
+        }
+        
+        // F7 - Focus Metode Pembayaran
+        if (e.key === 'F7') {
+            e.preventDefault();
+            $('#metodePembayaran').focus();
+            return;
+        }
+        
+        // F8 - Return
+        if (e.key === 'F8') {
+            e.preventDefault();
+            bukaModalReturn();
+            return;
+        }
+        
+        // F10 - Tutup
+        if (e.key === 'F10') {
+            e.preventDefault();
+            tutupTransaksi();
+            return;
+        }
+        
+        // ESC - Tutup modal atau Batal
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            // Cek apakah ada modal yang terbuka
+            if ($('.modal.show').length > 0) {
+                $('.modal.show').modal('hide');
+            } else {
+                clearKeranjang();
+            }
+            return;
+        }
+        
+        // CTRL + S - Simpan Transaksi
+        if (e.ctrlKey && e.key === 's') {
+            e.preventDefault();
+            prosesTransaksi();
+            return;
+        }
+        
+        // Angka 1-3 untuk pilih satuan (hanya ketika modal satuan terbuka)
+        if ($('#modalPilihSatuan').hasClass('show') && ['1', '2', '3'].includes(e.key)) {
+            e.preventDefault();
+            const row = $(`#tableSatuan tbody tr:nth-child(${e.key})`);
+            if (row.length) {
+                row.click();
+            }
+            return;
+        }
+    });
+}
 
 // ==================== MODAL FUNCTIONS ====================
 function bukaModalBarang() {
@@ -608,6 +741,7 @@ function bukaModalBarang() {
 
 function bukaModalReturn() {
     modalReturn.show();
+    setTimeout(() => $('#returnNota').focus(), 500);
 }
 
 // ==================== BARANG FUNCTIONS ====================
@@ -617,7 +751,7 @@ function pilihBarang(barangId) {
         modalPilihObat.hide();
         tampilkanPilihSatuan(data);
     }).fail(function() {
-        alert('Gagal mengambil data barang');
+        showErrorToast('❌ Gagal mengambil data barang');
     });
 }
 
@@ -626,26 +760,33 @@ function tampilkanPilihSatuan(data) {
     
     let html = '';
     let hargaDasar = data.harga_jual;
+    let counter = 1;
     
     // Satuan dasar
     html += `
         <tr onclick="tambahKeKeranjang('${data.satuan_dasar}', ${hargaDasar}, 1)">
+            <td class="text-center"><kbd>${counter}</kbd></td>
             <td><strong>${data.satuan_dasar}</strong> <span class="badge bg-success">Dasar</span></td>
             <td class="text-center">1</td>
             <td class="text-end"><strong>Rp ${formatRupiah(hargaDasar)}</strong></td>
         </tr>
     `;
+    counter++;
     
     // Satuan konversi
     if (data.satuan_konversi && data.satuan_konversi.length > 0) {
         data.satuan_konversi.forEach(function(satuan) {
-            html += `
-                <tr onclick="tambahKeKeranjang('${satuan.nama_satuan}', ${satuan.harga_jual}, ${satuan.jumlah_konversi})">
-                    <td><strong>${satuan.nama_satuan}</strong></td>
-                    <td class="text-center">${satuan.jumlah_konversi} ${data.satuan_dasar}</td>
-                    <td class="text-end"><strong>Rp ${formatRupiah(satuan.harga_jual)}</strong></td>
-                </tr>
-            `;
+            if (counter <= 3) {
+                html += `
+                    <tr onclick="tambahKeKeranjang('${satuan.nama_satuan}', ${satuan.harga_jual}, ${satuan.jumlah_konversi})">
+                        <td class="text-center"><kbd>${counter}</kbd></td>
+                        <td><strong>${satuan.nama_satuan}</strong></td>
+                        <td class="text-center">${satuan.jumlah_konversi} ${data.satuan_dasar}</td>
+                        <td class="text-end"><strong>Rp ${formatRupiah(satuan.harga_jual)}</strong></td>
+                    </tr>
+                `;
+                counter++;
+            }
         });
     }
     
@@ -660,7 +801,7 @@ function tambahBarangOtomatis(barangId) {
         
         // Cek stok
         if (data.stok <= 0) {
-            alert(`Stok ${data.nama_barang} habis!`);
+            showErrorToast(`❌ Stok ${data.nama_barang} habis!`);
             $('#inputKodeBarang').val('').prop('disabled', false).focus();
             return;
         }
@@ -685,7 +826,7 @@ function tambahBarangOtomatis(barangId) {
         let stokDalamSatuan = Math.floor(data.stok / konversiTerpilih);
         
         if (stokDalamSatuan <= 0) {
-            alert(`Stok ${data.nama_barang} tidak cukup!`);
+            showErrorToast(`❌ Stok ${data.nama_barang} tidak cukup!`);
             $('#inputKodeBarang').val('').prop('disabled', false).focus();
             return;
         }
@@ -699,7 +840,7 @@ function tambahBarangOtomatis(barangId) {
             if (existing.qty + qty <= stokDalamSatuan) {
                 existing.qty += qty;
             } else {
-                alert(`Stok tidak cukup! Maksimal: ${stokDalamSatuan} ${satuanTerpilih}`);
+                showErrorToast(`❌ Stok tidak cukup! Maksimal: ${stokDalamSatuan} ${satuanTerpilih}`);
                 $('#inputKodeBarang').val('').prop('disabled', false).focus();
                 return;
             }
@@ -720,7 +861,7 @@ function tambahBarangOtomatis(barangId) {
                     satuan_konversi: data.satuan_konversi
                 });
             } else {
-                alert(`Stok tidak cukup! Maksimal: ${stokDalamSatuan} ${satuanTerpilih}`);
+                showErrorToast(`❌ Stok tidak cukup! Maksimal: ${stokDalamSatuan} ${satuanTerpilih}`);
                 $('#inputKodeBarang').val('').prop('disabled', false).focus();
                 return;
             }
@@ -731,32 +872,14 @@ function tambahBarangOtomatis(barangId) {
         $('#inputJumlah').val(1);
         $('#inputKodeBarang').val('').prop('disabled', false).focus();
         
-        // Toast notification (opsional)
-        showSuccessToast(`✓ ${data.nama_barang} ditambahkan`);
+        // Toast notification
+        showSuccessToast(`✓ ${data.nama_barang} ditambahkan (${qty} ${satuanTerpilih})`);
         
     }).fail(function() {
-        alert('Gagal mengambil data barang');
+        showErrorToast('❌ Gagal mengambil data barang');
         $('#inputKodeBarang').val('').prop('disabled', false).focus();
     });
 }
-
-// Toast notification helper
-function showSuccessToast(message) {
-    if ($('#toastContainer').length === 0) {
-        $('body').append('<div id="toastContainer" style="position: fixed; top: 80px; right: 20px; z-index: 9999;"></div>');
-    }
-    
-    const toast = $(`
-        <div class="alert alert-success alert-dismissible fade show shadow" role="alert" style="min-width: 300px;">
-            <i class="bi bi-check-circle me-2"></i>${message}
-        </div>
-    `);
-    
-    $('#toastContainer').append(toast);
-    
-    setTimeout(() => toast.fadeOut(300, function() { $(this).remove(); }), 2000);
-}
-
 
 // ==================== KERANJANG FUNCTIONS ====================
 function tambahKeKeranjang(satuan, harga, konversi) {
@@ -764,7 +887,7 @@ function tambahKeKeranjang(satuan, harga, konversi) {
     const qty = parseInt($('#inputJumlah').val()) || 1;
     
     if (!data || !data.id) {
-        alert('Data barang tidak lengkap!');
+        showErrorToast('❌ Data barang tidak lengkap!');
         return;
     }
     
@@ -777,7 +900,7 @@ function tambahKeKeranjang(satuan, harga, konversi) {
         if (existing.qty + qty <= stokDalamSatuan) {
             existing.qty += qty;
         } else {
-            alert(`Stok tidak cukup! Maksimal: ${stokDalamSatuan} ${satuan}`);
+            showErrorToast(`❌ Stok tidak cukup! Maksimal: ${stokDalamSatuan} ${satuan}`);
             return;
         }
     } else {
@@ -800,7 +923,7 @@ function tambahKeKeranjang(satuan, harga, konversi) {
     modalPilihSatuan.hide();
     renderKeranjang();
     $('#inputJumlah').val(1);
-    $('#inputKodeBarang').val('').focus();
+    showSuccessToast(`✓ ${data.nama_barang} ditambahkan (${qty} ${satuan})`);
 }
 
 function gantiSatuan(index) {
@@ -811,24 +934,31 @@ function gantiSatuan(index) {
     
     let html = '';
     let hargaDasar = item.harga_dasar || item.harga;
+    let counter = 1;
     
     html += `
         <tr onclick="gantiSatuanItem(${index}, '${item.satuan_dasar}', ${hargaDasar}, 1)">
+            <td class="text-center"><kbd>${counter}</kbd></td>
             <td><strong>${item.satuan_dasar}</strong> <span class="badge bg-success">Dasar</span></td>
             <td class="text-center">1</td>
             <td class="text-end"><strong>Rp ${formatRupiah(hargaDasar)}</strong></td>
         </tr>
     `;
+    counter++;
     
     if (item.satuan_konversi && item.satuan_konversi.length > 0) {
         item.satuan_konversi.forEach(function(satuan) {
-            html += `
-                <tr onclick="gantiSatuanItem(${index}, '${satuan.nama_satuan}', ${satuan.harga_jual}, ${satuan.jumlah_konversi})">
-                    <td><strong>${satuan.nama_satuan}</strong></td>
-                    <td class="text-center">${satuan.jumlah_konversi} ${item.satuan_dasar}</td>
-                    <td class="text-end"><strong>Rp ${formatRupiah(satuan.harga_jual)}</strong></td>
-                </tr>
-            `;
+            if (counter <= 3) {
+                html += `
+                    <tr onclick="gantiSatuanItem(${index}, '${satuan.nama_satuan}', ${satuan.harga_jual}, ${satuan.jumlah_konversi})">
+                        <td class="text-center"><kbd>${counter}</kbd></td>
+                        <td><strong>${satuan.nama_satuan}</strong></td>
+                        <td class="text-center">${satuan.jumlah_konversi} ${item.satuan_dasar}</td>
+                        <td class="text-end"><strong>Rp ${formatRupiah(satuan.harga_jual)}</strong></td>
+                    </tr>
+                `;
+                counter++;
+            }
         });
     }
     
@@ -843,6 +973,7 @@ function gantiSatuanItem(index, satuan, harga, konversi) {
     
     modalPilihSatuan.hide();
     renderKeranjang();
+    showSuccessToast('✓ Satuan berhasil diubah');
 }
 
 function renderKeranjang() {
@@ -874,10 +1005,10 @@ function renderKeranjang() {
                         <input type="number" class="form-control form-control-sm text-center" 
                                value="${item.qty}" min="1" 
                                onchange="updateQty(${index}, this.value)"
-                               style="width: 70px;">
+                               style="width: 70px;" tabindex="-1">
                     </td>
                     <td class="text-center">
-                        <button class="btn btn-sm btn-outline-secondary" onclick="gantiSatuan(${index})">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="gantiSatuan(${index})" tabindex="-1">
                             ${item.satuan}
                         </button>
                     </td>
@@ -886,11 +1017,11 @@ function renderKeranjang() {
                         <input type="number" class="form-control form-control-sm text-center" 
                                value="${item.diskon}" min="0" max="100" 
                                onchange="updateDiskon(${index}, this.value)"
-                               style="width: 60px;">
+                               style="width: 60px;" tabindex="-1">
                     </td>
                     <td class="text-end">
                         <strong>${formatRupiah(subtotal)}</strong>
-                        <button class="btn btn-sm btn-danger ms-2" onclick="hapusItem(${index})">
+                        <button class="btn btn-sm btn-danger ms-2" onclick="hapusItem(${index})" tabindex="-1">
                             <i class="bi bi-trash"></i>
                         </button>
                     </td>
@@ -910,7 +1041,7 @@ function updateQty(index, qty) {
     let stokDalamSatuan = Math.floor(item.stok / item.konversi);
     
     if (qty > stokDalamSatuan) {
-        alert(`Stok tidak cukup! Maksimal: ${stokDalamSatuan} ${item.satuan}`);
+        showErrorToast(`❌ Stok tidak cukup! Maksimal: ${stokDalamSatuan} ${item.satuan}`);
         renderKeranjang();
         return;
     }
@@ -932,6 +1063,7 @@ function hapusItem(index) {
     if (confirm('Hapus item ini?')) {
         keranjang.splice(index, 1);
         renderKeranjang();
+        showSuccessToast('✓ Item dihapus dari keranjang');
     }
 }
 
@@ -947,6 +1079,7 @@ function clearKeranjang() {
         $('#keterangan').val('');
         $('#nomorReferensi').val('');
         $('#metodePembayaran').val('cash').trigger('change');
+        showSuccessToast('✓ Transaksi dibatalkan');
     }
 }
 
@@ -996,18 +1129,20 @@ function setUangPas() {
     let grandTotal = parseFloat($('#grandTotalDisplay').text().replace(/\./g, '')) || 0;
     $('#uangDibayar').val(formatRupiah(grandTotal));
     hitungKembalian();
+    $('#inputKodeBarang').focus();
 }
 
 function addAmount(amount) {
     let current = parseFloat($('#uangDibayar').val().replace(/\./g, '')) || 0;
     $('#uangDibayar').val(formatRupiah(current + amount));
     hitungKembalian();
+    $('#inputKodeBarang').focus();
 }
 
 // ==================== PENDING ====================
 function simpanPending() {
     if (keranjang.length === 0) {
-        alert('Keranjang masih kosong!');
+        showErrorToast('❌ Keranjang masih kosong!');
         return;
     }
     
@@ -1023,8 +1158,21 @@ function simpanPending() {
     pendingList.push(pending);
     savePendingToStorage();
     
-    clearKeranjang();
-    alert('Transaksi berhasil disimpan ke pending!');
+    clearKeranjangTanpaKonfirmasi();
+    showSuccessToast('✓ Transaksi berhasil disimpan ke pending!');
+}
+
+function clearKeranjangTanpaKonfirmasi() {
+    keranjang = [];
+    renderKeranjang();
+    $('#inputJumlah').val(1);
+    $('#inputKodeBarang').val('').focus();
+    $('#uangDibayar').val('');
+    $('#potongan').val('0');
+    $('#biayaLain').val('0');
+    $('#keterangan').val('');
+    $('#nomorReferensi').val('');
+    $('#metodePembayaran').val('cash').trigger('change');
 }
 
 function tampilkanPending() {
@@ -1078,6 +1226,7 @@ function muatPending(index) {
     
     modalPending.hide();
     renderKeranjang();
+    showSuccessToast('✓ Transaksi pending berhasil dimuat');
 }
 
 function hapusPending(index) {
@@ -1085,6 +1234,7 @@ function hapusPending(index) {
         pendingList.splice(index, 1);
         savePendingToStorage();
         tampilkanPending();
+        showSuccessToast('✓ Transaksi pending dihapus');
     }
 }
 
@@ -1104,7 +1254,7 @@ function cariNota() {
     const nomorNota = $('#returnNota').val().trim();
     
     if (!nomorNota) {
-        alert('Masukkan nomor nota!');
+        showErrorToast('❌ Masukkan nomor nota!');
         return;
     }
     
@@ -1126,10 +1276,10 @@ function cariNota() {
             $('#returnItems').html(html);
             $('#returnDetail').show();
         } else {
-            alert(response.message);
+            showErrorToast('❌ ' + response.message);
         }
     }).fail(function() {
-        alert('Nota tidak ditemukan!');
+        showErrorToast('❌ Nota tidak ditemukan!');
     });
 }
 
@@ -1140,7 +1290,7 @@ function prosesReturn() {
     });
     
     if (selectedItems.length === 0) {
-        alert('Pilih minimal 1 item untuk di-return!');
+        showErrorToast('❌ Pilih minimal 1 item untuk di-return!');
         return;
     }
     
@@ -1157,24 +1307,28 @@ function prosesReturn() {
         },
         success: function(response) {
             if (response.success) {
-                alert('Return berhasil diproses!');
+                showSuccessToast('✓ Return berhasil diproses!');
                 modalReturn.hide();
                 $('#returnNota').val('');
                 $('#returnDetail').hide();
             } else {
-                alert(response.message);
+                showErrorToast('❌ ' + response.message);
             }
         },
         error: function() {
-            alert('Gagal memproses return!');
+            showErrorToast('❌ Gagal memproses return!');
         }
     });
 }
 
 // ==================== TRANSAKSI ====================
 function prosesTransaksi() {
+    if (isProcessing) {
+        return; // Prevent double submission
+    }
+    
     if (keranjang.length === 0) {
-        alert('Keranjang masih kosong!');
+        showErrorToast('❌ Keranjang masih kosong!');
         return;
     }
     
@@ -1183,7 +1337,8 @@ function prosesTransaksi() {
     const metode = $('#metodePembayaran').val();
     
     if (uangDibayar < grandTotal) {
-        alert('Uang yang dibayarkan kurang!');
+        showErrorToast('❌ Uang yang dibayarkan kurang!');
+        $('#uangDibayar').focus().select();
         return;
     }
     
@@ -1191,7 +1346,7 @@ function prosesTransaksi() {
     if (metode !== 'cash') {
         const nomorReferensi = $('#nomorReferensi').val().trim();
         if (!nomorReferensi) {
-            alert('Nomor referensi harus diisi untuk pembayaran non-tunai!');
+            showErrorToast('❌ Nomor referensi harus diisi untuk pembayaran non-tunai!');
             $('#nomorReferensi').focus();
             return;
         }
@@ -1211,6 +1366,7 @@ function prosesTransaksi() {
         keterangan: $('#keterangan').val()
     };
     
+    isProcessing = true;
     $('#btnSimpan').prop('disabled', true).html('<i class="spinner-border spinner-border-sm me-2"></i>Proses...');
     
     $.ajax({
@@ -1219,20 +1375,26 @@ function prosesTransaksi() {
         data: data,
         success: function(response) {
             if (response.success) {
-                alert(`Transaksi berhasil!\nNo. Invoice: ${response.invoice}`);
+                // ✅ TRANSAKSI BERHASIL DISIMPAN
+                showSuccessToastLarge(`✓ TRANSAKSI BERHASIL DISIMPAN!<br><strong>No. Invoice: ${response.invoice}</strong>`);
                 
-                if (confirm('Cetak struk?')) {
-                    window.open(`/penjualan/print/${response.penjualan_id}`, '_blank');
-                }
+                // ✅ CLEAR KERANJANG LANGSUNG (nama barang hilang)
+                clearKeranjangTanpaKonfirmasi();
                 
-                clearKeranjang();
+                // ✅ TANYA CETAK STRUK (opsional, tidak wajib)
+                setTimeout(function() {
+                    if (confirm('Apakah ingin cetak struk?')) {
+                        window.open(`/penjualan/print/${response.penjualan_id}`, '_blank');
+                    }
+                }, 800);
             }
         },
         error: function(xhr) {
-            alert(xhr.responseJSON?.error || 'Terjadi kesalahan!');
+            showErrorToast('❌ ' + (xhr.responseJSON?.error || 'Terjadi kesalahan!'));
         },
         complete: function() {
-            $('#btnSimpan').prop('disabled', false).html('<i class="bi bi-check-circle me-2"></i>Simpan [ENTER]');
+            isProcessing = false;
+            $('#btnSimpan').prop('disabled', false).html('<i class="bi bi-check-circle me-2"></i>Simpan <kbd>CTRL+S</kbd>');
         }
     });
 }
@@ -1245,6 +1407,68 @@ function tutupTransaksi() {
     }
     
     window.location.href = '/dashboard';
+}
+
+// ==================== TOAST NOTIFICATIONS ====================
+function showSuccessToast(message) {
+    const toast = $(`
+        <div class="alert alert-success alert-dismissible fade show shadow toast-notification" role="alert" style="min-width: 300px; max-width: 400px;">
+            <i class="bi bi-check-circle-fill me-2"></i>${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `);
+    
+    $('#toastContainer').append(toast);
+    
+    setTimeout(() => {
+        toast.fadeOut(300, function() { $(this).remove(); });
+    }, 3000);
+}
+
+function showSuccessToastLarge(message) {
+    const toast = $(`
+        <div class="alert alert-success alert-dismissible fade show shadow toast-notification" role="alert" 
+             style="min-width: 400px; max-width: 500px; font-size: 1.1rem; padding: 1.5rem;">
+            <i class="bi bi-check-circle-fill me-2 fs-3"></i>${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `);
+    
+    $('#toastContainer').append(toast);
+    
+    setTimeout(() => {
+        toast.fadeOut(300, function() { $(this).remove(); });
+    }, 5000);
+}
+
+function showErrorToast(message) {
+    const toast = $(`
+        <div class="alert alert-danger alert-dismissible fade show shadow toast-notification" role="alert" style="min-width: 300px; max-width: 400px;">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `);
+    
+    $('#toastContainer').append(toast);
+    
+    setTimeout(() => {
+        toast.fadeOut(300, function() { $(this).remove(); });
+    }, 4000);
+}
+
+function showInfoToast(message) {
+    const toast = $(`
+        <div class="alert alert-info alert-dismissible fade show shadow toast-notification" role="alert" style="min-width: 300px; max-width: 400px;">
+            <i class="bi bi-info-circle-fill me-2"></i>${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `);
+    
+    $('#toastContainer').append(toast);
+    
+    setTimeout(() => {
+        toast.fadeOut(300, function() { $(this).remove(); });
+    }, 3000);
 }
 
 // ==================== HELPER ====================

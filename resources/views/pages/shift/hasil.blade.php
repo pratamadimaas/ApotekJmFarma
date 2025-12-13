@@ -1,220 +1,217 @@
 @extends('layouts.app')
 
-@section('title', 'Hasil Tutup Shift #' . $shift->id)
+@section('title', 'Hasil Tutup Shift')
 
 @section('content')
 <div class="container">
     <div class="row justify-content-center">
-        <div class="col-md-10">
-            <!-- Header dengan Status -->
-            <div class="text-center mb-4">
-                <h2 class="mb-3">
-                    <i class="bi bi-check-circle-fill text-success me-2"></i>
-                    Shift Berhasil Ditutup
-                </h2>
-                <p class="text-muted">Berikut adalah ringkasan hasil shift Anda hari ini</p>
-            </div>
-
-            <!-- Card Selisih (Status Utama) -->
-            <div class="card shadow-lg mb-4 border-0">
-                <div class="card-body text-center py-5">
-                    <h5 class="text-muted mb-3">Status Laci Kasir</h5>
-                    @php
-                        $isBalanced = $shift->selisih == 0;
-                        $isOver = $shift->selisih > 0;
-                        $isShort = $shift->selisih < 0;
-                        
-                        if ($isBalanced) {
-                            $statusClass = 'success';
-                            $statusIcon = 'check-circle-fill';
-                            $statusText = 'SEIMBANG';
-                        } elseif ($isOver) {
-                            $statusClass = 'warning';
-                            $statusIcon = 'exclamation-triangle-fill';
-                            $statusText = 'KELEBIHAN';
-                        } else {
-                            $statusClass = 'danger';
-                            $statusIcon = 'x-circle-fill';
-                            $statusText = 'KEKURANGAN';
-                        }
-                    @endphp
-                    
-                    <div class="mb-3">
-                        <i class="bi bi-{{ $statusIcon }} text-{{ $statusClass }}" style="font-size: 4rem;"></i>
-                    </div>
-                    
-                    <h3 class="text-{{ $statusClass }} mb-2">{{ $statusText }}</h3>
-                    <h1 class="display-4 fw-bold text-{{ $statusClass }}">
-                        {{ $shift->selisih >= 0 ? '+' : '' }} Rp {{ number_format(abs($shift->selisih), 0, ',', '.') }}
-                    </h1>
-                    
-                    @if ($isBalanced)
-                        <p class="text-muted mt-3">Sempurna! Uang di laci sesuai dengan perhitungan sistem.</p>
-                    @elseif ($isOver)
-                        <p class="text-warning mt-3">Uang di laci lebih banyak dari yang seharusnya.</p>
-                    @else
-                        <p class="text-danger mt-3">Uang di laci kurang dari yang seharusnya.</p>
-                    @endif
-                </div>
-            </div>
-
-            <!-- Detail Ringkasan -->
-            <div class="row mb-4">
-                <!-- Info Shift -->
-                <div class="col-md-6 mb-3">
-                    <div class="card h-100 shadow-sm">
-                        <div class="card-header bg-primary text-white">
-                            <i class="bi bi-info-circle me-2"></i>Informasi Shift
-                        </div>
-                        <div class="card-body">
-                            <table class="table table-borderless table-sm mb-0">
-                                <tr>
-                                    <td class="text-muted">Shift ID</td>
-                                    <td class="fw-bold">#{{ $shift->id }}</td>
-                                </tr>
-                                <tr>
-                                    <td class="text-muted">Kasir</td>
-                                    <td class="fw-bold">{{ $shift->user->name }}</td>
-                                </tr>
-                                <tr>
-                                    <td class="text-muted">Waktu Buka</td>
-                                    <td>{{ $shift->waktu_buka->format('d/m/Y H:i:s') }}</td>
-                                </tr>
-                                <tr>
-                                    <td class="text-muted">Waktu Tutup</td>
-                                    <td>{{ $shift->waktu_tutup->format('d/m/Y H:i:s') }}</td>
-                                </tr>
-                                <tr>
-                                    <td class="text-muted">Durasi</td>
-                                    <td class="fw-bold text-info">{{ $shift->waktu_buka->diffForHumans($shift->waktu_tutup, true) }}</td>
-                                </tr>
-                            </table>
-                        </div>
+        <div class="col-lg-10">
+            <!-- Header Card -->
+            <div class="card shadow-lg border-0 rounded-3 mb-4">
+                <div class="card-header bg-success text-white py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="bi bi-check-circle-fill me-2"></i>
+                            Shift Berhasil Ditutup
+                        </h5>
+                        <span class="badge bg-light text-success">{{ $shift->kode_shift ?? '#'.$shift->id }}</span>
                     </div>
                 </div>
 
-                <!-- Ringkasan Keuangan -->
-                <div class="col-md-6 mb-3">
-                    <div class="card h-100 shadow-sm">
-                        <div class="card-header bg-success text-white">
-                            <i class="bi bi-cash-stack me-2"></i>Ringkasan Keuangan
+                <div class="card-body p-4">
+                    <!-- Info Shift -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="info-item">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="bi bi-person me-1"></i>Kasir
+                                </small>
+                                <strong class="d-block">{{ $shift->user->name }}</strong>
+                            </div>
                         </div>
-                        <div class="card-body">
-                            <table class="table table-borderless table-sm mb-0">
+                        <div class="col-md-3">
+                            <div class="info-item">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="bi bi-door-open me-1"></i>Waktu Buka
+                                </small>
+                                <strong class="d-block">{{ $shift->waktu_buka->format('d/m/Y H:i') }}</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="info-item">
+                                <small class="text-muted d-block mb-1">
+                                    <i class="bi bi-door-closed me-1"></i>Waktu Tutup
+                                </small>
+                                <strong class="d-block">{{ $shift->waktu_tutup->format('d/m/Y H:i') }}</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- ✅ STATISTIK PENJUALAN (UNTUK ADMIN) -->
+                    @if(auth()->user()->role === 'admin' || auth()->user()->role === 'super_admin')
+                    <div class="alert alert-primary">
+                        <h6 class="mb-3">
+                            <i class="bi bi-graph-up me-2"></i>Statistik Penjualan Shift Ini
+                        </h6>
+                        <div class="row">
+                            <div class="col-md-4 mb-2">
+                                <small class="text-muted d-block">Total Penjualan</small>
+                                <h5 class="mb-0 text-primary">Rp {{ number_format($shift->total_penjualan ?? 0, 0, ',', '.') }}</h5>
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                <small class="text-muted d-block">Jumlah Transaksi</small>
+                                <h5 class="mb-0 text-primary">{{ $shift->penjualan->count() }} transaksi</h5>
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                <small class="text-muted d-block">Rata-rata/Transaksi</small>
+                                <h5 class="mb-0 text-primary">
+                                    @if($shift->penjualan->count() > 0)
+                                        Rp {{ number_format($shift->total_penjualan / $shift->penjualan->count(), 0, ',', '.') }}
+                                    @else
+                                        Rp 0
+                                    @endif
+                                </h5>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Detail per Metode Pembayaran -->
+                    <div class="table-responsive mb-4">
+                        <table class="table table-sm">
+                            <thead class="table-light">
                                 <tr>
-                                    <td class="text-muted">Modal Awal</td>
-                                    <td class="text-end fw-bold">Rp {{ number_format($shift->modal_awal, 0, ',', '.') }}</td>
+                                    <th>Metode Pembayaran</th>
+                                    <th class="text-center">Jumlah Transaksi</th>
+                                    <th class="text-end">Total</th>
                                 </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($detailMetode as $metode)
                                 <tr>
-                                    <td class="text-muted">Penjualan Tunai</td>
-                                    <td class="text-end text-success">+ Rp {{ number_format($tunai, 0, ',', '.') }}</td>
-                                </tr>
-                                <tr class="border-top">
-                                    <td class="text-muted fw-bold">Uang Seharusnya</td>
-                                    <td class="text-end fw-bold">Rp {{ number_format($uangSeharusnya, 0, ',', '.') }}</td>
-                                </tr>
-                                <tr>
-                                    <td class="text-muted">Uang Fisik di Laci</td>
-                                    <td class="text-end fw-bold text-primary">Rp {{ number_format($shift->uang_fisik, 0, ',', '.') }}</td>
-                                </tr>
-                                <tr class="border-top">
-                                    <td class="text-muted fw-bold">Selisih</td>
-                                    <td class="text-end fw-bold text-{{ $statusClass }}">
-                                        {{ $shift->selisih >= 0 ? '+' : '' }} Rp {{ number_format($shift->selisih, 0, ',', '.') }}
+                                    <td>
+                                        @if($metode->metode_pembayaran == 'cash')
+                                            <i class="bi bi-cash text-success me-1"></i>Tunai
+                                        @elseif($metode->metode_pembayaran == 'debit')
+                                            <i class="bi bi-credit-card text-primary me-1"></i>Debit
+                                        @elseif($metode->metode_pembayaran == 'credit')
+                                            <i class="bi bi-credit-card-2-front text-warning me-1"></i>Credit
+                                        @elseif($metode->metode_pembayaran == 'qris')
+                                            <i class="bi bi-qr-code text-info me-1"></i>QRIS
+                                        @else
+                                            <i class="bi bi-bank text-secondary me-1"></i>Transfer
+                                        @endif
                                     </td>
+                                    <td class="text-center">{{ $metode->jumlah }}</td>
+                                    <td class="text-end fw-bold">Rp {{ number_format($metode->total, 0, ',', '.') }}</td>
                                 </tr>
-                            </table>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    @endif
+
+                    <!-- Rekap Kas -->
+                    <h6 class="mb-3">
+                        <i class="bi bi-cash-coin me-2"></i>Rekap Kas Tunai
+                    </h6>
+                    
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center py-3">
+                                    <small class="text-muted d-block">Modal Awal</small>
+                                    <h5 class="mb-0">Rp {{ number_format($shift->saldo_awal, 0, ',', '.') }}</h5>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center py-3">
+                                    <small class="text-muted d-block">Penjualan Tunai</small>
+                                    <h5 class="mb-0 text-success">Rp {{ number_format($tunai, 0, ',', '.') }}</h5>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-warning text-white">
+                                <div class="card-body text-center py-3">
+                                    <small class="d-block">Seharusnya</small>
+                                    <h5 class="mb-0">Rp {{ number_format($uangSeharusnya, 0, ',', '.') }}</h5>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body text-center py-3">
+                                    <small class="d-block">Uang Fisik</small>
+                                    <h5 class="mb-0">Rp {{ number_format($shift->saldo_akhir, 0, ',', '.') }}</h5>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            <!-- Penjualan per Metode -->
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-info text-white">
-                    <i class="bi bi-credit-card me-2"></i>Rincian Penjualan per Metode Pembayaran
-                </div>
-                <div class="card-body">
-                    <div class="row text-center">
-                        <div class="col-md-4 mb-3">
-                            <div class="p-3 bg-light rounded">
-                                <i class="bi bi-cash-coin text-success" style="font-size: 2rem;"></i>
-                                <h6 class="mt-2 mb-1 text-muted">Tunai (Cash)</h6>
-                                <h5 class="fw-bold text-success">Rp {{ number_format($tunai, 0, ',', '.') }}</h5>
+                    <!-- Selisih -->
+                    <div class="alert {{ $shift->selisih == 0 ? 'alert-success' : ($shift->selisih > 0 ? 'alert-warning' : 'alert-danger') }}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>
+                                    <i class="bi bi-{{ $shift->selisih == 0 ? 'check-circle' : 'exclamation-triangle' }}-fill me-2"></i>
+                                    Selisih Kas:
+                                </strong>
                             </div>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <div class="p-3 bg-light rounded">
-                                <i class="bi bi-credit-card text-primary" style="font-size: 2rem;"></i>
-                                <h6 class="mt-2 mb-1 text-muted">Non-Tunai</h6>
-                                <h5 class="fw-bold text-primary">Rp {{ number_format($nonTunai, 0, ',', '.') }}</h5>
-                            </div>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <div class="p-3 bg-light rounded">
-                                <i class="bi bi-graph-up text-dark" style="font-size: 2rem;"></i>
-                                <h6 class="mt-2 mb-1 text-muted">Total Penjualan</h6>
-                                <h5 class="fw-bold">Rp {{ number_format($shift->total_penjualan, 0, ',', '.') }}</h5>
-                                <small class="text-muted">{{ $shift->jumlah_transaksi }} Transaksi</small>
-                            </div>
+                            <h4 class="mb-0">
+                                @if($shift->selisih > 0)
+                                    +Rp {{ number_format($shift->selisih, 0, ',', '.') }}
+                                    <small class="d-block" style="font-size: 0.75rem;">(Kelebihan)</small>
+                                @elseif($shift->selisih < 0)
+                                    -Rp {{ number_format(abs($shift->selisih), 0, ',', '.') }}
+                                    <small class="d-block" style="font-size: 0.75rem;">(Kekurangan)</small>
+                                @else
+                                    Pas! (Rp 0)
+                                @endif
+                            </h4>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            <!-- Catatan -->
-            @if ($shift->catatan)
-            <div class="card shadow-sm mb-4 border-warning">
-                <div class="card-header bg-warning">
-                    <i class="bi bi-sticky me-2"></i>Catatan Pengeluaran
-                </div>
-                <div class="card-body">
-                    <p class="mb-0" style="white-space: pre-line;">{{ $shift->catatan }}</p>
-                </div>
-            </div>
-            @endif
+                    <!-- Catatan -->
+                    @if($shift->keterangan)
+                    <div class="alert alert-info">
+                        <strong><i class="bi bi-sticky me-2"></i>Catatan:</strong><br>
+                        {{ $shift->keterangan }}
+                    </div>
+                    @endif
 
-            <!-- Action Buttons -->
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <h6 class="mb-3">Pilih Aksi Selanjutnya:</h6>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <a href="{{ route('shift.cetakLaporan', $shift->id) }}" 
-                               target="_blank" 
-                               class="btn btn-success btn-lg w-100">
-                                <i class="bi bi-printer me-2"></i>Cetak Laporan Shift (58mm)
-                            </a>
+                    <!-- Non-Tunai -->
+                    @if($nonTunai > 0)
+                    <div class="alert alert-secondary">
+                        <div class="d-flex justify-content-between">
+                            <span><i class="bi bi-credit-card me-2"></i>Penjualan Non-Tunai:</span>
+                            <strong>Rp {{ number_format($nonTunai, 0, ',', '.') }}</strong>
                         </div>
-                        <div class="col-md-6">
-                            <a href="{{ route('shift.riwayat') }}" 
-                               class="btn btn-primary btn-lg w-100">
-                                <i class="bi bi-clock-history me-2"></i>Lihat Riwayat Shift
-                            </a>
-                        </div>
-                        <div class="col-md-12">
-                            <a href="{{ route('dashboard') }}" 
-                               class="btn btn-secondary btn-lg w-100">
-                                <i class="bi bi-house me-2"></i>Kembali ke Dashboard
-                            </a>
-                        </div>
+                    </div>
+                    @endif
+
+                    <!-- Action Buttons -->
+                    <div class="d-flex gap-2 mt-4">
+                        <a href="{{ route('shift.cetakLaporan', $shift->id) }}" 
+                           class="btn btn-outline-primary" 
+                           target="_blank">
+                            <i class="bi bi-printer me-2"></i>Cetak Laporan
+                        </a>
+                        <a href="{{ route('shift.detail', $shift->id) }}" 
+                           class="btn btn-outline-secondary">
+                            <i class="bi bi-eye me-2"></i>Lihat Detail
+                        </a>
+                        <a href="{{ route('dashboard') }}" 
+                           class="btn btn-success flex-fill">
+                            <i class="bi bi-house me-2"></i>Kembali ke Dashboard
+                        </a>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
-
-@push('scripts')
-<script>
-// Auto print option
-document.addEventListener('DOMContentLoaded', function() {
-    // Optional: Tanya user apakah ingin langsung print
-    if (confirm('Shift berhasil ditutup! Apakah Anda ingin mencetak laporan sekarang?')) {
-        window.open('{{ route('shift.cetakLaporan', $shift->id) }}', '_blank');
-    }
-});
-</script>
-@endpush
-
 @endsection

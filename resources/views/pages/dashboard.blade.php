@@ -86,55 +86,75 @@
             </div>
         </div>
 
-        <!-- Card 3: Laba Hari Ini -->
-        <div class="col-xl-3 col-md-6">
-            <div class="stat-card stat-card-info">
-                <div class="stat-card-icon">
-                    <i class="bi bi-piggy-bank-fill"></i>
-                </div>
-                <div class="stat-card-content">
-                    <span class="stat-label">Laba Hari Ini</span>
-                    <h3 class="stat-value">Rp {{ number_format($labaHariIni, 0, ',', '.') }}</h3>
-                    <div class="stat-footer">
-                        <i class="bi bi-graph-up me-1"></i>
-                        @if($penjualanHariIni > 0)
-                            Margin: {{ number_format(($labaHariIni / $penjualanHariIni) * 100, 1) }}%
-                        @else
-                            Margin: 0%
-                        @endif
-                    </div>
-                </div>
+         {{-- 🔒 LABA CARDS: HANYA UNTUK ADMIN & SUPER ADMIN --}}
+    @if(!auth()->user()->isKasir())
+    <!-- Card 3: Laba Hari Ini -->
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card stat-card-info">
+            <div class="stat-card-icon">
+                <i class="bi bi-piggy-bank-fill"></i>
             </div>
-        </div>
-
-        <!-- Card 4: Laba Bulan Ini -->
-        <div class="col-xl-3 col-md-6">
-            <div class="stat-card stat-card-warning">
-                <div class="stat-card-icon">
-                    <i class="bi bi-wallet2"></i>
-                </div>
-                <div class="stat-card-content">
-                    <span class="stat-label">Laba Bulan Ini</span>
-                    <h3 class="stat-value">Rp {{ number_format($labaBulanIni, 0, ',', '.') }}</h3>
-                    <div class="stat-footer">
-                        <i class="bi bi-graph-up me-1"></i>
-                        @if($penjualanBulanIni > 0)
-                            Margin: {{ number_format(($labaBulanIni / $penjualanBulanIni) * 100, 1) }}%
-                        @else
-                            Margin: 0%
-                        @endif
-                    </div>
+            <div class="stat-card-content">
+                <span class="stat-label">Laba Hari Ini</span>
+                <h3 class="stat-value">Rp {{ number_format($labaHariIni, 0, ',', '.') }}</h3>
+                <div class="stat-footer">
+                    <i class="bi bi-graph-up me-1"></i>
+                    @if($penjualanHariIni > 0)
+                        Margin: {{ number_format(($labaHariIni / $penjualanHariIni) * 100, 1) }}%
+                    @else
+                        Margin: 0%
+                    @endif
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Shift Aktif Semua User -->
-    @if($shiftAktifSemua->count() > 0)
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card-modern">
-                <div class="card-modern-header">
+    <!-- Card 4: Laba Bulan Ini -->
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card stat-card-warning">
+            <div class="stat-card-icon">
+                <i class="bi bi-wallet2"></i>
+            </div>
+            <div class="stat-card-content">
+                <span class="stat-label">Laba Bulan Ini</span>
+                <h3 class="stat-value">Rp {{ number_format($labaBulanIni, 0, ',', '.') }}</h3>
+                <div class="stat-footer">
+                    <i class="bi bi-graph-up me-1"></i>
+                    @if($penjualanBulanIni > 0)
+                        Margin: {{ number_format(($labaBulanIni / $penjualanBulanIni) * 100, 1) }}%
+                    @else
+                        Margin: 0%
+                    @endif
+                </div>
+            </div>
+        </div>
+    </div>
+    @else
+    <!-- Card 3 untuk Kasir: Stok Minimum -->
+    <div class="col-xl-4 col-md-6">
+        <div class="stat-card stat-card-danger">
+            <div class="stat-card-icon">
+                <i class="bi bi-exclamation-triangle"></i>
+            </div>
+            <div class="stat-card-content">
+                <span class="stat-label">Stok Minimum</span>
+                <h3 class="stat-value">{{ $barangStokMinimum }}</h3>
+                <div class="stat-footer">
+                    <i class="bi bi-box-seam me-1"></i>
+                    Barang perlu restock
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
+</div>
+    {{-- Shift Aktif Semua User --}}
+@if($shiftAktifSemua->count() > 0)
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card-modern">
+            <div class="card-modern-header">
+                <div class="d-flex align-items-center justify-content-between">
                     <div class="d-flex align-items-center">
                         <div class="card-icon me-3">
                             <i class="bi bi-people-fill"></i>
@@ -144,52 +164,72 @@
                             <small class="text-muted">{{ $shiftAktifSemua->count() }} user sedang bertugas</small>
                         </div>
                     </div>
+                    <div class="badge bg-success-soft" style="font-size: 1rem; padding: 0.5rem 1rem;">
+                        <i class="bi bi-circle-fill pulse-dot me-1" style="font-size: 0.5rem;"></i>
+                        Live
+                    </div>
                 </div>
-                <div class="card-modern-body">
-                    <div class="row g-3">
-                        @foreach($shiftAktifSemua as $shift)
-                        <div class="col-xl-3 col-lg-4 col-md-6">
-                            <div class="shift-active-card">
-                                <div class="shift-active-header">
-                                    <div class="shift-active-avatar">
-                                        <i class="bi bi-person-circle"></i>
-                                    </div>
-                                    <div class="shift-active-info">
-                                        <div class="shift-active-name">{{ $shift->user->name }}</div>
-                                        <div class="shift-active-role">
-                                            <i class="bi bi-briefcase me-1"></i>
-                                            {{ ucfirst($shift->user->role ?? 'kasir') }}
-                                        </div>
-                                    </div>
+            </div>
+            <div class="card-modern-body">
+                <div class="row g-3">
+                    @foreach($shiftAktifSemua as $shift)
+                    <div class="col-xl-3 col-lg-4 col-md-6">
+                        <div class="shift-active-card">
+                            <div class="shift-active-header">
+                                <div class="shift-active-avatar">
+                                    <i class="bi bi-person-circle"></i>
                                 </div>
-                                <div class="shift-active-details">
-                                    <div class="shift-detail-item">
-                                        <i class="bi bi-clock-history"></i>
-                                        <span>{{ \Carbon\Carbon::parse($shift->waktu_buka)->format('H:i') }}</span>
+                                <div class="shift-active-info">
+                                    <div class="shift-active-name">{{ $shift->user->name }}</div>
+                                    <div class="shift-active-role">
+                                        <i class="bi bi-briefcase me-1"></i>
+                                        {{ ucfirst($shift->user->role ?? 'kasir') }}
                                     </div>
-                                    <div class="shift-detail-item">
-                                        <i class="bi bi-hash"></i>
-                                        <span>Shift #{{ $shift->id }}</span>
-                                    </div>
-                                    <div class="shift-detail-item">
-                                        <i class="bi bi-cash-stack"></i>
-                                        <span>Rp {{ number_format($shift->modal_awal ?? 0, 0, ',', '.') }}</span>
-                                    </div>
-                                </div>
-                                <div class="shift-active-status">
-                                    <span class="badge bg-success-soft">
-                                        <i class="bi bi-circle-fill pulse-dot me-1"></i>Aktif
-                                    </span>
                                 </div>
                             </div>
+                            
+                            <div class="shift-active-details">
+                                <div class="shift-detail-item">
+                                    <i class="bi bi-clock-history"></i>
+                                    <span>{{ \Carbon\Carbon::parse($shift->waktu_buka)->format('H:i') }}</span>
+                                </div>
+                                <div class="shift-detail-item">
+                                    <i class="bi bi-hash"></i>
+                                    <span>{{ $shift->kode_shift ?? 'Shift #'.$shift->id }}</span>
+                                </div>
+                                <div class="shift-detail-item">
+                                    <i class="bi bi-cash-stack"></i>
+                                    <span>Rp {{ number_format($shift->saldo_awal ?? 0, 0, ',', '.') }}</span>
+                                </div>
+                            </div>
+
+                            {{-- ✅ TAMBAHAN: TOTAL PENJUALAN SHIFT INI (REAL-TIME) --}}
+                            <div class="shift-penjualan-box">
+                                <div class="shift-penjualan-label">
+                                    <i class="bi bi-cart-check me-1"></i>Penjualan Shift Ini
+                                </div>
+                                <div class="shift-penjualan-amount">
+                                    Rp {{ number_format($shift->total_penjualan_realtime ?? 0, 0, ',', '.') }}
+                                </div>
+                                <div class="shift-penjualan-count">
+                                    {{ $shift->jumlah_transaksi_realtime ?? 0 }} transaksi
+                                </div>
+                            </div>
+
+                            <div class="shift-active-status">
+                                <span class="badge bg-success-soft">
+                                    <i class="bi bi-circle-fill pulse-dot me-1"></i>Aktif
+                                </span>
+                            </div>
                         </div>
-                        @endforeach
                     </div>
+                    @endforeach
                 </div>
             </div>
         </div>
     </div>
-    @endif
+</div>
+@endif
 
     <!-- Second Stats Row -->
     <div class="row g-4 mb-4">
@@ -557,6 +597,34 @@
 }
 
 /* Shift Active Cards */
+.shift-penjualan-box {
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    border: 2px solid #0ea5e9;
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin: 0.75rem 0;
+    text-align: center;
+}
+
+.shift-penjualan-label {
+    font-size: 0.75rem;
+    color: #0369a1;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.shift-penjualan-amount {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #0c4a6e;
+    margin-bottom: 0.25rem;
+}
+
+.shift-penjualan-count {
+    font-size: 0.7rem;
+    color: #0369a1;
+}
+
 .shift-active-card {
     background: white;
     border: 2px solid #e5e7eb;
@@ -583,7 +651,7 @@
 .shift-active-avatar {
     width: 48px;
     height: 48px;
-    background: var(--gradient-success);
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
     border-radius: 12px;
     display: flex;
     align-items: center;
@@ -614,7 +682,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
 }
 
 .shift-detail-item {
@@ -632,6 +700,7 @@
 
 .shift-active-status {
     text-align: center;
+    margin-top: 0.75rem;
 }
 
 .bg-success-soft {
@@ -673,7 +742,7 @@
 .card-icon {
     width: 48px;
     height: 48px;
-    background: var(--gradient-primary);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     border-radius: 12px;
     display: flex;
     align-items: center;

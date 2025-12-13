@@ -12,6 +12,39 @@
                 @csrf
                 
                 <div class="row">
+                    {{-- ✅ SECTION CABANG (untuk Super Admin atau visible untuk semua) --}}
+                    @if(auth()->user()->isSuperAdmin())
+                        <div class="col-12 mb-4">
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i> 
+                                <strong>Super Admin:</strong> Pilih cabang untuk barang ini
+                            </div>
+                            <div class="mb-3">
+                                <label>Cabang <span class="text-danger">*</span></label>
+                                <select name="cabang_id" class="form-control @error('cabang_id') is-invalid @enderror" required>
+                                    <option value="">-- Pilih Cabang --</option>
+                                    @foreach(\App\Models\Cabang::orderBy('nama_cabang')->get() as $cabang)
+                                        <option value="{{ $cabang->id }}" {{ old('cabang_id', session('selected_cabang_id')) == $cabang->id ? 'selected' : '' }}>
+                                            {{ $cabang->nama_cabang }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @error('cabang_id')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                        </div>
+                    @else
+                        {{-- User biasa: hidden field --}}
+                        <input type="hidden" name="cabang_id" value="{{ auth()->user()->cabang_id }}">
+                        <div class="col-12 mb-3">
+                            <div class="alert alert-secondary">
+                                <i class="bi bi-building"></i> 
+                                Cabang: <strong>{{ auth()->user()->cabang->nama_cabang ?? 'Tidak ada' }}</strong>
+                            </div>
+                        </div>
+                    @endif
+
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label>Kode Barang <span class="text-danger">*</span></label>

@@ -14,7 +14,8 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'role', // admin, kasir
+        'role', // super_admin, admin_cabang, kasir
+        'cabang_id',
         'aktif'
     ];
 
@@ -29,39 +30,155 @@ class User extends Authenticatable
         'aktif' => 'boolean'
     ];
 
-    // Relationship: User memiliki banyak penjualan
+    // ==========================================
+    // RELATIONSHIPS
+    // ==========================================
+
+    /**
+     * User belongs to Cabang
+     */
+    public function cabang()
+    {
+        return $this->belongsTo(Cabang::class);
+    }
+
+    /**
+     * User memiliki banyak penjualan
+     */
     public function penjualan()
     {
         return $this->hasMany(Penjualan::class);
     }
 
-    // Relationship: User memiliki banyak pembelian
+    /**
+     * User memiliki banyak pembelian
+     */
     public function pembelian()
     {
         return $this->hasMany(Pembelian::class);
     }
 
-    // Relationship: User memiliki banyak shift
+    /**
+     * User memiliki banyak shift
+     */
     public function shifts()
     {
         return $this->hasMany(Shift::class);
     }
 
-    // Method: Check if user is admin
-    public function isAdmin()
+    // ==========================================
+    // ROLE CHECKER METHODS
+    // ==========================================
+
+    /**
+     * Check if user is super admin
+     * 
+     * @return bool
+     */
+    public function isSuperAdmin()
     {
-        return $this->role === 'admin';
+        return $this->role === 'super_admin';
     }
 
-    // Method: Check if user is kasir
+    /**
+     * Check if user is admin cabang
+     * 
+     * @return bool
+     */
+    public function isAdminCabang()
+    {
+        return $this->role === 'admin_cabang';
+    }
+
+    /**
+     * Check if user is kasir
+     * 
+     * @return bool
+     */
     public function isKasir()
     {
         return $this->role === 'kasir';
     }
 
-    // Scope: User aktif
+    /**
+     * Check if user can access all cabang
+     * 
+     * @return bool
+     */
+    public function canAccessAllCabang()
+    {
+        return $this->isSuperAdmin();
+    }
+
+    // ==========================================
+    // HELPER METHODS
+    // ==========================================
+
+    /**
+     * Get accessible cabang IDs
+     * 
+     * @return array
+     */
+    public function getAccessibleCabangIds()
+    {
+        if ($this->isSuperAdmin()) {
+            return Cabang::aktif()->pluck('id')->toArray();
+        }
+        
+        return $this->cabang_id ? [$this->cabang_id] : [];
+    }
+
+    /**
+     * Check if user has access to specific cabang
+     * 
+     * @param int $cabangId
+     * @return bool
+     */
+    public function hasAccessToCabang($cabangId)
+    {
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+        
+        return $this->cabang_id == $cabangId;
+    }
+
+    // ==========================================
+    // QUERY SCOPES
+    // ==========================================
+
+    /**
+     * Scope: User aktif
+     * 
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
     public function scopeAktif($query)
     {
         return $query->where('aktif', true);
+    }
+
+    /**
+     * Scope: Filter by cabang
+     * 
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param int $cabangId
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeByCabang($query, $cabangId)
+    {
+        return $query->where('cabang_id', $cabangId);
+    }
+
+    /**
+     * Scope: Filter by role
+     * 
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param string $role
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeByRole($query, $role)
+    {
+        return $query->where('role', $role);
     }
 }

@@ -25,7 +25,9 @@ class Penjualan extends Model
         'kembalian',
         'metode_pembayaran',
         'nomor_referensi',
-        'keterangan'
+        'keterangan',
+        // ✅ TAMBAHKAN INI UNTUK FITUR CABANG
+        'cabang_id', 
     ];
 
     protected $casts = [
@@ -48,6 +50,12 @@ class Penjualan extends Model
     public function shift()
     {
         return $this->belongsTo(Shift::class);
+    }
+
+    // ✅ Relationship: Penjualan dimiliki oleh Cabang
+    public function cabang()
+    {
+        return $this->belongsTo(Cabang::class);
     }
 
     // Relationship: Penjualan memiliki banyak detail
@@ -80,5 +88,14 @@ class Penjualan extends Model
     {
         return $query->whereMonth('tanggal_penjualan', now()->month)
             ->whereYear('tanggal_penjualan', now()->year);
+    }
+    
+    // ✅ Scope: Filter by cabang
+    public function scopeByCabang($query, $cabangId)
+    {
+        if ($cabangId) {
+            return $query->where('cabang_id', $cabangId);
+        }
+        return $query;
     }
 }

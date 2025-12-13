@@ -7,15 +7,22 @@ use App\Models\DetailPembelian;
 use App\Models\Barang;
 use App\Models\Supplier;
 use App\Models\SatuanKonversi;
+use App\Traits\CabangFilterTrait; // ✅ IMPORT TRAIT
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class PembelianController extends Controller
 {
+    use CabangFilterTrait; // ✅ GUNAKAN TRAIT
+
     public function index(Request $request)
     {
-        $query = Pembelian::with(['supplier', 'user', 'detailPembelian.barang']);
+        $query = Pembelian::with(['supplier', 'user', 'detailPembelian.barang', 'cabang']);
+
+        // ✅ APPLY FILTER CABANG
+        $query = $this->applyCabangFilter($query);
 
         if ($request->filled('tanggal_dari')) {
             $query->whereDate('tanggal_pembelian', '>=', $request->tanggal_dari); 
@@ -47,8 +54,11 @@ class PembelianController extends Controller
 
     public function pending(Request $request)
     {
-        $query = Pembelian::with(['supplier', 'user', 'detailPembelian.barang'])
+        $query = Pembelian::with(['supplier', 'user', 'detailPembelian.barang', 'cabang'])
                          ->where('status', 'pending');
+
+        // ✅ APPLY FILTER CABANG
+        $query = $this->applyCabangFilter($query);
 
         if ($request->filled('tanggal_dari')) {
             $query->whereDate('tanggal_pembelian', '>=', $request->tanggal_dari); 
@@ -78,12 +88,23 @@ class PembelianController extends Controller
         try {
             $pembelian = Pembelian::with('detailPembelian.barang')->findOrFail($id);
 
+            // ✅ CEK AKSES CABANG
+            $cabangId = $this->getActiveCabangId();
+            if (!$this->isSuperAdmin() && $pembelian->cabang_id != $cabangId) {
+                abort(403, 'Pembelian ini bukan milik cabang Anda.');
+            }
+
             if ($pembelian->status !== 'pending') {
                 return back()->with('error', 'Pembelian ini sudah diproses!');
             }
 
             foreach ($pembelian->detailPembelian as $detail) {
                 $barang = $detail->barang;
+                
+                // ✅ VALIDASI: Barang harus dari cabang yang sama
+                if (!$this->isSuperAdmin() && $barang->cabang_id != $cabangId) {
+                    throw new \Exception("Barang {$barang->nama_barang} bukan milik cabang ini.");
+                }
                 
                 $qtyDasar = $this->convertToStokDasar($detail->jumlah, $detail->satuan, $barang);
                 $barang->increment('stok', $qtyDasar);
@@ -100,6 +121,10 @@ class PembelianController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
+            Log::error('Approve Pembelian Error', [
+                'pembelian_id' => $id,
+                'error' => $e->getMessage()
+            ]);
             return back()->with('error', 'Error: ' . $e->getMessage());
         }
     }
@@ -107,12 +132,20 @@ class PembelianController extends Controller
     public function create()
     {
         $suppliers = Supplier::all();
-        $barang = Barang::aktif()->get();
+        
+        // ✅ BARANG DENGAN FILTER CABANG
+        $barangQuery = Barang::aktif();
+        $barang = $this->applyCabangFilter($barangQuery)->get();
+        
+        Log::info('Pembelian Create - Barang List', [
+            'user_id' => Auth::id(),
+            'cabang_id' => $this->getActiveCabangId(),
+            'barang_count' => $barang->count()
+        ]);
 
         return view('pages.pembelian.create', compact('suppliers', 'barang'));
     }
 
-    // 🔥 Store dengan handling satuan konversi
     public function store(Request $request)
     {
         $request->validate([
@@ -131,6 +164,19 @@ class PembelianController extends Controller
 
         DB::beginTransaction();
         try {
+            // ✅ AMBIL CABANG ID
+            $cabangId = $this->getActiveCabangId();
+            
+            if (!$this->isSuperAdmin() && !$cabangId) {
+                throw new \Exception('Akun Anda belum ditugaskan ke cabang. Hubungi Super Admin.');
+            }
+
+            Log::info('Store Pembelian - Start', [
+                'user_id' => Auth::id(),
+                'cabang_id' => $cabangId,
+                'items_count' => count($request->items)
+            ]);
+
             $status = $request->status ?? 'approved';
 
             $pembelian = Pembelian::create([
@@ -142,12 +188,31 @@ class PembelianController extends Controller
                 'pajak' => $request->ppn ?? 0,
                 'grand_total' => $request->total_bayar,
                 'user_id' => Auth::id(),
+                'cabang_id' => $cabangId, // ✅ SIMPAN CABANG ID
                 'status' => $status,
                 'keterangan' => $request->keterangan
             ]);
 
+            Log::info('Pembelian Created', [
+                'pembelian_id' => $pembelian->id,
+                'cabang_id' => $pembelian->cabang_id
+            ]);
+
             foreach ($request->items as $item) {
                 $barang = Barang::findOrFail($item['barang_id']);
+
+                // ✅ VALIDASI CABANG BARANG
+                if (!$this->isSuperAdmin() && $barang->cabang_id != $cabangId) {
+                    throw new \Exception("Barang '{$barang->nama_barang}' bukan milik cabang Anda. Akses ditolak.");
+                }
+
+                Log::info('Processing Item', [
+                    'barang_id' => $barang->id,
+                    'barang_nama' => $barang->nama_barang,
+                    'barang_cabang_id' => $barang->cabang_id,
+                    'qty' => $item['qty'],
+                    'satuan' => $item['satuan']
+                ]);
 
                 // Konversi qty ke satuan terkecil
                 $qtyDasar = $this->convertToStokDasar($item['qty'], $item['satuan'], $barang);
@@ -163,7 +228,7 @@ class PembelianController extends Controller
                     'tanggal_kadaluarsa' => $item['tanggal_kadaluarsa'] ?? null,
                 ]);
 
-                // 🔥 Update/Insert Satuan Konversi jika ada
+                // Update/Insert Satuan Konversi jika ada
                 if (isset($item['satuan_konversi']) && is_array($item['satuan_konversi'])) {
                     $this->updateSatuanKonversi($barang->id, $item['satuan_konversi']);
                 }
@@ -181,6 +246,11 @@ class PembelianController extends Controller
 
             DB::commit();
 
+            Log::info('Store Pembelian - Success', [
+                'pembelian_id' => $pembelian->id,
+                'status' => $status
+            ]);
+
             $message = $status === 'pending' 
                 ? 'Pembelian berhasil disimpan sebagai PENDING!' 
                 : 'Pembelian berhasil disimpan dan APPROVED!';
@@ -190,13 +260,23 @@ class PembelianController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
+            Log::error('Store Pembelian - Error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             return back()->with('error', 'Error: ' . $e->getMessage())->withInput();
         }
     }
 
     public function show($id)
     {
-        $pembelian = Pembelian::with(['supplier', 'user', 'detailPembelian.barang'])->findOrFail($id);
+        $pembelian = Pembelian::with(['supplier', 'user', 'detailPembelian.barang', 'cabang'])->findOrFail($id);
+        
+        // ✅ CEK AKSES CABANG
+        $cabangId = $this->getActiveCabangId();
+        if (!$this->isSuperAdmin() && $pembelian->cabang_id != $cabangId) {
+            abort(403, 'Pembelian ini bukan milik cabang Anda.');
+        }
         
         return view('pages.pembelian.show', compact('pembelian'));
     }
@@ -204,13 +284,22 @@ class PembelianController extends Controller
     public function edit($id)
     {
         $pembelian = Pembelian::with('detailPembelian')->findOrFail($id);
+        
+        // ✅ CEK AKSES CABANG
+        $cabangId = $this->getActiveCabangId();
+        if (!$this->isSuperAdmin() && $pembelian->cabang_id != $cabangId) {
+            abort(403, 'Pembelian ini bukan milik cabang Anda.');
+        }
+        
         $suppliers = Supplier::all();
-        $barang = Barang::aktif()->get();
+        
+        // ✅ BARANG DENGAN FILTER CABANG
+        $barangQuery = Barang::aktif();
+        $barang = $this->applyCabangFilter($barangQuery)->get();
 
         return view('pages.pembelian.edit', compact('pembelian', 'suppliers', 'barang'));
     }
 
-    // 🔥 Update dengan handling satuan konversi
     public function update(Request $request, $id)
     {
         $request->validate([
@@ -230,6 +319,13 @@ class PembelianController extends Controller
         DB::beginTransaction();
         try {
             $pembelian = Pembelian::findOrFail($id);
+            
+            // ✅ CEK AKSES CABANG
+            $cabangId = $this->getActiveCabangId();
+            if (!$this->isSuperAdmin() && $pembelian->cabang_id != $cabangId) {
+                abort(403, 'Pembelian ini bukan milik cabang Anda.');
+            }
+            
             $statusLama = $pembelian->status;
             $statusBaru = $request->status ?? 'approved';
 
@@ -237,6 +333,12 @@ class PembelianController extends Controller
             if ($statusLama === 'approved') {
                 foreach ($pembelian->detailPembelian as $detail) {
                     $barang = $detail->barang;
+                    
+                    // ✅ VALIDASI CABANG
+                    if (!$this->isSuperAdmin() && $barang->cabang_id != $cabangId) {
+                        throw new \Exception("Barang {$barang->nama_barang} bukan milik cabang ini.");
+                    }
+                    
                     $qtyDasar = $this->convertToStokDasar($detail->jumlah, $detail->satuan, $barang);
                     $barang->decrement('stok', $qtyDasar);
                 }
@@ -256,11 +358,18 @@ class PembelianController extends Controller
                 'grand_total' => $request->total_bayar ?? $request->total_harga,
                 'status' => $statusBaru,
                 'keterangan' => $request->keterangan
+                // cabang_id tidak diubah (tetap cabang awal)
             ]);
 
             // Simpan detail baru
             foreach ($request->items as $item) {
                 $barang = Barang::findOrFail($item['barang_id']);
+                
+                // ✅ VALIDASI CABANG
+                if (!$this->isSuperAdmin() && $barang->cabang_id != $cabangId) {
+                    throw new \Exception("Barang '{$barang->nama_barang}' bukan milik cabang Anda.");
+                }
+                
                 $qtyDasar = $this->convertToStokDasar($item['qty'], $item['satuan'], $barang);
 
                 DetailPembelian::create([
@@ -273,7 +382,7 @@ class PembelianController extends Controller
                     'tanggal_kadaluarsa' => $item['tanggal_kadaluarsa'] ?? null,
                 ]);
 
-                // 🔥 Update Satuan Konversi
+                // Update Satuan Konversi
                 if (isset($item['satuan_konversi']) && is_array($item['satuan_konversi'])) {
                     $this->updateSatuanKonversi($barang->id, $item['satuan_konversi']);
                 }
@@ -295,6 +404,10 @@ class PembelianController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
+            Log::error('Update Pembelian Error', [
+                'pembelian_id' => $id,
+                'error' => $e->getMessage()
+            ]);
             return back()->with('error', 'Error: ' . $e->getMessage())->withInput();
         }
     }
@@ -304,6 +417,12 @@ class PembelianController extends Controller
         DB::beginTransaction();
         try {
             $pembelian = Pembelian::findOrFail($id);
+            
+            // ✅ CEK AKSES CABANG
+            $cabangId = $this->getActiveCabangId();
+            if (!$this->isSuperAdmin() && $pembelian->cabang_id != $cabangId) {
+                abort(403, 'Pembelian ini bukan milik cabang Anda.');
+            }
 
             if ($pembelian->status === 'approved') {
                 foreach ($pembelian->detailPembelian as $detail) {
@@ -326,7 +445,9 @@ class PembelianController extends Controller
         }
     }
 
-    // 🔥 HELPER METHODS
+    // ========================================================================
+    // HELPER METHODS
+    // ========================================================================
 
     /**
      * Konversi qty ke satuan terkecil (stok dasar)
@@ -340,6 +461,13 @@ class PembelianController extends Controller
         $konversi = SatuanKonversi::where('barang_id', $barang->id)
                                  ->where('nama_satuan', $satuan)
                                  ->first();
+
+        if (!$konversi) {
+            Log::warning('Satuan konversi tidak ditemukan', [
+                'barang_id' => $barang->id,
+                'satuan' => $satuan
+            ]);
+        }
 
         return $konversi ? ($qty * $konversi->jumlah_konversi) : $qty;
     }
@@ -370,12 +498,11 @@ class PembelianController extends Controller
     }
 
     /**
-     * 🔥 Update atau Insert Satuan Konversi
+     * Update atau Insert Satuan Konversi
      */
     private function updateSatuanKonversi($barangId, $satuanData)
     {
         foreach ($satuanData as $satuan => $data) {
-            // Skip jika data tidak lengkap
             if (empty($data['nama_satuan']) || empty($data['jumlah_konversi'])) {
                 continue;
             }
@@ -388,11 +515,9 @@ class PembelianController extends Controller
                 'is_default' => isset($data['is_default']) ? 1 : 0,
             ];
 
-            // Jika ada ID, update; jika tidak, insert baru
             if (!empty($data['id'])) {
                 SatuanKonversi::where('id', $data['id'])->update($dataToUpdate);
             } else {
-                // Cek apakah satuan sudah ada
                 $existing = SatuanKonversi::where('barang_id', $barangId)
                                          ->where('nama_satuan', $data['nama_satuan'])
                                          ->first();
