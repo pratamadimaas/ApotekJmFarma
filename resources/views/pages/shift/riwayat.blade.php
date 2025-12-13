@@ -83,7 +83,7 @@
                                 @endif
                             </td>
                             <td class="text-end">
-                                Rp {{ number_format($s->modal_awal, 0, ',', '.') }}
+                                Rp {{ number_format($s->saldo_awal, 0, ',', '.') }}
                             </td>
                             <td class="text-end">
                                 {{-- Kunci utama: Data sudah dihitung dan disimpan di Controller --}}

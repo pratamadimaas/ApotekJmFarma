@@ -140,7 +140,7 @@
             <tr>
                 <td>Shift ID</td>
                 <td>:</td>
-                <td class="bold">#{{ $shift->id }}</td>
+                <td class="bold">#{{ $shift->kode_shift }}</td>
             </tr>
             <tr>
                 <td>Kasir</td>
@@ -173,7 +173,8 @@
             $debit = $shift->penjualan->where('metode_pembayaran', 'debit')->sum('grand_total');
             $credit = $shift->penjualan->where('metode_pembayaran', 'credit')->sum('grand_total');
             $qris = $shift->penjualan->where('metode_pembayaran', 'qris')->sum('grand_total');
-            $nonTunai = $debit + $credit + $qris;
+            $transfer = $shift->penjualan->where('metode_pembayaran', 'transfer')->sum('grand_total');
+            $nonTunai = $debit + $credit + $qris + $transfer;
         @endphp
         
         <table>
@@ -188,22 +189,36 @@
         
         <div class="small-text">Rincian per Metode:</div>
         <table class="small-text">
+            @if($tunai > 0)
             <tr>
                 <td>- Tunai (Cash)</td>
                 <td class="bold" style="text-align: right;">Rp {{ number_format($tunai, 0, ',', '.') }}</td>
             </tr>
+            @endif
+            @if($debit > 0)
             <tr>
                 <td>- Debit</td>
                 <td class="bold" style="text-align: right;">Rp {{ number_format($debit, 0, ',', '.') }}</td>
             </tr>
+            @endif
+            @if($credit > 0)
             <tr>
                 <td>- Kredit</td>
                 <td class="bold" style="text-align: right;">Rp {{ number_format($credit, 0, ',', '.') }}</td>
             </tr>
+            @endif
+            @if($qris > 0)
             <tr>
                 <td>- QRIS</td>
                 <td class="bold" style="text-align: right;">Rp {{ number_format($qris, 0, ',', '.') }}</td>
             </tr>
+            @endif
+            @if($transfer > 0)
+            <tr>
+                <td>- Transfer</td>
+                <td class="bold" style="text-align: right;">Rp {{ number_format($transfer, 0, ',', '.') }}</td>
+            </tr>
+            @endif
         </table>
         
         <div class="divider"></div>
@@ -214,7 +229,7 @@
         </div>
     </div>
 
-    <!-- Perhitungan Laci -->
+    <!-- Perhitungan Laci Kasir -->
     <div class="section">
         <div class="center bold">PERHITUNGAN LACI KASIR</div>
         
@@ -222,7 +237,7 @@
             <tr>
                 <td>Modal Awal</td>
                 <td>:</td>
-                <td class="bold" style="text-align: right;">Rp {{ number_format($shift->modal_awal, 0, ',', '.') }}</td>
+                <td class="bold" style="text-align: right;">Rp {{ number_format($shift->saldo_awal, 0, ',', '.') }}</td>
             </tr>
             <tr>
                 <td>Penjualan Tunai</td>
@@ -234,7 +249,7 @@
         <div class="divider"></div>
         
         @php
-            $uangSeharusnya = $shift->modal_awal + $tunai;
+            $uangSeharusnya = $shift->saldo_awal + $tunai;
         @endphp
         
         <div class="row total-row">
@@ -246,7 +261,7 @@
             <tr>
                 <td>Uang Fisik di Laci</td>
                 <td>:</td>
-                <td class="bold" style="text-align: right;">Rp {{ number_format($shift->uang_fisik, 0, ',', '.') }}</td>
+                <td class="bold" style="text-align: right;">Rp {{ number_format($shift->saldo_akhir, 0, ',', '.') }}</td>
             </tr>
         </table>
     </div>
@@ -266,15 +281,32 @@
         
         <div>{{ $status }}</div>
         <div style="font-size: 14pt; margin: 5px 0;">
-            {{ $selisih >= 0 ? '+' : '' }} Rp {{ number_format(abs($selisih), 0, ',', '.') }}
+            {{ $selisih >= 0 ? '+' : '' }}Rp {{ number_format(abs($selisih), 0, ',', '.') }}
         </div>
     </div>
 
     <!-- Catatan -->
-    @if ($shift->catatan)
+    @if($shift->keterangan)
     <div class="section">
-        <div class="center bold">CATATAN PENGELUARAN</div>
-        <div class="small-text" style="white-space: pre-line; padding: 5px 0;">{{ $shift->catatan }}</div>
+        <div class="center bold">CATATAN</div>
+        <div class="small-text" style="white-space: pre-line; padding: 5px 0;">{{ $shift->keterangan }}</div>
+    </div>
+    @endif
+
+    <!-- Non-Tunai Info -->
+    @if($nonTunai > 0)
+    <div class="section">
+        <div class="center bold">PENJUALAN NON-TUNAI</div>
+        <table>
+            <tr>
+                <td>Total Non-Tunai</td>
+                <td>:</td>
+                <td class="bold" style="text-align: right;">Rp {{ number_format($nonTunai, 0, ',', '.') }}</td>
+            </tr>
+        </table>
+        <div class="small-text" style="padding: 5px 0; text-align: center;">
+            (Disetor terpisah dari laci kasir)
+        </div>
     </div>
     @endif
 
@@ -282,13 +314,15 @@
     <div class="section">
         <div class="center bold">DETAIL TRANSAKSI</div>
         <div class="small-text">
-            @foreach ($shift->penjualan as $index => $penjualan)
+            @forelse($shift->penjualan as $index => $penjualan)
             <div style="margin: 8px 0; padding: 5px 0; border-bottom: 1px dotted #ccc;">
                 <div class="bold">{{ $index + 1 }}. {{ $penjualan->no_faktur }}</div>
                 <div>{{ $penjualan->created_at->format('d/m/y H:i') }} - {{ ucfirst($penjualan->metode_pembayaran) }}</div>
                 <div class="bold" style="text-align: right;">Rp {{ number_format($penjualan->grand_total, 0, ',', '.') }}</div>
             </div>
-            @endforeach
+            @empty
+            <div class="center" style="padding: 10px 0;">Tidak ada transaksi</div>
+            @endforelse
         </div>
     </div>
 

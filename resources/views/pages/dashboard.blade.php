@@ -27,7 +27,7 @@
                     <div class="shift-badge-large">
                         <i class="bi bi-clock-history me-2"></i>
                         <span>Shift Aktif</span>
-                        <small class="d-block">Shift #{{ $shiftAktif->id }}</small>
+                        <small class="d-block">Shift #{{ $shiftAktif->kode_shift }}</small>
                     </div>
                 @endif
             </div>

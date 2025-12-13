@@ -79,7 +79,7 @@
 <body onload="window.print()">
     <div class="struk-container">
         <div class="header">
-            <strong>NAMA APOTEK ANDA</strong>
+            <strong>Apotek JM Farma</strong>
             <br>Jl. Alamat Apotek No. 123
             <br>Telp: (021) 123456
         </div>

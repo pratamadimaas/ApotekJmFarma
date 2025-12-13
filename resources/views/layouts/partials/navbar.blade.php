@@ -48,22 +48,7 @@
                 @endif
                 @endif
 
-                {{-- ⏳ SHIFT AKTIF (Kasir/Admin) --}}
-                @php
-                    $activeShift = \App\Models\Shift::where('user_id', auth()->id())
-                        ->where('status', 'aktif')
-                        ->whereNull('waktu_tutup')
-                        ->first();
-                @endphp
-                
-                @if($activeShift)
-                <li class="nav-item me-3 d-flex align-items-center">
-                    <span class="badge" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 8px 14px; border-radius: 10px; font-weight: 600; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);">
-                        <i class="bi bi-clock-fill me-1"></i>
-                        Shift Aktif - {{ \Carbon\Carbon::parse($activeShift->waktu_buka)->format('H:i') }}
-                    </span>
-                </li>
-                @endif
+
                 
                 {{-- 📅 WAKTU SAAT INI --}}
                 <li class="nav-item me-3 d-flex align-items-center d-none d-md-block"> {{-- Sembunyikan di layar sangat kecil --}}

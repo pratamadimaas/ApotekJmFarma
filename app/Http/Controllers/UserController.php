@@ -7,19 +7,20 @@ use App\Models\Cabang;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 
 class UserController extends Controller
 {
     public function index()
     {
         $users = User::with('cabang')->orderBy('name')->paginate(15);
-        return view('users.index', compact('users'));
+        return view('pages.users.index', compact('users'));
     }
 
     public function create()
     {
         $cabang = Cabang::aktif()->orderBy('nama_cabang')->get();
-        return view('users.create', compact('cabang'));
+        return view('pages.users.create', compact('cabang'));
     }
 
     public function store(Request $request)
@@ -64,7 +65,7 @@ class UserController extends Controller
     public function edit(User $user)
     {
         $cabang = Cabang::aktif()->orderBy('nama_cabang')->get();
-        return view('users.edit', compact('user', 'cabang'));
+        return view('pages.users.edit', compact('user', 'cabang'));
     }
 
     public function update(Request $request, User $user)
@@ -103,6 +104,10 @@ class UserController extends Controller
             ->with('success', 'User berhasil diperbarui!');
     }
 
+    /**
+     * ✅ FIXED: Soft delete (nonaktifkan) jika ada data terkait
+     * Hapus permanen hanya jika tidak ada data terkait
+     */
     public function destroy(User $user)
     {
         // Prevent self-deletion
@@ -111,10 +116,29 @@ class UserController extends Controller
                 ->with('error', 'Tidak dapat menghapus user yang sedang login!');
         }
 
-        $user->delete();
+        try {
+            // Cek apakah user memiliki data terkait
+            $hasPenjualan = $user->penjualan()->exists();
+            $hasPembelian = $user->pembelian()->exists();
+            $hasShifts = $user->shifts()->exists();
 
-        return redirect()->route('users.index')
-            ->with('success', 'User berhasil dihapus!');
+            if ($hasPenjualan || $hasPembelian || $hasShifts) {
+                // Jika ada data terkait, nonaktifkan saja (soft delete)
+                $user->update(['aktif' => false]);
+                
+                return redirect()->route('users.index')
+                    ->with('success', 'User berhasil dinonaktifkan karena masih memiliki data transaksi terkait!');
+            } else {
+                // Jika tidak ada data terkait, hapus permanen
+                $user->delete();
+                
+                return redirect()->route('users.index')
+                    ->with('success', 'User berhasil dihapus!');
+            }
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', 'Gagal menghapus user: ' . $e->getMessage());
+        }
     }
 
     public function resetPassword(User $user)
@@ -129,7 +153,7 @@ class UserController extends Controller
 
     public function showChangePasswordForm()
     {
-        return view('users.change-password');
+        return view('pages.users.change-password');
     }
 
     public function changePassword(Request $request)

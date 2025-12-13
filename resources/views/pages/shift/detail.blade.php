@@ -217,7 +217,7 @@
                         <tr>
                             <td>{{ $penjualan->no_faktur }}</td>
                             <td>{{ \Carbon\Carbon::parse($penjualan->created_at)->translatedFormat('H:i:s') }}</td>
-                            <td>Rp {{ number_format($penjualan->total_bayar, 0, ',', '.') }}</td>
+                            <td>Rp {{ number_format($penjualan->total_penjualan, 0, ',', '.') }}</td>
                             <td>
                                 @if($penjualan->metode_pembayaran === 'cash')
                                     <span class="badge bg-success">Cash</span>
