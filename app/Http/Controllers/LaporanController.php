@@ -169,58 +169,101 @@ class LaporanController extends Controller
     }
 
     public function labaRugi(Request $request)
-    {
-        $dataPenjualan = $this->applyDateFilter($request, Penjualan::class, 'tanggal_penjualan');
-        $queryPenjualan = $dataPenjualan['query'];
-        $tanggalDari = $dataPenjualan['tanggalDari']; 
-        $tanggalSampai = $dataPenjualan['tanggalSampai'];
-        
-        $totalPendapatan = (clone $queryPenjualan)->sum('grand_total');
-        
-        $queryPembelian = $this->applyDateFilter($request, Pembelian::class, 'tanggal_pembelian', 'approved')['query'];
-        $totalPembelian = (clone $queryPembelian)->sum('grand_total');
+{
+    $dataPenjualan = $this->applyDateFilter($request, Penjualan::class, 'tanggal_penjualan');
+    $queryPenjualan = $dataPenjualan['query'];
+    $tanggalDari = $dataPenjualan['tanggalDari']; 
+    $tanggalSampai = $dataPenjualan['tanggalSampai'];
+    
+    $totalPendapatan = (clone $queryPenjualan)->sum('grand_total');
+    
+    $queryPembelian = $this->applyDateFilter($request, Pembelian::class, 'tanggal_pembelian', 'approved')['query'];
+    $totalPembelian = (clone $queryPembelian)->sum('grand_total');
 
-        $cabangId = $this->getActiveCabangId();
-        
-        $hppQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
-                              ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
-                              ->whereBetween('penjualan.tanggal_penjualan', [$tanggalDari, $tanggalSampai]);
-        
-        if ($cabangId !== null) {
-            $hppQuery->where('penjualan.cabang_id', $cabangId);
-        }
-        
-        $hpp = $hppQuery->select(DB::raw('SUM(detail_penjualan.jumlah * barang.harga_beli) as total_hpp'))
-                        ->value('total_hpp') ?? 0;
-
-        $labaKotor = $totalPendapatan - $hpp;
-        $marginLaba = $totalPendapatan > 0 ? ($labaKotor / $totalPendapatan) * 100 : 0;
-
-        $detailPerItemQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
-                                        ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
-                                        ->whereBetween('penjualan.tanggal_penjualan', [$tanggalDari, $tanggalSampai]);
-        
-        if ($cabangId !== null) {
-            $detailPerItemQuery->where('penjualan.cabang_id', $cabangId);
-        }
-        
-        $detailPerItem = $detailPerItemQuery->select(
-                                            'detail_penjualan.barang_id',
-                                            'barang.nama_barang',
-                                            DB::raw('SUM(detail_penjualan.jumlah) as total_qty'),
-                                            DB::raw('SUM(detail_penjualan.subtotal) as total_penjualan'),
-                                            DB::raw('SUM(detail_penjualan.jumlah * barang.harga_beli) as total_hpp'),
-                                            DB::raw('SUM(detail_penjualan.subtotal) - SUM(detail_penjualan.jumlah * barang.harga_beli) as laba')
-                                        )
-                                        ->groupBy('detail_penjualan.barang_id', 'barang.nama_barang')
-                                        ->orderBy('laba', 'desc')
-                                        ->get();
-
-        return view('pages.laporan.laba-rugi', compact(
-            'tanggalDari', 'tanggalSampai', 'totalPendapatan', 'totalPembelian', 'hpp', 
-            'labaKotor', 'marginLaba', 'detailPerItem'
-        ));
+    $cabangId = $this->getActiveCabangId();
+    
+    // ✅ HPP dari penjualan (hanya yang TIDAK di-return)
+    $hppQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
+                          ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
+                          ->whereDate('penjualan.tanggal_penjualan', '>=', $tanggalDari)
+                          ->whereDate('penjualan.tanggal_penjualan', '<=', $tanggalSampai)
+                          ->where(function($q) {
+                              $q->where('detail_penjualan.is_return', false)
+                                ->orWhereNull('detail_penjualan.is_return');
+                          });
+    
+    if ($cabangId !== null) {
+        $hppQuery->where('penjualan.cabang_id', $cabangId);
     }
+    
+    $hpp = $hppQuery->select(DB::raw('SUM(detail_penjualan.jumlah * barang.harga_beli) as total_hpp'))
+                    ->value('total_hpp') ?? 0;
+
+    // ✅ Total return berdasarkan KAPAN return terjadi (pakai whereDate)
+    $totalReturnQuery = DetailPenjualan::where('is_return', true)
+                                ->whereDate('return_date', '>=', $tanggalDari)
+                                ->whereDate('return_date', '<=', $tanggalSampai);
+    
+    if ($cabangId !== null) {
+        $totalReturnQuery->whereHas('penjualan', function($q) use ($cabangId) {
+            $q->where('cabang_id', $cabangId);
+        });
+    }
+    
+    $totalReturn = $totalReturnQuery->sum('jumlah_return') ?? 0;
+
+    // ✅ HPP dari barang yang di-return dalam periode ini
+    $hppReturnQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
+                                ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
+                                ->where('detail_penjualan.is_return', true)
+                                ->whereDate('detail_penjualan.return_date', '>=', $tanggalDari)
+                                ->whereDate('detail_penjualan.return_date', '<=', $tanggalSampai);
+    
+    if ($cabangId !== null) {
+        $hppReturnQuery->where('penjualan.cabang_id', $cabangId);
+    }
+    
+    $hppReturn = $hppReturnQuery->select(DB::raw('SUM(detail_penjualan.jumlah * barang.harga_beli) as total_hpp_return'))
+                                ->value('total_hpp_return') ?? 0;
+
+    // ✅ Hitung pendapatan bersih (pendapatan - return)
+    $pendapatanBersih = $totalPendapatan - $totalReturn;
+    
+    // ✅ Hitung HPP bersih (hpp dari barang yang tidak di-return)
+    $hppBersih = $hpp;
+
+    // ✅ Laba kotor = Pendapatan Bersih - HPP Bersih
+    $labaKotor = $pendapatanBersih - $hppBersih;
+    $marginLaba = $pendapatanBersih > 0 ? ($labaKotor / $pendapatanBersih) * 100 : 0;
+
+    // ✅ Detail per item
+    $detailPerItemQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
+                                    ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
+                                    ->whereDate('penjualan.tanggal_penjualan', '>=', $tanggalDari)
+                                    ->whereDate('penjualan.tanggal_penjualan', '<=', $tanggalSampai);
+    
+    if ($cabangId !== null) {
+        $detailPerItemQuery->where('penjualan.cabang_id', $cabangId);
+    }
+    
+    $detailPerItem = $detailPerItemQuery->select(
+                                        'detail_penjualan.barang_id',
+                                        'barang.nama_barang',
+                                        DB::raw('SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.jumlah ELSE 0 END) as total_qty'),
+                                        DB::raw('SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.subtotal ELSE 0 END) as total_penjualan'),
+                                        DB::raw('SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.jumlah * barang.harga_beli ELSE 0 END) as total_hpp'),
+                                        DB::raw('SUM(CASE WHEN detail_penjualan.is_return = true THEN detail_penjualan.jumlah_return ELSE 0 END) as total_return'),
+                                        DB::raw('(SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.subtotal ELSE 0 END) - SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.jumlah * barang.harga_beli ELSE 0 END) - SUM(CASE WHEN detail_penjualan.is_return = true THEN detail_penjualan.jumlah_return ELSE 0 END)) as laba')
+                                    )
+                                    ->groupBy('detail_penjualan.barang_id', 'barang.nama_barang')
+                                    ->orderBy('laba', 'desc')
+                                    ->get();
+
+    return view('pages.laporan.laba-rugi', compact(
+        'tanggalDari', 'tanggalSampai', 'totalPendapatan', 'totalPembelian', 'hpp', 
+        'labaKotor', 'marginLaba', 'detailPerItem', 'totalReturn', 'pendapatanBersih', 'hppBersih', 'hppReturn'
+    ));
+}
 
     // =========================================================================
     // LAPORAN STOK

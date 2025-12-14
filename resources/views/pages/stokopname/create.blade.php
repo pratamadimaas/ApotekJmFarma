@@ -77,24 +77,50 @@
                             <small class="text-muted">Tekan Enter atau klik tombol Cari setelah scan barcode</small>
                         </div>
 
-                        {{-- Tab Kamera --}}
+                        {{-- Tab Kamera - IMPROVED VERSION --}}
                         <div class="tab-pane fade" id="camera" role="tabpanel">
                             <div class="text-center">
+                                {{-- Camera Preview Container --}}
                                 <div id="cameraContainer" class="mb-3" style="position: relative; max-width: 100%; margin: 0 auto;">
-                                    <video id="cameraPreview" style="width: 100%; max-width: 640px; border: 2px solid #ddd; border-radius: 8px; display: none;"></video>
-                                    <canvas id="canvasElement" style="display: none;"></canvas>
+                                    <video id="cameraPreview" 
+                                           playsinline 
+                                           autoplay 
+                                           style="width: 100%; max-width: 640px; border: 2px solid #ddd; border-radius: 8px; display: none;">
+                                    </video>
+                                    
+                                    <canvas id="canvasElement" 
+                                            style="display: none; width: 100%; max-width: 640px;">
+                                    </canvas>
+                                    
                                     <div id="cameraPlaceholder" class="p-5 bg-light border rounded">
                                         <i class="bi bi-camera-video" style="font-size: 4rem; color: #ccc;"></i>
                                         <p class="mt-3 text-muted">Klik tombol "Aktifkan Kamera" untuk memulai scan</p>
+                                        <small class="text-muted d-block mt-2">
+                                            <i class="bi bi-info-circle"></i> Pastikan browser memiliki izin akses kamera
+                                        </small>
                                     </div>
                                 </div>
-                                <button type="button" id="btnStartCamera" class="btn btn-success btn-lg">
-                                    <i class="bi bi-camera-video me-2"></i>Aktifkan Kamera
-                                </button>
-                                <button type="button" id="btnStopCamera" class="btn btn-danger btn-lg" style="display: none;">
-                                    <i class="bi bi-stop-circle me-2"></i>Matikan Kamera
-                                </button>
+                                
+                                {{-- Camera Controls --}}
+                                <div class="btn-group mb-3" role="group">
+                                    <button type="button" id="btnStartCamera" class="btn btn-success btn-lg">
+                                        <i class="bi bi-camera-video me-2"></i>Aktifkan Kamera
+                                    </button>
+                                    <button type="button" id="btnStopCamera" class="btn btn-danger btn-lg" style="display: none;">
+                                        <i class="bi bi-stop-circle me-2"></i>Matikan Kamera
+                                    </button>
+                                </div>
+                                
+                                {{-- Camera Status --}}
                                 <div id="cameraStatus" class="mt-3"></div>
+                                
+                                {{-- Debug Info (dapat dihapus di production) --}}
+                                <div id="debugInfo" class="mt-2 text-start" style="display: none;">
+                                    <small class="text-muted">
+                                        <strong>Debug Info:</strong><br>
+                                        <span id="debugText"></span>
+                                    </small>
+                                </div>
                             </div>
                         </div>
 
@@ -301,8 +327,8 @@
 @endsection
 
 @push('scripts')
-<!-- QuaggaJS untuk Barcode Scanner -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<!-- ZXing Library untuk Barcode Scanner (Better mobile support) -->
+<script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -314,6 +340,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     let cameraStream = null;
     let isScanning = false;
+    let codeReader = null;
 
     // ========================
     // 1. MANUAL INPUT / SCANNER
@@ -342,120 +369,224 @@ document.addEventListener('DOMContentLoaded', function() {
     btnScan.addEventListener('click', scanBarcode);
 
     // ========================
-    // 2. KAMERA BARCODE SCANNER
+    // 2. IMPROVED CAMERA BARCODE SCANNER
     // ========================
     const btnStartCamera = document.getElementById('btnStartCamera');
     const btnStopCamera = document.getElementById('btnStopCamera');
     const cameraPreview = document.getElementById('cameraPreview');
     const cameraPlaceholder = document.getElementById('cameraPlaceholder');
     const cameraStatus = document.getElementById('cameraStatus');
+    const debugInfo = document.getElementById('debugInfo');
+    const debugText = document.getElementById('debugText');
 
-    btnStartCamera.addEventListener('click', startCamera);
-    btnStopCamera.addEventListener('click', stopCamera);
+    btnStartCamera.addEventListener('click', startCameraImproved);
+    btnStopCamera.addEventListener('click', stopCameraImproved);
 
-    function startCamera() {
-        cameraPlaceholder.style.display = 'none';
-        cameraPreview.style.display = 'block';
-        btnStartCamera.style.display = 'none';
-        btnStopCamera.style.display = 'inline-block';
-        
-        cameraStatus.innerHTML = '<div class="spinner-border spinner-border-sm text-primary"></div> Memulai kamera...';
+    // ✅ IMPROVED: Better camera initialization dengan error handling
+    async function startCameraImproved() {
+        try {
+            // Update UI
+            cameraPlaceholder.style.display = 'none';
+            btnStartCamera.style.display = 'none';
+            btnStopCamera.style.display = 'inline-block';
+            cameraStatus.innerHTML = '<div class="spinner-border spinner-border-sm text-primary me-2"></div> Memulai kamera...';
+            
+            // Debug mode
+            debugInfo.style.display = 'block';
+            debugText.innerHTML = 'Checking camera permission...';
 
-        Quagga.init({
-            inputStream: {
-                name: "Live",
-                type: "LiveStream",
-                target: cameraPreview,
-                constraints: {
-                    facingMode: "environment" // Kamera belakang
-                }
-            },
-            decoder: {
-                readers: [
-                    "code_128_reader",
-                    "ean_reader",
-                    "ean_8_reader",
-                    "code_39_reader",
-                    "code_39_vin_reader",
-                    "codabar_reader",
-                    "upc_reader",
-                    "upc_e_reader"
-                ]
-            },
-            locate: true
-        }, function(err) {
-            if (err) {
-                console.error('Error starting camera:', err);
-                cameraStatus.innerHTML = '<div class="alert alert-danger">Gagal mengakses kamera! Pastikan browser memiliki izin akses kamera.</div>';
-                stopCamera();
-                return;
+            // ✅ Check if getUserMedia is supported
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error('Browser tidak mendukung akses kamera. Gunakan browser modern seperti Chrome atau Safari.');
+            }
+
+            // ✅ Request camera permission dengan constraints yang lebih spesifik
+            debugText.innerHTML = 'Requesting camera access...';
+            
+            const constraints = {
+                video: {
+                    facingMode: { ideal: 'environment' }, // Prefer back camera
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                },
+                audio: false
+            };
+
+            cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+            
+            debugText.innerHTML = 'Camera stream obtained. Video tracks: ' + cameraStream.getVideoTracks().length;
+
+            // ✅ Set stream ke video element
+            cameraPreview.srcObject = cameraStream;
+            cameraPreview.style.display = 'block';
+            
+            // ✅ Wait for video to be ready
+            await new Promise((resolve, reject) => {
+                cameraPreview.onloadedmetadata = () => {
+                    debugText.innerHTML += '<br>Video metadata loaded';
+                    resolve();
+                };
+                cameraPreview.onerror = (error) => {
+                    debugText.innerHTML += '<br>Video error: ' + error;
+                    reject(error);
+                };
+                
+                // Timeout fallback
+                setTimeout(() => resolve(), 2000);
+            });
+
+            await cameraPreview.play();
+            debugText.innerHTML += '<br>Video playing';
+
+            // ✅ Initialize ZXing Code Reader
+            codeReader = new ZXing.BrowserMultiFormatReader();
+            
+            debugText.innerHTML += '<br>ZXing initialized';
+            
+            cameraStatus.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="bi bi-camera-video-fill me-2"></i>Kamera aktif! Arahkan ke barcode...
+                </div>
+            `;
+            
+            isScanning = true;
+            
+            // ✅ Start continuous scanning
+            scanFromVideoDevice();
+
+        } catch (error) {
+            console.error('Camera Error:', error);
+            
+            let errorMessage = 'Gagal mengakses kamera: ';
+            
+            if (error.name === 'NotAllowedError') {
+                errorMessage += 'Izin kamera ditolak. Silakan berikan izin akses kamera di pengaturan browser.';
+            } else if (error.name === 'NotFoundError') {
+                errorMessage += 'Kamera tidak ditemukan. Pastikan device memiliki kamera.';
+            } else if (error.name === 'NotReadableError') {
+                errorMessage += 'Kamera sedang digunakan oleh aplikasi lain.';
+            } else if (error.name === 'OverconstrainedError') {
+                errorMessage += 'Kamera tidak mendukung konfigurasi yang diminta.';
+            } else {
+                errorMessage += error.message;
             }
             
-            cameraStatus.innerHTML = '<div class="alert alert-success"><i class="bi bi-camera-video-fill me-2"></i>Kamera aktif! Arahkan ke barcode...</div>';
-            Quagga.start();
-            isScanning = true;
-        });
+            cameraStatus.innerHTML = `<div class="alert alert-danger">${errorMessage}</div>`;
+            debugText.innerHTML += '<br>ERROR: ' + error.name + ' - ' + error.message;
+            
+            stopCameraImproved();
+        }
+    }
 
-        Quagga.onDetected(function(result) {
-            if (isScanning && result.codeResult && result.codeResult.code) {
-                const code = result.codeResult.code;
+    // ✅ IMPROVED: Continuous scanning function
+    function scanFromVideoDevice() {
+        if (!isScanning || !cameraPreview) return;
+
+        codeReader.decodeFromVideoElement(cameraPreview, (result, error) => {
+            if (result && isScanning) {
+                const code = result.text;
                 
-                // Beep sound
+                // Play beep
                 playBeep();
                 
                 // Show detected code
-                cameraStatus.innerHTML = `<div class="alert alert-info">✓ Terdeteksi: <strong>${code}</strong></div>`;
+                cameraStatus.innerHTML = `
+                    <div class="alert alert-info">
+                        ✓ Terdeteksi: <strong>${code}</strong>
+                    </div>
+                `;
                 
                 // Process barcode
                 processBarcode(code);
                 
-                // Pause untuk mencegah scan berulang
+                // Pause scanning temporarily
                 isScanning = false;
                 setTimeout(() => {
-                    isScanning = true;
-                    cameraStatus.innerHTML = '<div class="alert alert-success"><i class="bi bi-camera-video-fill me-2"></i>Kamera aktif! Arahkan ke barcode...</div>';
+                    if (cameraStream && cameraStream.active) {
+                        isScanning = true;
+                        cameraStatus.innerHTML = `
+                            <div class="alert alert-success">
+                                <i class="bi bi-camera-video-fill me-2"></i>Kamera aktif! Arahkan ke barcode...
+                            </div>
+                        `;
+                    }
                 }, 2000);
+            }
+            
+            if (error && error instanceof ZXing.NotFoundException) {
+                // No barcode found - this is normal, keep scanning
+                debugText.innerHTML = 'Scanning... (no barcode detected yet)';
+            }
+            
+            if (error && !(error instanceof ZXing.NotFoundException)) {
+                console.error('Decode error:', error);
             }
         });
     }
 
-    function stopCamera() {
-        if (Quagga) {
-            Quagga.stop();
+    // ✅ IMPROVED: Stop camera function
+    function stopCameraImproved() {
+        isScanning = false;
+        
+        // Stop code reader
+        if (codeReader) {
+            try {
+                codeReader.reset();
+            } catch (e) {
+                console.error('Error resetting code reader:', e);
+            }
+            codeReader = null;
         }
-        cameraPreview.style.display = 'none';
+        
+        // Stop media stream
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => {
+                track.stop();
+            });
+            cameraStream = null;
+        }
+        
+        // Reset video element
+        if (cameraPreview) {
+            cameraPreview.srcObject = null;
+            cameraPreview.style.display = 'none';
+        }
+        
+        // Reset UI
         cameraPlaceholder.style.display = 'block';
         btnStartCamera.style.display = 'inline-block';
         btnStopCamera.style.display = 'none';
         cameraStatus.innerHTML = '';
-        isScanning = false;
+        debugInfo.style.display = 'none';
     }
 
     function playBeep() {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        oscillator.frequency.value = 800;
-        oscillator.type = 'sine';
-        
-        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
-        
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.1);
+        try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = 800;
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.1);
+        } catch (e) {
+            console.error('Error playing beep:', e);
+        }
     }
 
-    // Tab change handler
+    // ✅ Tab change handler - stop camera when switching tabs
     document.querySelectorAll('#inputModeTabs button').forEach(tab => {
         tab.addEventListener('shown.bs.tab', function (e) {
-            if (e.target.id === 'camera-tab') {
-                // Jangan auto-start kamera
-            } else {
-                stopCamera();
+            if (e.target.id !== 'camera-tab') {
+                stopCameraImproved();
             }
         });
     });
@@ -665,7 +796,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // ✅ FUNCTION INI YANG BENAR (Hanya 1 versi)
     function updateExpiredStatus(row, expiredDate) {
         const statusCell = row.querySelector('.status-cell');
         
@@ -717,10 +847,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 updateRingkasan();
                 showToast('success', 'Item berhasil dihapus!');
                 
-                // Renumber rows
                 updateRowNumbers();
                 
-                // Cek jika tabel kosong
                 if (tbody.querySelectorAll('tr').length === 0) {
                     tbody.innerHTML = `<tr id="emptyRow">
                         <td colspan="9" class="text-center text-muted">Belum ada barang yang di-scan.</td>
@@ -791,6 +919,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initial ringkasan calculation
     updateRingkasan();
+
+    // ✅ Clean up when page unloads
+    window.addEventListener('beforeunload', () => {
+        stopCameraImproved();
+    });
 });
 </script>
 @endpush

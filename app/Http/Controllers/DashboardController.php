@@ -24,38 +24,52 @@ class DashboardController extends Controller
         $user = auth()->user();
         $cabangId = $this->getActiveCabangId();
         
-        // ✅ WORKAROUND: Ambil nama cabang langsung tanpa method trait
         if ($cabangId) {
             $cabang = Cabang::find($cabangId);
             $cabangName = $cabang ? $cabang->nama_cabang : 'Cabang Tidak Ditemukan';
         } else {
-            $cabangName = 'Semua Cabang'; // Untuk Super Admin
+            $cabangName = 'Semua Cabang';
         }
 
-        // 1. STATISTIK DENGAN FILTER CABANG
+        // 1. STATISTIK DENGAN FILTER CABANG (EXCLUDE RETURN)
         
-        // Total Penjualan Hari Ini
-        $penjualanHariIni = Penjualan::whereDate('tanggal_penjualan', today())
+        // Total Penjualan Hari Ini (sudah dikurangi return)
+        $penjualanKotor = Penjualan::whereDate('tanggal_penjualan', today())
             ->when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
             ->sum('grand_total');
 
-        // Total Penjualan Bulan Ini
-        $penjualanBulanIni = Penjualan::whereMonth('tanggal_penjualan', now()->month)
+        $returnHariIni = DetailPenjualan::where('is_return', true)
+            ->whereDate('return_date', today())
+            ->when($cabangId, fn($q) => $q->whereHas('penjualan', fn($pq) => $pq->where('cabang_id', $cabangId)))
+            ->sum('jumlah_return') ?? 0;
+
+        $penjualanHariIni = $penjualanKotor - $returnHariIni;
+
+        // Total Penjualan Bulan Ini (sudah dikurangi return)
+        $penjualanKotorBulan = Penjualan::whereMonth('tanggal_penjualan', now()->month)
             ->whereYear('tanggal_penjualan', now()->year)
             ->when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
             ->sum('grand_total');
+
+        $returnBulanIni = DetailPenjualan::where('is_return', true)
+            ->whereMonth('return_date', now()->month)
+            ->whereYear('return_date', now()->year)
+            ->when($cabangId, fn($q) => $q->whereHas('penjualan', fn($pq) => $pq->where('cabang_id', $cabangId)))
+            ->sum('jumlah_return') ?? 0;
+
+        $penjualanBulanIni = $penjualanKotorBulan - $returnBulanIni;
 
         // Total Transaksi Hari Ini
         $transaksiHariIni = Penjualan::whereDate('tanggal_penjualan', today())
             ->when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
             ->count();
 
-        // Jumlah Barang dengan Stok Minimum (Stok Menipis)
+        // Jumlah Barang dengan Stok Minimum
         $barangStokMinimum = Barang::whereColumn('stok', '<=', 'stok_minimal')
             ->when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
             ->count();
         
-        // 🔒 LABA: HANYA UNTUK ADMIN & SUPER ADMIN (KASIR TIDAK BISA LIHAT)
+        // 🔒 LABA: HANYA UNTUK ADMIN & SUPER ADMIN
         $labaHariIni = 0;
         $labaBulanIni = 0;
         
@@ -64,13 +78,12 @@ class DashboardController extends Controller
             $labaBulanIni = $this->hitungLaba('thisMonth', $cabangId);
         }
 
-        // 2. DATA SHIFT (Untuk tampilan Kasir/Admin Cabang)
+        // 2. DATA SHIFT
         $shiftAktif = Shift::where('user_id', Auth::id())
             ->where('status', 'open')
             ->whereNull('waktu_tutup')
             ->first();
         
-        // ✅ PERBAIKAN: Semua Shift Aktif dengan TOTAL PENJUALAN REAL-TIME
         $shiftAktifSemua = Shift::where('status', 'open')
             ->whereNull('waktu_tutup')
             ->with('user')
@@ -78,25 +91,31 @@ class DashboardController extends Controller
             ->orderBy('waktu_buka', 'desc')
             ->get()
             ->map(function($shift) {
-                // ✅ HITUNG TOTAL PENJUALAN PER SHIFT (REAL-TIME)
                 $totalPenjualan = Penjualan::where('shift_id', $shift->id)->sum('grand_total');
                 $jumlahTransaksi = Penjualan::where('shift_id', $shift->id)->count();
                 
-                // Tambahkan data ke object shift
                 $shift->total_penjualan_realtime = $totalPenjualan;
                 $shift->jumlah_transaksi_realtime = $jumlahTransaksi;
                 
                 return $shift;
             });
 
-        // 3. GRAFIK PENJUALAN 7 HARI TERAKHIR
+        // 3. GRAFIK PENJUALAN 7 HARI TERAKHIR (EXCLUDE RETURN)
         $grafikPenjualan = [];
         for ($i = 6; $i >= 0; $i--) {
             $tanggal = Carbon::today()->subDays($i);
             
-            $total = Penjualan::whereDate('tanggal_penjualan', $tanggal)
+            $totalKotor = Penjualan::whereDate('tanggal_penjualan', $tanggal)
                 ->when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
                 ->sum('grand_total');
+            
+            // ✅ Kurangi return di hari tersebut
+            $totalReturn = DetailPenjualan::where('is_return', true)
+                ->whereDate('return_date', $tanggal)
+                ->when($cabangId, fn($q) => $q->whereHas('penjualan', fn($pq) => $pq->where('cabang_id', $cabangId)))
+                ->sum('jumlah_return') ?? 0;
+            
+            $total = $totalKotor - $totalReturn;
             
             $grafikPenjualan[] = [
                 'tanggal' => $tanggal->format('d/m'),
@@ -105,12 +124,16 @@ class DashboardController extends Controller
             ];
         }
 
-        // 4. TOP 5 BARANG TERLARIS BULAN INI
+        // 4. TOP 5 BARANG TERLARIS BULAN INI (EXCLUDE RETURN)
         $topBarang = DB::table('detail_penjualan')
             ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
             ->join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
             ->whereMonth('penjualan.tanggal_penjualan', now()->month)
             ->whereYear('penjualan.tanggal_penjualan', now()->year)
+            ->where(function($q) {
+                $q->where('detail_penjualan.is_return', false)
+                  ->orWhereNull('detail_penjualan.is_return');
+            })
             ->when($cabangId, fn($q) => $q->where('penjualan.cabang_id', $cabangId))
             ->select(
                 'barang.nama_barang',
@@ -125,14 +148,14 @@ class DashboardController extends Controller
 
         $barangTerlaris = $topBarang;
         
-        // 5. USER STATS (Admin Only)
+        // 5. USER STATS
         $totalUser = null;
         if ($user->role === 'super_admin' || $user->role === 'admin_cabang') {
             $totalUser = User::when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
                 ->count();
         }
 
-        // 6. Barang dengan Stok Hampir Habis (Top 10)
+        // 6. Barang dengan Stok Hampir Habis
         $barangHabis = Barang::whereColumn('stok', '<=', 'stok_minimal')
             ->where('aktif', 1)
             ->when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
@@ -162,12 +185,17 @@ class DashboardController extends Controller
     }
     
     /**
-     * Menghitung Laba Berdasarkan Period dan Cabang
+     * Menghitung Laba Berdasarkan Period dan Cabang (EXCLUDE RETURN)
      */
     private function hitungLaba($period, $cabangId = null)
     {
         $query = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
-            ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id');
+            ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
+            // ✅ EXCLUDE barang yang sudah di-return
+            ->where(function($q) {
+                $q->where('detail_penjualan.is_return', false)
+                  ->orWhereNull('detail_penjualan.is_return');
+            });
         
         if ($period === 'today') {
             $query->whereDate('penjualan.tanggal_penjualan', Carbon::today());
@@ -188,6 +216,24 @@ class DashboardController extends Controller
         $totalPenjualan = $hasil->total_penjualan ?? 0;
         $totalHpp = $hasil->total_hpp ?? 0;
         
-        return $totalPenjualan - $totalHpp;
+        // ✅ Kurangi dengan total return
+        $returnQuery = DetailPenjualan::where('is_return', true);
+        
+        if ($period === 'today') {
+            $returnQuery->whereDate('return_date', Carbon::today());
+        } elseif ($period === 'thisMonth') {
+            $returnQuery->whereMonth('return_date', now()->month)
+                        ->whereYear('return_date', now()->year);
+        }
+        
+        if ($cabangId) {
+            $returnQuery->whereHas('penjualan', function($q) use ($cabangId) {
+                $q->where('cabang_id', $cabangId);
+            });
+        }
+        
+        $totalReturn = $returnQuery->sum('jumlah_return') ?? 0;
+        
+        return ($totalPenjualan - $totalReturn) - $totalHpp;
     }
 }
