@@ -2,6 +2,42 @@
 
 @section('title', 'Stok Opname - Scan Barcode')
 
+@push('styles')
+<style>
+    /* Custom styles for better scanner visibility */
+    #cameraPreview {
+        transform: scaleX(-1); /* Mirror effect for better UX */
+    }
+    
+    #scanRegion {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 80%;
+        height: 200px;
+        border: 3px solid #28a745;
+        border-radius: 10px;
+        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+        pointer-events: none;
+    }
+    
+    #scanLine {
+        position: absolute;
+        width: 100%;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, #28a745, transparent);
+        animation: scan 2s linear infinite;
+        top: 0;
+    }
+    
+    @keyframes scan {
+        0%, 100% { top: 0; }
+        50% { top: 100%; }
+    }
+</style>
+</push>
+
 @section('content')
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -77,16 +113,22 @@
                             <small class="text-muted">Tekan Enter atau klik tombol Cari setelah scan barcode</small>
                         </div>
 
-                        {{-- Tab Kamera - IMPROVED VERSION --}}
+                        {{-- Tab Kamera - HYBRID VERSION --}}
                         <div class="tab-pane fade" id="camera" role="tabpanel">
                             <div class="text-center">
                                 {{-- Camera Preview Container --}}
                                 <div id="cameraContainer" class="mb-3" style="position: relative; max-width: 100%; margin: 0 auto;">
                                     <video id="cameraPreview" 
                                            playsinline 
-                                           autoplay 
-                                           style="width: 100%; max-width: 640px; border: 2px solid #ddd; border-radius: 8px; display: none;">
+                                           autoplay
+                                           muted
+                                           style="width: 100%; max-width: 640px; border: 2px solid #ddd; border-radius: 8px; display: none; background: #000;">
                                     </video>
+                                    
+                                    {{-- Scan Region Overlay --}}
+                                    <div id="scanRegion" style="display: none;">
+                                        <div id="scanLine"></div>
+                                    </div>
                                     
                                     <canvas id="canvasElement" 
                                             style="display: none; width: 100%; max-width: 640px;">
@@ -111,11 +153,23 @@
                                     </button>
                                 </div>
                                 
+                                {{-- Scanner Method Toggle --}}
+                                <div class="mb-3">
+                                    <small class="text-muted">Metode Scanner:</small>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <input type="radio" class="btn-check" name="scanMethod" id="methodZxing" value="zxing" checked>
+                                        <label class="btn btn-outline-primary" for="methodZxing">ZXing (Akurat)</label>
+                                        
+                                        <input type="radio" class="btn-check" name="scanMethod" id="methodQuagga" value="quagga">
+                                        <label class="btn btn-outline-primary" for="methodQuagga">Quagga (Cepat)</label>
+                                    </div>
+                                </div>
+                                
                                 {{-- Camera Status --}}
                                 <div id="cameraStatus" class="mt-3"></div>
                                 
-                                {{-- Debug Info (dapat dihapus di production) --}}
-                                <div id="debugInfo" class="mt-2 text-start" style="display: none;">
+                                {{-- Debug Info --}}
+                                <div id="debugInfo" class="mt-2 text-start bg-light p-2 rounded" style="display: none;">
                                     <small class="text-muted">
                                         <strong>Debug Info:</strong><br>
                                         <span id="debugText"></span>
@@ -204,159 +258,87 @@
         </div>
     </div>
 
-    {{-- Tabel Hasil Scan --}}
-    <div class="card shadow mb-4">
-        <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">Daftar Barang yang Di-scan</h6>
-        </div>
-        <div class="card-body">
-            {{-- Mobile View --}}
-            <div class="d-md-none" id="mobileView">
-                <div id="mobileItems">
-                    @forelse($itemsScanned as $index => $item)
-                    <div class="card mb-3 mobile-item" data-id="{{ $item->id }}">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <div>
-                                    <strong class="d-block">{{ $item->barang->nama_barang }}</strong>
-                                    <small class="text-muted">{{ $item->barang->kode_barang }}</small>
-                                </div>
-                                <button type="button" class="btn btn-sm btn-danger btn-delete-mobile" data-id="{{ $item->id }}">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </div>
-                            
-                            <div class="row g-2 mb-2">
-                                <div class="col-6">
-                                    <small class="text-muted d-block">Lokasi Rak</small>
-                                    <span class="badge bg-info">{{ $item->barang->lokasi_rak ?? '-' }}</span>
-                                </div>
-                                <div class="col-6">
-                                    <small class="text-muted d-block">Stok Sistem</small>
-                                    <strong class="fs-5">{{ $item->stok_sistem }}</strong>
-                                </div>
-                            </div>
-                            
-                            <div class="row g-2 mb-2">
-                                <div class="col-12">
-                                    <label class="form-label fw-bold mb-1">
-                                        <i class="bi bi-box-seam me-1"></i>Stok Fisik
-                                    </label>
-                                    <input type="number" 
-                                           class="form-control form-control-lg stok-fisik-input-mobile text-center fw-bold" 
-                                           style="font-size: 1.5rem; height: 60px;"
-                                           value="{{ $item->stok_fisik }}" 
-                                           min="0"
-                                           data-id="{{ $item->id }}"
-                                           placeholder="0">
-                                </div>
-                            </div>
-                            
-                            <div class="row g-2 mb-2">
-                                <div class="col-12">
-                                    <label class="form-label fw-bold mb-1">
-                                        <i class="bi bi-calendar-event me-1"></i>Expired Date
-                                    </label>
-                                    <input type="date" 
-                                           class="form-control form-control-lg expired-date-input-mobile" 
-                                           style="height: 50px;"
-                                           value="{{ $item->expired_date?->format('Y-m-d') }}"
-                                           data-id="{{ $item->id }}">
-                                </div>
-                            </div>
-                            
-                            <div class="row g-2">
-                                <div class="col-6">
-                                    <small class="text-muted d-block">Selisih</small>
-                                    <div class="selisih-cell-mobile">
-                                        @if($item->selisih > 0)
-                                            <span class="badge bg-success fs-6">+{{ $item->selisih }}</span>
-                                        @elseif($item->selisih < 0)
-                                            <span class="badge bg-danger fs-6">{{ $item->selisih }}</span>
-                                        @else
-                                            <span class="badge bg-secondary fs-6">0</span>
-                                        @endif
-                                    </div>
-                                </div>
-                                <div class="col-6">
-                                    <small class="text-muted d-block">Status</small>
-                                    <div class="status-cell-mobile">
-                                        @php
-                                            $isExpiringSoon = $item->expired_date && $item->expired_date->lte(now()->addDays(30));
-                                        @endphp
-                                        @if($isExpiringSoon)
-                                            <span class="badge bg-warning text-dark">
-                                                <i class="bi bi-exclamation-triangle"></i> Segera Expired
-                                            </span>
-                                        @else
-                                            <span class="badge bg-success">Normal</span>
-                                        @endif
-                                    </div>
-                                </div>
-                            </div>
+    {{-- Mobile View dan Desktop View (sama seperti sebelumnya) --}}
+    {{-- Untuk menghemat space, saya skip bagian ini karena sama persis --}}
+    {{-- Silakan copy dari document sebelumnya untuk bagian tabel/mobile view --}}
+
+{{-- Tabel Hasil Scan --}}
+<div class="card shadow mb-4">
+<div class="card-header py-3">
+    <h6 class="m-0 font-weight-bold text-primary">Daftar Barang yang Di-scan</h6>
+</div>
+<div class="card-body">
+    {{-- Mobile View --}}
+    <div class="d-md-none" id="mobileView">
+        <div id="mobileItems">
+            @forelse($itemsScanned as $index => $item)
+            <div class="card mb-3 mobile-item" data-id="{{ $item->id }}">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <strong class="d-block">{{ $item->barang->nama_barang }}</strong>
+                            <small class="text-muted">{{ $item->barang->kode_barang }}</small>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-danger btn-delete-mobile" data-id="{{ $item->id }}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="row g-2 mb-2">
+                        <div class="col-6">
+                            <small class="text-muted d-block">Lokasi Rak</small>
+                            <span class="badge bg-info">{{ $item->barang->lokasi_rak ?? '-' }}</span>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">Stok Sistem</small>
+                            <strong class="fs-5">{{ $item->stok_sistem }}</strong>
                         </div>
                     </div>
-                    @empty
-                    <div class="alert alert-info text-center" id="emptyRowMobile">
-                        Belum ada barang yang di-scan. Silakan scan barcode untuk memulai.
+                    
+                    <div class="row g-2 mb-2">
+                        <div class="col-12">
+                            <label class="form-label fw-bold mb-1">
+                                <i class="bi bi-box-seam me-1"></i>Stok Fisik
+                            </label>
+                            <input type="number" 
+                                   class="form-control form-control-lg stok-fisik-input-mobile text-center fw-bold" 
+                                   style="font-size: 1.5rem; height: 60px;"
+                                   value="{{ $item->stok_fisik }}" 
+                                   min="0"
+                                   data-id="{{ $item->id }}"
+                                   placeholder="0">
+                        </div>
                     </div>
-                    @endforelse
-                </div>
-            </div>
-
-            {{-- Desktop View --}}
-            <div class="table-responsive d-none d-md-block">
-                <table class="table table-bordered table-hover" id="tableScanned">
-                    <thead class="table-light">
-                        <tr>
-                            <th width="5%" class="text-center">No</th>
-                            <th width="20%">Barang</th>
-                            <th width="10%" class="text-center">Lokasi Rak</th>
-                            <th width="8%" class="text-center">Stok Sistem</th>
-                            <th width="12%">Stok Fisik</th>
-                            <th width="8%" class="text-center">Selisih</th>
-                            <th width="12%">Expired Date</th>
-                            <th width="15%">Status</th>
-                            <th width="10%" class="text-center">Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tbodyScanned">
-                        @forelse($itemsScanned as $index => $item)
-                        <tr data-id="{{ $item->id }}">
-                            <td class="text-center">{{ $index + 1 }}</td>
-                            <td>
-                                <strong>{{ $item->barang->nama_barang }}</strong>
-                                <small class="d-block text-muted">{{ $item->barang->kode_barang }}</small>
-                            </td>
-                            <td class="text-center">
-                                <span class="badge bg-info">{{ $item->barang->lokasi_rak ?? '-' }}</span>
-                            </td>
-                            <td class="text-center">
-                                <strong>{{ $item->stok_sistem }}</strong>
-                            </td>
-                            <td>
-                                <input type="number" 
-                                       class="form-control form-control-sm stok-fisik-input" 
-                                       value="{{ $item->stok_fisik }}" 
-                                       min="0"
-                                       data-id="{{ $item->id }}">
-                            </td>
-                            <td class="text-center selisih-cell">
+                    
+                    <div class="row g-2 mb-2">
+                        <div class="col-12">
+                            <label class="form-label fw-bold mb-1">
+                                <i class="bi bi-calendar-event me-1"></i>Expired Date
+                            </label>
+                            <input type="date" 
+                                   class="form-control form-control-lg expired-date-input-mobile" 
+                                   style="height: 50px;"
+                                   value="{{ $item->expired_date?->format('Y-m-d') }}"
+                                   data-id="{{ $item->id }}">
+                        </div>
+                    </div>
+                    
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <small class="text-muted d-block">Selisih</small>
+                            <div class="selisih-cell-mobile">
                                 @if($item->selisih > 0)
-                                    <span class="badge bg-success">+{{ $item->selisih }}</span>
+                                    <span class="badge bg-success fs-6">+{{ $item->selisih }}</span>
                                 @elseif($item->selisih < 0)
-                                    <span class="badge bg-danger">{{ $item->selisih }}</span>
+                                    <span class="badge bg-danger fs-6">{{ $item->selisih }}</span>
                                 @else
-                                    <span class="badge bg-secondary">0</span>
+                                    <span class="badge bg-secondary fs-6">0</span>
                                 @endif
-                            </td>
-                            <td>
-                                <input type="date" 
-                                       class="form-control form-control-sm expired-date-input" 
-                                       value="{{ $item->expired_date?->format('Y-m-d') }}"
-                                       data-id="{{ $item->id }}">
-                            </td>
-                            <td class="status-cell">
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">Status</small>
+                            <div class="status-cell-mobile">
                                 @php
                                     $isExpiringSoon = $item->expired_date && $item->expired_date->lte(now()->addDays(30));
                                 @endphp
@@ -367,23 +349,99 @@
                                 @else
                                     <span class="badge bg-success">Normal</span>
                                 @endif
-                            </td>
-                            <td class="text-center">
-                                <button type="button" class="btn btn-sm btn-danger btn-delete" data-id="{{ $item->id }}">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </td>
-                        </tr>
-                        @empty
-                        <tr id="emptyRow">
-                            <td colspan="9" class="text-center text-muted">Belum ada barang yang di-scan. Silakan scan barcode untuk memulai.</td>
-                        </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
+            @empty
+            <div class="alert alert-info text-center" id="emptyRowMobile">
+                Belum ada barang yang di-scan. Silakan scan barcode untuk memulai.
+            </div>
+            @endforelse
         </div>
     </div>
+
+    {{-- Desktop View --}}
+    <div class="table-responsive d-none d-md-block">
+        <table class="table table-bordered table-hover" id="tableScanned">
+            <thead class="table-light">
+                <tr>
+                    <th width="5%" class="text-center">No</th>
+                    <th width="20%">Barang</th>
+                    <th width="10%" class="text-center">Lokasi Rak</th>
+                    <th width="8%" class="text-center">Stok Sistem</th>
+                    <th width="12%">Stok Fisik</th>
+                    <th width="8%" class="text-center">Selisih</th>
+                    <th width="12%">Expired Date</th>
+                    <th width="15%">Status</th>
+                    <th width="10%" class="text-center">Aksi</th>
+                </tr>
+            </thead>
+            <tbody id="tbodyScanned">
+                @forelse($itemsScanned as $index => $item)
+                <tr data-id="{{ $item->id }}">
+                    <td class="text-center">{{ $index + 1 }}</td>
+                    <td>
+                        <strong>{{ $item->barang->nama_barang }}</strong>
+                        <small class="d-block text-muted">{{ $item->barang->kode_barang }}</small>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-info">{{ $item->barang->lokasi_rak ?? '-' }}</span>
+                    </td>
+                    <td class="text-center">
+                        <strong>{{ $item->stok_sistem }}</strong>
+                    </td>
+                    <td>
+                        <input type="number" 
+                               class="form-control form-control-sm stok-fisik-input" 
+                               value="{{ $item->stok_fisik }}" 
+                               min="0"
+                               data-id="{{ $item->id }}">
+                    </td>
+                    <td class="text-center selisih-cell">
+                        @if($item->selisih > 0)
+                            <span class="badge bg-success">+{{ $item->selisih }}</span>
+                        @elseif($item->selisih < 0)
+                            <span class="badge bg-danger">{{ $item->selisih }}</span>
+                        @else
+                            <span class="badge bg-secondary">0</span>
+                        @endif
+                    </td>
+                    <td>
+                        <input type="date" 
+                               class="form-control form-control-sm expired-date-input" 
+                               value="{{ $item->expired_date?->format('Y-m-d') }}"
+                               data-id="{{ $item->id }}">
+                    </td>
+                    <td class="status-cell">
+                        @php
+                            $isExpiringSoon = $item->expired_date && $item->expired_date->lte(now()->addDays(30));
+                        @endphp
+                        @if($isExpiringSoon)
+                            <span class="badge bg-warning text-dark">
+                                <i class="bi bi-exclamation-triangle"></i> Segera Expired
+                            </span>
+                        @else
+                            <span class="badge bg-success">Normal</span>
+                        @endif
+                    </td>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-sm btn-danger btn-delete" data-id="{{ $item->id }}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+                @empty
+                <tr id="emptyRow">
+                    <td colspan="9" class="text-center text-muted">Belum ada barang yang di-scan. Silakan scan barcode untuk memulai.</td>
+                </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+</div>
+</div>
 </div>
 
 {{-- Modal Finalize SO --}}
@@ -422,7 +480,9 @@
 @endsection
 
 @push('scripts')
-<!-- ZXing Library untuk Barcode Scanner (Better mobile support) -->
+<!-- QuaggaJS Library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<!-- ZXing Library -->
 <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
 
 <script>
@@ -437,9 +497,10 @@ document.addEventListener('DOMContentLoaded', function() {
     let cameraStream = null;
     let isScanning = false;
     let codeReader = null;
+    let scanMethod = 'zxing'; // default
 
     // ========================
-    // 1. MANUAL INPUT / SCANNER
+    // MANUAL INPUT / SCANNER
     // ========================
     barcodeInput.focus();
     
@@ -467,7 +528,7 @@ document.addEventListener('DOMContentLoaded', function() {
     btnScan.addEventListener('click', scanBarcode);
 
     // ========================
-    // 2. IMPROVED CAMERA BARCODE SCANNER
+    // HYBRID CAMERA SCANNER
     // ========================
     const btnStartCamera = document.getElementById('btnStartCamera');
     const btnStopCamera = document.getElementById('btnStopCamera');
@@ -476,12 +537,23 @@ document.addEventListener('DOMContentLoaded', function() {
     const cameraStatus = document.getElementById('cameraStatus');
     const debugInfo = document.getElementById('debugInfo');
     const debugText = document.getElementById('debugText');
+    const scanRegion = document.getElementById('scanRegion');
 
-    btnStartCamera.addEventListener('click', startCameraImproved);
-    btnStopCamera.addEventListener('click', stopCameraImproved);
+    // Method selection
+    document.querySelectorAll('input[name="scanMethod"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            scanMethod = this.value;
+            if (isScanning) {
+                stopCameraHybrid();
+                setTimeout(() => startCameraHybrid(), 500);
+            }
+        });
+    });
 
-    // ✅ IMPROVED: Better camera initialization dengan error handling
-    async function startCameraImproved() {
+    btnStartCamera.addEventListener('click', startCameraHybrid);
+    btnStopCamera.addEventListener('click', stopCameraHybrid);
+
+    async function startCameraHybrid() {
         try {
             // Update UI
             cameraPlaceholder.style.display = 'none';
@@ -493,17 +565,15 @@ document.addEventListener('DOMContentLoaded', function() {
             debugInfo.style.display = 'block';
             debugText.innerHTML = 'Checking camera permission...';
 
-            // ✅ Check if getUserMedia is supported
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                throw new Error('Browser tidak mendukung akses kamera. Gunakan browser modern seperti Chrome atau Safari.');
+                throw new Error('Browser tidak mendukung akses kamera.');
             }
 
-            // ✅ Request camera permission dengan constraints yang lebih spesifik
             debugText.innerHTML = 'Requesting camera access...';
             
             const constraints = {
                 video: {
-                    facingMode: { ideal: 'environment' }, // Prefer back camera
+                    facingMode: { ideal: 'environment' },
                     width: { ideal: 1280 },
                     height: { ideal: 720 }
                 },
@@ -512,45 +582,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
             cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
             
-            debugText.innerHTML = 'Camera stream obtained. Video tracks: ' + cameraStream.getVideoTracks().length;
+            debugText.innerHTML = 'Camera stream obtained.';
 
-            // ✅ Set stream ke video element
             cameraPreview.srcObject = cameraStream;
             cameraPreview.style.display = 'block';
+            scanRegion.style.display = 'block';
             
-            // ✅ Wait for video to be ready
-            await new Promise((resolve, reject) => {
+            await new Promise((resolve) => {
                 cameraPreview.onloadedmetadata = () => {
                     debugText.innerHTML += '<br>Video metadata loaded';
                     resolve();
                 };
-                cameraPreview.onerror = (error) => {
-                    debugText.innerHTML += '<br>Video error: ' + error;
-                    reject(error);
-                };
-                
-                // Timeout fallback
                 setTimeout(() => resolve(), 2000);
             });
 
             await cameraPreview.play();
             debugText.innerHTML += '<br>Video playing';
 
-            // ✅ Initialize ZXing Code Reader
-            codeReader = new ZXing.BrowserMultiFormatReader();
-            
-            debugText.innerHTML += '<br>ZXing initialized';
-            
-            cameraStatus.innerHTML = `
-                <div class="alert alert-success">
-                    <i class="bi bi-camera-video-fill me-2"></i>Kamera aktif! Arahkan ke barcode...
-                </div>
-            `;
-            
-            isScanning = true;
-            
-            // ✅ Start continuous scanning
-            scanFromVideoDevice();
+            // Start scanning based on selected method
+            if (scanMethod === 'zxing') {
+                await startZXingScanner();
+            } else {
+                await startQuaggaScanner();
+            }
 
         } catch (error) {
             console.error('Camera Error:', error);
@@ -558,13 +612,11 @@ document.addEventListener('DOMContentLoaded', function() {
             let errorMessage = 'Gagal mengakses kamera: ';
             
             if (error.name === 'NotAllowedError') {
-                errorMessage += 'Izin kamera ditolak. Silakan berikan izin akses kamera di pengaturan browser.';
+                errorMessage += 'Izin kamera ditolak. Silakan berikan izin di pengaturan browser.';
             } else if (error.name === 'NotFoundError') {
-                errorMessage += 'Kamera tidak ditemukan. Pastikan device memiliki kamera.';
+                errorMessage += 'Kamera tidak ditemukan.';
             } else if (error.name === 'NotReadableError') {
                 errorMessage += 'Kamera sedang digunakan oleh aplikasi lain.';
-            } else if (error.name === 'OverconstrainedError') {
-                errorMessage += 'Kamera tidak mendukung konfigurasi yang diminta.';
             } else {
                 errorMessage += error.message;
             }
@@ -572,75 +624,137 @@ document.addEventListener('DOMContentLoaded', function() {
             cameraStatus.innerHTML = `<div class="alert alert-danger">${errorMessage}</div>`;
             debugText.innerHTML += '<br>ERROR: ' + error.name + ' - ' + error.message;
             
-            stopCameraImproved();
+            stopCameraHybrid();
         }
     }
 
-    // ✅ IMPROVED: Continuous scanning function
-    function scanFromVideoDevice() {
-        if (!isScanning || !cameraPreview) return;
+    async function startZXingScanner() {
+        debugText.innerHTML += '<br>Initializing ZXing...';
+        
+        codeReader = new ZXing.BrowserMultiFormatReader();
+        
+        cameraStatus.innerHTML = `
+            <div class="alert alert-success">
+                <i class="bi bi-camera-video-fill me-2"></i>Kamera aktif! (ZXing) Arahkan ke barcode...
+            </div>
+        `;
+        
+        isScanning = true;
+        
+        // Continuous scanning
+        const scanLoop = () => {
+            if (!isScanning || !cameraPreview) return;
 
-        codeReader.decodeFromVideoElement(cameraPreview, (result, error) => {
-            if (result && isScanning) {
-                const code = result.text;
+            codeReader.decodeFromVideoElement(cameraPreview, (result, error) => {
+                if (result && isScanning) {
+                    handleBarcodeDetected(result.text);
+                }
                 
-                // Play beep
-                playBeep();
-                
-                // Show detected code
-                cameraStatus.innerHTML = `
-                    <div class="alert alert-info">
-                        ✓ Terdeteksi: <strong>${code}</strong>
-                    </div>
-                `;
-                
-                // Process barcode
-                processBarcode(code);
-                
-                // Pause scanning temporarily
-                isScanning = false;
-                setTimeout(() => {
-                    if (cameraStream && cameraStream.active) {
-                        isScanning = true;
-                        cameraStatus.innerHTML = `
-                            <div class="alert alert-success">
-                                <i class="bi bi-camera-video-fill me-2"></i>Kamera aktif! Arahkan ke barcode...
-                            </div>
-                        `;
-                    }
-                }, 2000);
+                if (error && !(error instanceof ZXing.NotFoundException)) {
+                    console.error('ZXing decode error:', error);
+                }
+            });
+        };
+        
+        scanLoop();
+    }
+
+    async function startQuaggaScanner() {
+        debugText.innerHTML += '<br>Initializing Quagga...';
+        
+        Quagga.init({
+            inputStream: {
+                name: "Live",
+                type: "LiveStream",
+                target: cameraPreview,
+                constraints: {
+                    facingMode: "environment"
+                }
+            },
+            decoder: {
+                readers: [
+                    "code_128_reader",
+                    "ean_reader",
+                    "ean_8_reader",
+                    "code_39_reader",
+                    "upc_reader",
+                    "upc_e_reader"
+                ]
+            },
+            locate: true
+        }, function(err) {
+            if (err) {
+                console.error('Quagga init error:', err);
+                cameraStatus.innerHTML = '<div class="alert alert-danger">Quagga gagal diinisialisasi. Coba metode ZXing.</div>';
+                return;
             }
             
-            if (error && error instanceof ZXing.NotFoundException) {
-                // No barcode found - this is normal, keep scanning
-                debugText.innerHTML = 'Scanning... (no barcode detected yet)';
-            }
+            cameraStatus.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="bi bi-camera-video-fill me-2"></i>Kamera aktif! (Quagga) Arahkan ke barcode...
+                </div>
+            `;
             
-            if (error && !(error instanceof ZXing.NotFoundException)) {
-                console.error('Decode error:', error);
+            Quagga.start();
+            isScanning = true;
+        });
+
+        Quagga.onDetected(function(result) {
+            if (isScanning && result.codeResult && result.codeResult.code) {
+                handleBarcodeDetected(result.codeResult.code);
             }
         });
     }
 
-    // ✅ IMPROVED: Stop camera function
-    function stopCameraImproved() {
+    function handleBarcodeDetected(code) {
+        playBeep();
+        
+        cameraStatus.innerHTML = `
+            <div class="alert alert-info">
+                ✓ Terdeteksi: <strong>${code}</strong>
+            </div>
+        `;
+        
+        processBarcode(code);
+        
+        isScanning = false;
+        setTimeout(() => {
+            if (cameraStream && cameraStream.active) {
+                isScanning = true;
+                cameraStatus.innerHTML = `
+                    <div class="alert alert-success">
+                        <i class="bi bi-camera-video-fill me-2"></i>Kamera aktif! Arahkan ke barcode...
+                    </div>
+                `;
+            }
+        }, 2000);
+    }
+
+    function stopCameraHybrid() {
         isScanning = false;
         
-        // Stop code reader
+        // Stop ZXing
         if (codeReader) {
             try {
                 codeReader.reset();
             } catch (e) {
-                console.error('Error resetting code reader:', e);
+                console.error('Error resetting ZXing:', e);
             }
             codeReader = null;
         }
         
+        // Stop Quagga
+        if (typeof Quagga !== 'undefined') {
+            try {
+                Quagga.stop();
+            } catch (e) {
+                console.error('Error stopping Quagga:', e);
+            }
+        }
+        
         // Stop media stream
         if (cameraStream) {
-            cameraStream.getTracks().forEach(track => {
-                track.stop();
-            });
+            cameraStream.getTracks().forEach(track => track.stop());
             cameraStream = null;
         }
         
@@ -651,6 +765,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // Reset UI
+        scanRegion.style.display = 'none';
         cameraPlaceholder.style.display = 'block';
         btnStartCamera.style.display = 'inline-block';
         btnStopCamera.style.display = 'none';
@@ -680,11 +795,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // ✅ Tab change handler - stop camera when switching tabs
+    // Tab change handler
     document.querySelectorAll('#inputModeTabs button').forEach(tab => {
         tab.addEventListener('shown.bs.tab', function (e) {
             if (e.target.id !== 'camera-tab') {
-                stopCameraImproved();
+                stopCameraHybrid();
             }
         });
     });
@@ -1166,9 +1281,9 @@ document.addEventListener('DOMContentLoaded', function() {
     updateRingkasan();
 
     // ✅ Clean up when page unloads
-    window.addEventListener('beforeunload', () => {
-        stopCameraImproved();
-    });
+   window.addEventListener('beforeunload', () => {
+    stopCameraHybrid();
+});
 });
 </script>
 @endpush
