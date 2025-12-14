@@ -603,35 +603,40 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function startZXingScanner() {
-        debugText.innerHTML += '<br>Initializing ZXing...';
-        
-        codeReader = new ZXing.BrowserMultiFormatReader();
-        
-        cameraStatus.innerHTML = `
-            <div class="alert alert-success">
-                <i class="bi bi-camera-video-fill me-2"></i>Kamera aktif! (ZXing) Arahkan ke barcode...
-            </div>
-        `;
-        
-        isScanning = true;
-        
-        // Continuous scanning
-        const scanLoop = () => {
-            if (!isScanning || !cameraPreview) return;
+    debugText.innerHTML += '<br>Initializing ZXing...';
+    
+    codeReader = new ZXing.BrowserMultiFormatReader();
+    
+    cameraStatus.innerHTML = `
+        <div class="alert alert-success">
+            <i class="bi bi-camera-video-fill me-2"></i>Kamera aktif! (ZXing) Arahkan ke barcode...
+        </div>
+    `;
+    
+    isScanning = true;
+    
+    // Continuous scanning with requestAnimationFrame
+    const scanLoop = () => {
 
-            codeReader.decodeFromVideoElement(cameraPreview, (result, error) => {
-                if (result && isScanning) {
-                    handleBarcodeDetected(result.text);
-                }
-                
-                if (error && !(error instanceof ZXing.NotFoundException)) {
-                    console.error('ZXing decode error:', error);
-                }
-            });
-        };
-        
-        scanLoop();
-    }
+        if (!isScanning || !cameraPreview) return;
+
+        codeReader.decodeFromVideoElement(cameraPreview, (result, error) => {
+            if (result && isScanning) {
+                handleBarcodeDetected(result.text);
+            } else {
+                // Continue scanning ✅ INI YANG PENTING!
+                requestAnimationFrame(scanLoop);
+            }
+            
+            if (error && !(error instanceof ZXing.NotFoundException)) {
+                console.error('ZXing decode error:', error);
+            }
+        });
+    };
+    
+    // Start the loop ✅ INI YANG PENTING!
+    requestAnimationFrame(scanLoop);
+}
 
     async function startQuaggaScanner() {
         debugText.innerHTML += '<br>Initializing Quagga...';
@@ -681,28 +686,33 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function handleBarcodeDetected(code) {
-        playBeep();
-        
-        cameraStatus.innerHTML = `
-            <div class="alert alert-info">
-                ✓ Terdeteksi: <strong>${code}</strong>
-            </div>
-        `;
-        
-        processBarcode(code);
-        
-        isScanning = false;
-        setTimeout(() => {
-            if (cameraStream && cameraStream.active) {
-                isScanning = true;
-                cameraStatus.innerHTML = `
-                    <div class="alert alert-success">
-                        <i class="bi bi-camera-video-fill me-2"></i>Kamera aktif! Arahkan ke barcode...
-                    </div>
-                `;
+    playBeep();
+    
+    cameraStatus.innerHTML = `
+        <div class="alert alert-info">
+            ✓ Terdeteksi: <strong>${code}</strong>
+        </div>
+    `;
+    
+    processBarcode(code);
+    
+    isScanning = false;
+    setTimeout(() => {
+        if (cameraStream && cameraStream.active) {
+            isScanning = true;
+            cameraStatus.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="bi bi-camera-video-fill me-2"></i>Kamera aktif! Arahkan ke barcode...
+                </div>
+            `;
+            
+            // ✅ RESTART SCANNING LOOP!
+            if (scanMethod === 'zxing') {
+                requestAnimationFrame(() => startZXingScanner());
             }
-        }, 2000);
-    }
+        }
+    }, 2000);
+}
 
     function stopCameraHybrid() {
         isScanning = false;
