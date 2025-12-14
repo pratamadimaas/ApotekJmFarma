@@ -210,7 +210,102 @@
             <h6 class="m-0 font-weight-bold text-primary">Daftar Barang yang Di-scan</h6>
         </div>
         <div class="card-body">
-            <div class="table-responsive">
+            {{-- Mobile View --}}
+            <div class="d-md-none" id="mobileView">
+                <div id="mobileItems">
+                    @forelse($itemsScanned as $index => $item)
+                    <div class="card mb-3 mobile-item" data-id="{{ $item->id }}">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <strong class="d-block">{{ $item->barang->nama_barang }}</strong>
+                                    <small class="text-muted">{{ $item->barang->kode_barang }}</small>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-danger btn-delete-mobile" data-id="{{ $item->id }}">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                            
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <small class="text-muted d-block">Lokasi Rak</small>
+                                    <span class="badge bg-info">{{ $item->barang->lokasi_rak ?? '-' }}</span>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted d-block">Stok Sistem</small>
+                                    <strong class="fs-5">{{ $item->stok_sistem }}</strong>
+                                </div>
+                            </div>
+                            
+                            <div class="row g-2 mb-2">
+                                <div class="col-12">
+                                    <label class="form-label fw-bold mb-1">
+                                        <i class="bi bi-box-seam me-1"></i>Stok Fisik
+                                    </label>
+                                    <input type="number" 
+                                           class="form-control form-control-lg stok-fisik-input-mobile text-center fw-bold" 
+                                           style="font-size: 1.5rem; height: 60px;"
+                                           value="{{ $item->stok_fisik }}" 
+                                           min="0"
+                                           data-id="{{ $item->id }}"
+                                           placeholder="0">
+                                </div>
+                            </div>
+                            
+                            <div class="row g-2 mb-2">
+                                <div class="col-12">
+                                    <label class="form-label fw-bold mb-1">
+                                        <i class="bi bi-calendar-event me-1"></i>Expired Date
+                                    </label>
+                                    <input type="date" 
+                                           class="form-control form-control-lg expired-date-input-mobile" 
+                                           style="height: 50px;"
+                                           value="{{ $item->expired_date?->format('Y-m-d') }}"
+                                           data-id="{{ $item->id }}">
+                                </div>
+                            </div>
+                            
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <small class="text-muted d-block">Selisih</small>
+                                    <div class="selisih-cell-mobile">
+                                        @if($item->selisih > 0)
+                                            <span class="badge bg-success fs-6">+{{ $item->selisih }}</span>
+                                        @elseif($item->selisih < 0)
+                                            <span class="badge bg-danger fs-6">{{ $item->selisih }}</span>
+                                        @else
+                                            <span class="badge bg-secondary fs-6">0</span>
+                                        @endif
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted d-block">Status</small>
+                                    <div class="status-cell-mobile">
+                                        @php
+                                            $isExpiringSoon = $item->expired_date && $item->expired_date->lte(now()->addDays(30));
+                                        @endphp
+                                        @if($isExpiringSoon)
+                                            <span class="badge bg-warning text-dark">
+                                                <i class="bi bi-exclamation-triangle"></i> Segera Expired
+                                            </span>
+                                        @else
+                                            <span class="badge bg-success">Normal</span>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    @empty
+                    <div class="alert alert-info text-center" id="emptyRowMobile">
+                        Belum ada barang yang di-scan. Silakan scan barcode untuk memulai.
+                    </div>
+                    @endforelse
+                </div>
+            </div>
+
+            {{-- Desktop View --}}
+            <div class="table-responsive d-none d-md-block">
                 <table class="table table-bordered table-hover" id="tableScanned">
                     <thead class="table-light">
                         <tr>
@@ -335,6 +430,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const barcodeInput = document.getElementById('barcodeInput');
     const btnScan = document.getElementById('btnScan');
     const tbody = document.getElementById('tbodyScanned');
+    const mobileItems = document.getElementById('mobileItems');
     const sesiId = {{ $sesiAktif->id }};
     const csrfToken = '{{ csrf_token() }}';
     
@@ -351,7 +447,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (document.activeElement.tagName !== 'INPUT' || 
             (document.activeElement.id !== 'barcodeInput' && 
              !document.activeElement.classList.contains('stok-fisik-input') &&
+             !document.activeElement.classList.contains('stok-fisik-input-mobile') &&
              !document.activeElement.classList.contains('expired-date-input') &&
+             !document.activeElement.classList.contains('expired-date-input-mobile') &&
              document.activeElement.id !== 'searchInput')) {
             if (document.getElementById('manual').classList.contains('show')) {
                 barcodeInput.focus();
@@ -682,10 +780,16 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                // Remove empty rows
                 const emptyRow = document.getElementById('emptyRow');
                 if (emptyRow) emptyRow.remove();
+                
+                const emptyRowMobile = document.getElementById('emptyRowMobile');
+                if (emptyRowMobile) emptyRowMobile.remove();
 
+                // Add to both desktop and mobile views
                 addItemRow(data.detail);
+                addItemRowMobile(data.detail);
                 updateRingkasan();
                 
                 barcodeInput.value = '';
@@ -707,6 +811,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // ✅ Desktop table row
     function addItemRow(detail) {
         const rowCount = tbody.querySelectorAll('tr:not(#emptyRow)').length + 1;
         const row = document.createElement('tr');
@@ -746,7 +851,84 @@ document.addEventListener('DOMContentLoaded', function() {
         tbody.insertBefore(row, tbody.firstChild);
     }
 
-    // Update item
+    // ✅ Mobile card view
+    function addItemRowMobile(detail) {
+        const card = document.createElement('div');
+        card.className = 'card mb-3 mobile-item';
+        card.setAttribute('data-id', detail.id);
+        
+        card.innerHTML = `
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <strong class="d-block">${detail.barang.nama_barang}</strong>
+                        <small class="text-muted">${detail.barang.kode_barang}</small>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-danger btn-delete-mobile" data-id="${detail.id}">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+                
+                <div class="row g-2 mb-2">
+                    <div class="col-6">
+                        <small class="text-muted d-block">Lokasi Rak</small>
+                        <span class="badge bg-info">${detail.barang.lokasi_rak || '-'}</span>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted d-block">Stok Sistem</small>
+                        <strong class="fs-5">${detail.stok_sistem}</strong>
+                    </div>
+                </div>
+                
+                <div class="row g-2 mb-2">
+                    <div class="col-12">
+                        <label class="form-label fw-bold mb-1">
+                            <i class="bi bi-box-seam me-1"></i>Stok Fisik
+                        </label>
+                        <input type="number" 
+                               class="form-control form-control-lg stok-fisik-input-mobile text-center fw-bold" 
+                               style="font-size: 1.5rem; height: 60px;"
+                               value="${detail.stok_fisik}" 
+                               min="0"
+                               data-id="${detail.id}"
+                               placeholder="0">
+                    </div>
+                </div>
+                
+                <div class="row g-2 mb-2">
+                    <div class="col-12">
+                        <label class="form-label fw-bold mb-1">
+                            <i class="bi bi-calendar-event me-1"></i>Expired Date
+                        </label>
+                        <input type="date" 
+                               class="form-control form-control-lg expired-date-input-mobile" 
+                               style="height: 50px;"
+                               value=""
+                               data-id="${detail.id}">
+                    </div>
+                </div>
+                
+                <div class="row g-2">
+                    <div class="col-6">
+                        <small class="text-muted d-block">Selisih</small>
+                        <div class="selisih-cell-mobile">
+                            <span class="badge bg-secondary fs-6">0</span>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted d-block">Status</small>
+                        <div class="status-cell-mobile">
+                            <span class="badge bg-success">Normal</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        mobileItems.insertBefore(card, mobileItems.firstChild);
+    }
+
+    // ✅ Update item (Desktop)
     tbody.addEventListener('change', function(e) {
         if (e.target.classList.contains('stok-fisik-input') || 
             e.target.classList.contains('expired-date-input')) {
@@ -756,11 +938,25 @@ document.addEventListener('DOMContentLoaded', function() {
             const stokFisik = row.querySelector('.stok-fisik-input').value;
             const expiredDate = row.querySelector('.expired-date-input').value;
 
-            updateItem(id, stokFisik, expiredDate, row);
+            updateItem(id, stokFisik, expiredDate, row, null);
         }
     });
 
-    function updateItem(id, stokFisik, expiredDate, row) {
+    // ✅ Update item (Mobile)
+    mobileItems.addEventListener('change', function(e) {
+        if (e.target.classList.contains('stok-fisik-input-mobile') || 
+            e.target.classList.contains('expired-date-input-mobile')) {
+            
+            const id = e.target.getAttribute('data-id');
+            const card = e.target.closest('.mobile-item');
+            const stokFisik = card.querySelector('.stok-fisik-input-mobile').value;
+            const expiredDate = card.querySelector('.expired-date-input-mobile').value;
+
+            updateItem(id, stokFisik, expiredDate, null, card);
+        }
+    });
+
+    function updateItem(id, stokFisik, expiredDate, row, card) {
         fetch(`/stokopname/item/${id}`, {
             method: 'PUT',
             headers: {
@@ -776,17 +972,35 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             if (data.success) {
                 const selisih = data.detail.selisih;
-                const selisihCell = row.querySelector('.selisih-cell');
                 
-                if (selisih > 0) {
-                    selisihCell.innerHTML = `<span class="badge bg-success">+${selisih}</span>`;
-                } else if (selisih < 0) {
-                    selisihCell.innerHTML = `<span class="badge bg-danger">${selisih}</span>`;
-                } else {
-                    selisihCell.innerHTML = `<span class="badge bg-secondary">0</span>`;
+                // Update desktop view
+                if (row) {
+                    const selisihCell = row.querySelector('.selisih-cell');
+                    updateSelisihBadge(selisihCell, selisih);
+                    updateExpiredStatus(row.querySelector('.status-cell'), expiredDate);
                 }
+                
+                // Update mobile view
+                if (card) {
+                    const selisihCellMobile = card.querySelector('.selisih-cell-mobile');
+                    updateSelisihBadge(selisihCellMobile, selisih);
+                    updateExpiredStatus(card.querySelector('.status-cell-mobile'), expiredDate);
+                }
+                
+                // Also update the corresponding view
+                const allRows = document.querySelectorAll(`[data-id="${id}"]`);
+                allRows.forEach(element => {
+                    if (element.tagName === 'TR') {
+                        const selisihCell = element.querySelector('.selisih-cell');
+                        updateSelisihBadge(selisihCell, selisih);
+                        updateExpiredStatus(element.querySelector('.status-cell'), expiredDate);
+                    } else if (element.classList.contains('mobile-item')) {
+                        const selisihCellMobile = element.querySelector('.selisih-cell-mobile');
+                        updateSelisihBadge(selisihCellMobile, selisih);
+                        updateExpiredStatus(element.querySelector('.status-cell-mobile'), expiredDate);
+                    }
+                });
 
-                updateExpiredStatus(row, expiredDate);
                 updateRingkasan();
             }
         })
@@ -796,9 +1010,17 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    function updateExpiredStatus(row, expiredDate) {
-        const statusCell = row.querySelector('.status-cell');
-        
+    function updateSelisihBadge(container, selisih) {
+        if (selisih > 0) {
+            container.innerHTML = `<span class="badge bg-success ${container.classList.contains('selisih-cell-mobile') ? 'fs-6' : ''}">+${selisih}</span>`;
+        } else if (selisih < 0) {
+            container.innerHTML = `<span class="badge bg-danger ${container.classList.contains('selisih-cell-mobile') ? 'fs-6' : ''}">${selisih}</span>`;
+        } else {
+            container.innerHTML = `<span class="badge bg-secondary ${container.classList.contains('selisih-cell-mobile') ? 'fs-6' : ''}">0</span>`;
+        }
+    }
+
+    function updateExpiredStatus(statusCell, expiredDate) {
         if (expiredDate) {
             const today = new Date();
             const expDate = new Date(expiredDate);
@@ -820,7 +1042,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Delete item
+    // ✅ Delete item (Desktop)
     tbody.addEventListener('click', function(e) {
         if (e.target.closest('.btn-delete')) {
             const btn = e.target.closest('.btn-delete');
@@ -833,7 +1055,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    function deleteItem(id, row) {
+    // ✅ Delete item (Mobile)
+    mobileItems.addEventListener('click', function(e) {
+        if (e.target.closest('.btn-delete-mobile')) {
+            const btn = e.target.closest('.btn-delete-mobile');
+            const id = btn.getAttribute('data-id');
+            const card = btn.closest('.mobile-item');
+            
+            if (confirm('Hapus item ini dari daftar?')) {
+                deleteItem(id, null, card);
+            }
+        }
+    });
+
+    function deleteItem(id, row, card) {
         fetch(`/stokopname/item/${id}`, {
             method: 'DELETE',
             headers: {
@@ -843,16 +1078,26 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                row.remove();
+                // Remove from both views
+                document.querySelectorAll(`[data-id="${id}"]`).forEach(element => {
+                    element.remove();
+                });
+                
                 updateRingkasan();
+                updateRowNumbers();
                 showToast('success', 'Item berhasil dihapus!');
                 
-                updateRowNumbers();
-                
+                // Check if empty
                 if (tbody.querySelectorAll('tr').length === 0) {
                     tbody.innerHTML = `<tr id="emptyRow">
                         <td colspan="9" class="text-center text-muted">Belum ada barang yang di-scan.</td>
                     </tr>`;
+                }
+                
+                if (mobileItems.querySelectorAll('.mobile-item').length === 0) {
+                    mobileItems.innerHTML = `<div class="alert alert-info text-center" id="emptyRowMobile">
+                        Belum ada barang yang di-scan. Silakan scan barcode untuk memulai.
+                    </div>`;
                 }
             }
         })
