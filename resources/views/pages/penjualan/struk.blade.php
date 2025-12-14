@@ -79,9 +79,18 @@
 <body onload="window.print()">
     <div class="struk-container">
         <div class="header">
-            <strong>Apotek JM Farma</strong>
-            <br>Jl. Alamat Apotek No. 123
-            <br>Telp: (021) 123456
+            {{-- Menggunakan nama cabang dari data pembelian, dengan fallback ke Apotek JM Farma --}}
+            <strong>{{ $penjualan->cabang->nama_cabang ?? 'Apotek JM Farma' }}</strong>
+            
+            {{-- Asumsi model Cabang memiliki atribut alamat dan telepon --}}
+            @if(isset($penjualan->cabang))
+                <br>{{ $penjualan->cabang->alamat ?? 'Jl. Alamat Cabang' }}
+                <br>Telp: {{ $penjualan->cabang->telepon ?? '(021) XXXX' }}
+            @else
+                {{-- Fallback jika data cabang tidak ada --}}
+                <br>Jl. Alamat Apotek No. 123
+                <br>Telp: (021) 123456
+            @endif
         </div>
 
         <div class="separator"></div>

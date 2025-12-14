@@ -17,8 +17,9 @@ use App\Http\Controllers\CabangFilterController;
 
 /*
 |--------------------------------------------------------------------------
-| Public Routes (Guest)
+| 1. Public Routes (Guest)
 |--------------------------------------------------------------------------
+| Rute yang dapat diakses tanpa login (Halaman Login).
 */
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -27,30 +28,40 @@ Route::middleware('guest')->group(function () {
 
 /*
 |--------------------------------------------------------------------------
-| Authenticated Routes (Semua User)
+| 2. Authenticated Routes (Semua User)
 |--------------------------------------------------------------------------
+| Rute yang diakses setelah login.
 */
 Route::middleware('auth')->group(function () {
 
-    // --- Core/Auth ---
+    // --- 2.1 Core/Auth & Profile ---
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard', [DashboardController::class, 'index']); // Alias
 
-    // --- Profile & Password ---
     Route::get('/profile', [AuthController::class, 'profile'])->name('profile');
     Route::post('/profile/update', [AuthController::class, 'updateProfile'])->name('profile.update');
     Route::get('/change-password', [UserController::class, 'showChangePasswordForm'])->name('change.password.form');
     Route::post('/change-password', [UserController::class, 'changePassword'])->name('change.password');
 
-    // --- Cabang Filter (Untuk Super Admin melihat data cabang lain) ---
+    // --- 2.2 Cabang Filter (Untuk Super Admin) ---
     Route::prefix('cabang-filter')->group(function () {
         Route::post('/set', [CabangFilterController::class, 'setCabangFilter'])->name('set-cabang-filter');
         Route::get('/get', [CabangFilterController::class, 'getCabangFilter'])->name('get-cabang-filter');
         Route::delete('/clear', [CabangFilterController::class, 'clearCabangFilter'])->name('clear-cabang-filter');
     });
 
-    // --- Shift Management (Kasir & Admin) ---
+    // --- 2.3 Barang (AJAX Helper) ---
+    // Digunakan oleh Kasir (Penjualan) dan Admin (Pembelian)
+    Route::prefix('barang')->name('barang.')->group(function () {
+        Route::get('/search-kasir', [BarangController::class, 'cariBarang'])->name('search-kasir');
+        Route::get('/harga-satuan', [BarangController::class, 'hargaSatuan'])->name('harga-satuan');
+        Route::get('/by-barcode', [BarangController::class, 'getByBarcode'])->name('by-barcode');
+        Route::get('/{id}/satuan', [BarangController::class, 'getSatuan'])->name('satuan');
+        Route::get('/{id}/detail', [BarangController::class, 'getBarang'])->name('detail');
+    });
+
+    // --- 2.4 Shift Management (Kasir & Admin) ---
     Route::prefix('shift')->name('shift.')->group(function () {
         // Buka/Tutup
         Route::get('/buka', [ShiftController::class, 'formBuka'])->name('buka.form');
@@ -63,16 +74,15 @@ Route::middleware('auth')->group(function () {
         Route::get('/riwayat/{id}', [ShiftController::class, 'detail'])->name('detail');
         Route::get('/riwayat/{id}/cetak', [ShiftController::class, 'cetakLaporan'])->name('cetakLaporan');
     });
-    
-    // --- Penjualan / Kasir (Utama) ---
-    // Rute yang didefinisikan di sini akan menggantikan blok duplikat di bawah.
+
+    // --- 2.5 Penjualan / Kasir (Utama) ---
     Route::prefix('penjualan')->name('penjualan.')->group(function () {
         // Kasir POS
         Route::get('/', [PenjualanController::class, 'index'])->name('index');
         Route::post('/store', [PenjualanController::class, 'store'])->name('store');
         
-        // Search & Detail Barang (AJAX)
-        Route::get('/search-barang', [PenjualanController::class, 'cariBarang'])->name('search-barang');
+        // ✅ FIXED: Search & Detail Barang untuk Kasir (AKTIFKAN!)
+        Route::get('/search-barang', [PenjualanController::class, 'cariBarang'])->name('search-barang'); 
         Route::get('/barang/{id}', [PenjualanController::class, 'getBarang'])->name('get-barang');
         
         // Riwayat, Detail, & Print
@@ -84,23 +94,24 @@ Route::middleware('auth')->group(function () {
         Route::get('/cari-nota/{nomorNota}', [PenjualanController::class, 'cariNota'])->name('cari-nota');
         Route::post('/return', [PenjualanController::class, 'prosesReturn'])->name('return');
         
-        // ✅ LAPORAN BARU (TERPISAH PER CABANG)
-    Route::get('/laporan/return-barang', [PenjualanController::class, 'laporanReturn'])->name('laporan-return');
-    Route::get('/laporan/invoice', [PenjualanController::class, 'laporanInvoice'])->name('laporan-invoice');
-    Route::get('/laporan/invoice/export-excel', [PenjualanController::class, 'exportInvoiceExcel'])->name('laporan-invoice.export-excel');
-});
+        // Laporan (Penjualan)
+        Route::get('/laporan/return-barang', [PenjualanController::class, 'laporanReturn'])->name('laporan-return');
+        Route::get('/laporan/invoice', [PenjualanController::class, 'laporanInvoice'])->name('laporan-invoice');
+        Route::get('/laporan/invoice/export-excel', [PenjualanController::class, 'exportInvoiceExcel'])->name('laporan-invoice.export-excel');
     });
 
-    // --- Barang (AJAX untuk Kasir/Pembelian) ---
-    Route::prefix('barang')->name('barang.')->group(function () {
-        Route::get('/search-kasir', [BarangController::class, 'cariBarang'])->name('search-kasir');
-        Route::get('/harga-satuan', [BarangController::class, 'hargaSatuan'])->name('harga-satuan');
-        Route::get('/by-barcode', [BarangController::class, 'getByBarcode'])->name('by-barcode');
-        Route::get('/{id}/satuan', [BarangController::class, 'getSatuan'])->name('satuan');
-        Route::get('/{id}/detail', [BarangController::class, 'getBarang'])->name('detail');
+    // --- 2.6 Stok Opname ---
+    Route::prefix('stokopname')->name('stokopname.')->group(function () {
+        Route::get('/', [StokOpnameController::class, 'index'])->name('index');
+        Route::get('/create', [StokOpnameController::class, 'create'])->name('create');
+        Route::post('/scan', [StokOpnameController::class, 'scanBarcode'])->name('scan');
+        Route::put('/item/{id}', [StokOpnameController::class, 'updateItem'])->name('update-item');
+        Route::delete('/item/{id}', [StokOpnameController::class, 'deleteItem'])->name('delete-item');
+        Route::post('/{id}/finalize', [StokOpnameController::class, 'finalize'])->name('finalize');
+        Route::get('/{id}', [StokOpnameController::class, 'show'])->name('show');
     });
 
-    // --- Laporan Umum ---
+    // --- 2.7 Laporan Umum (Ringkasan) ---
     Route::prefix('laporan')->name('laporan.')->group(function () {
         Route::get('/', [LaporanController::class, 'index'])->name('index');
         Route::get('/penjualan', [LaporanController::class, 'penjualan'])->name('penjualan');
@@ -112,64 +123,67 @@ Route::middleware('auth')->group(function () {
         Route::get('/kartu-stok', [LaporanController::class, 'kartuStok'])->name('kartuStok');
     });
 
-    // --- Stok Opname ---
-    Route::prefix('stokopname')->name('stokopname.')->group(function () {
-        Route::get('/', [StokOpnameController::class, 'index'])->name('index');
-        Route::get('/create', [StokOpnameController::class, 'create'])->name('create');
-        Route::post('/scan', [StokOpnameController::class, 'scanBarcode'])->name('scan');
-        Route::put('/item/{id}', [StokOpnameController::class, 'updateItem'])->name('update-item');
-        Route::delete('/item/{id}', [StokOpnameController::class, 'deleteItem'])->name('delete-item');
-        Route::post('/{id}/finalize', [StokOpnameController::class, 'finalize'])->name('finalize');
-        Route::get('/{id}', [StokOpnameController::class, 'show'])->name('show');
-    });
-
-
     /*
     |--------------------------------------------------------------------------
-    | Routes untuk Super Admin & Admin Cabang (Middleware: admin_or_super)
+    | 3. Routes untuk Super Admin & Admin Cabang
     |--------------------------------------------------------------------------
+    | Menggunakan middleware 'admin_or_super'
     */
     Route::middleware(['admin_or_super'])->group(function () {
 
-        // --- Master Cabang (Super Admin Only) ---
+        // --- 3.1 Master Cabang (Super Admin Only) ---
         Route::resource('cabang', CabangController::class)->middleware('super_admin');
         Route::get('/cabang/api/aktif', [CabangController::class, 'getAktif'])->name('cabang.api.aktif');
 
-        // --- Master Barang (CRUD & Impor/Ekspor) ---
+        // --- 3.2 Master Barang (CRUD & Impor/Ekspor) ---
         Route::prefix('barang')->name('barang.')->group(function () {
+            // Non-resource routes
             Route::get('/search', [BarangController::class, 'search'])->name('search');
             Route::get('/import', [BarangController::class, 'importForm'])->name('import-form');
             Route::post('/import-excel', [BarangController::class, 'importExcel'])->name('import-excel');
             Route::get('/download-template', [BarangController::class, 'downloadTemplate'])->name('download-template');
             Route::get('/export-excel', [BarangController::class, 'exportExcel'])->name('export-excel');
         });
-        Route::resource('barang', BarangController::class);
+        // Resource CRUD
+        Route::resource('barang', BarangController::class)->except(['destroy']);
+        Route::delete('barang/{barang}', [BarangController::class, 'destroy'])->name('barang.destroy');
 
-        // --- Pembelian ---
+
+        // --- 3.3 Pembelian (CRUD, Approve, & Barcode) ---
         Route::prefix('pembelian')->name('pembelian.')->group(function () {
+            // List & CRUD
             Route::get('/', [PembelianController::class, 'index'])->name('index');
             Route::get('/create', [PembelianController::class, 'create'])->name('create');
-            Route::post('/store', [PembelianController::class, 'store'])->name('store');
+            Route::get('/pending', [PembelianController::class, 'pending'])->name('pending');
+            Route::post('/', [PembelianController::class, 'store'])->name('store');
             Route::get('/{id}', [PembelianController::class, 'show'])->name('show');
             Route::get('/{id}/edit', [PembelianController::class, 'edit'])->name('edit');
             Route::put('/{id}', [PembelianController::class, 'update'])->name('update');
             Route::delete('/{id}', [PembelianController::class, 'destroy'])->name('destroy');
+            
+            // Aksi
             Route::post('/{id}/approve', [PembelianController::class, 'approve'])->name('approve');
+
+            // ✅ Barcode - Cetak barcode setelah pembelian
+            Route::get('/{id}/cetak-barcode', [PembelianController::class, 'cetakBarcode'])->name('cetak-barcode');
+            Route::post('/barcode/generate', [PembelianController::class, 'generateBarcode'])->name('barcode.generate');
+            Route::post('/{id}/barcode/generate-all', [PembelianController::class, 'generateBarcodeAll'])->name('barcode.generate-all');
         });
 
-        // --- Supplier ---
+        // --- 3.4 Supplier ---
         Route::resource('supplier', SupplierController::class);
 
-        // --- User Management ---
+        // --- 3.5 User Management ---
         Route::resource('users', UserController::class);
         Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.resetPassword');
 
-        // --- Shift (Admin Action) ---
+        // --- 3.6 Shift (Admin Action) ---
         Route::delete('/shift/{id}', [ShiftController::class, 'destroy'])->name('shift.destroy');
-        
-        // --- Settings ---
+
+        // --- 3.7 Settings ---
         Route::prefix('settings')->name('settings.')->group(function () {
             Route::get('/', [SettingController::class, 'index'])->name('index');
             Route::post('/update', [SettingController::class, 'update'])->name('update');
         });
     });
+});

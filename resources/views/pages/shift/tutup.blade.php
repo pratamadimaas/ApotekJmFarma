@@ -27,7 +27,7 @@
                         <div class="row">
                             <div class="col-6">
                                 <small class="text-muted">Modal Awal</small>
-                                <div class="fw-bold text-primary">Rp {{ number_format($shift->modal_awal, 0, ',', '.') }}</div>
+                                <div class="fw-bold text-primary">Rp {{ number_format($shift->saldo_awal, 0, ',', '.') }}</div>
                             </div>
                             <div class="col-6">
                                 <small class="text-muted">Durasi Shift</small>

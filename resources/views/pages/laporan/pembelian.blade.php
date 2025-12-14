@@ -36,11 +36,10 @@
                 </div>
             </form>
             <div class="mt-3">
-                <a href="{{ route('laporan.export-excel', ['jenis' => 'pembelian', 'tanggal_dari' => $tanggalDari, 'tanggal_sampai' => $tanggalSampai]) }}" class="btn btn-sm btn-success">
+                {{-- ✅ UPDATE: Gunakan parameter 'jenis' bukan 'type' --}}
+                <a href="{{ route('laporan.export-excel', ['jenis' => 'pembelian', 'tanggal_dari' => $tanggalDari, 'tanggal_sampai' => $tanggalSampai]) }}" 
+                   class="btn btn-sm btn-success">
                     <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
-                </a>
-                <a href="{{ route('laporan.export-pdf', ['jenis' => 'pembelian', 'tanggal_dari' => $tanggalDari, 'tanggal_sampai' => $tanggalSampai]) }}" class="btn btn-sm btn-danger">
-                    <i class="bi bi-file-earmark-pdf me-1"></i> Export PDF
                 </a>
             </div>
         </div>

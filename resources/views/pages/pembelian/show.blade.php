@@ -6,10 +6,20 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="h3 mb-0 text-gray-800">Detail Pembelian</h2>
-        <div>
+        <div class="d-flex">
+            {{-- Tombol Kembali --}}
             <a href="{{ route('pembelian.index') }}" class="btn btn-secondary me-2">
                 <i class="bi bi-arrow-left me-1"></i> Kembali ke Daftar
             </a>
+            
+            {{-- Tombol Cetak Barcode (Hanya muncul jika sudah Approved) --}}
+            @if($pembelian->status === 'approved')
+            <a href="{{ route('pembelian.cetak-barcode', $pembelian->id) }}" class="btn btn-info me-2">
+                <i class="bi bi-upc-scan me-1"></i> Cetak Barcode
+            </a>
+            @endif
+            
+            {{-- Tombol Edit Pembelian --}}
             <a href="{{ route('pembelian.edit', $pembelian->id) }}" class="btn btn-warning">
                 <i class="bi bi-pencil me-1"></i> Edit Pembelian
             </a>
@@ -49,7 +59,12 @@
                         </li>
                         <li class="list-group-item d-flex justify-content-between">
                             <strong>Status:</strong>
-                            <span><span class="badge bg-{{ $pembelian->status == 'approved' ? 'success' : ($pembelian->status == 'cancelled' ? 'danger' : 'warning') }}">{{ ucfirst($pembelian->status) }}</span></span>
+                            {{-- Penyesuaian class badge agar sesuai Bootstrap 5 --}}
+                            <span><span class="badge {{ $pembelian->status == 'approved' ? 'bg-success' : ($pembelian->status == 'cancelled' ? 'bg-danger' : 'bg-warning') }}">{{ ucfirst($pembelian->status) }}</span></span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between">
+                            <strong>Cabang:</strong>
+                            <span>{{ $pembelian->cabang->nama_cabang ?? 'N/A' }}</span>
                         </li>
                         @if($pembelian->keterangan)
                         <li class="list-group-item">
@@ -73,12 +88,19 @@
                                 <td class="text-end">Rp {{ number_format($pembelian->total_pembelian, 0, ',', '.') }}</td>
                             </tr>
                             <tr>
-                                <td>Diskon ({{ $pembelian->diskon }}%)</td>
-                                <td class="text-end text-danger">- Rp {{ number_format($pembelian->total_pembelian * ($pembelian->diskon / 100), 0, ',', '.') }}</td>
+                                <td>Diskon ({{ number_format($pembelian->diskon, 0) }}%)</td>
+                                {{-- Hitung nilai diskon secara dinamis --}}
+                                @php
+                                    $nilaiDiskon = $pembelian->total_pembelian * ($pembelian->diskon / 100);
+                                    $subtotalSetelahDiskon = $pembelian->total_pembelian - $nilaiDiskon;
+                                    $nilaiPajak = $pembelian->grand_total - $subtotalSetelahDiskon;
+                                @endphp
+                                <td class="text-end text-danger">- Rp {{ number_format($nilaiDiskon, 0, ',', '.') }}</td>
                             </tr>
                             <tr>
-                                <td>PPN/Pajak ({{ $pembelian->pajak }}%)</td>
-                                <td class="text-end text-success">+ Rp {{ number_format($pembelian->grand_total - ($pembelian->total_pembelian - ($pembelian->total_pembelian * ($pembelian->diskon / 100))), 0, ',', '.') }}</td>
+                                <td>PPN/Pajak ({{ number_format($pembelian->pajak, 0) }}%)</td>
+                                {{-- Hitung nilai pajak secara dinamis --}}
+                                <td class="text-end text-success">+ Rp {{ number_format($nilaiPajak, 0, ',', '.') }}</td>
                             </tr>
                             <tr class="table-primary">
                                 <th>GRAND TOTAL (Dibayar)</th>
@@ -117,7 +139,7 @@
                                         <small class="text-muted d-block">{{ $detail->barang->kode_barang ?? '' }}</small>
                                     </td>
                                     <td class="text-center">
-                                        {{ $detail->tanggal_kadaluarsa ? $detail->tanggal_kadaluarsa->format('M Y') : '-' }}
+                                        {{ $detail->tanggal_kadaluarsa ? (is_string($detail->tanggal_kadaluarsa) ? date('M Y', strtotime($detail->tanggal_kadaluarsa)) : $detail->tanggal_kadaluarsa->format('M Y')) : '-' }}
                                     </td>
                                     <td class="text-center">
                                         {{ $detail->jumlah ?? $detail->qty }} {{ $detail->satuan }}

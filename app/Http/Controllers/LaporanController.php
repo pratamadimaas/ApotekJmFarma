@@ -7,21 +7,19 @@ use App\Models\Pembelian;
 use App\Models\Barang;
 use App\Models\DetailPenjualan;
 use App\Models\DetailPembelian;
-use App\Traits\CabangFilterTrait; // ✅ IMPORT TRAIT
+use App\Traits\CabangFilterTrait;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
-use App\Exports\PenjualanExport; 
+use App\Exports\PenjualanExport;
+use App\Exports\PembelianExport; // ✅ IMPORT CLASS BARU
 use Maatwebsite\Excel\Facades\Excel; 
 use PDF; 
 
 class LaporanController extends Controller
 {
-    use CabangFilterTrait; // ✅ GUNAKAN TRAIT
+    use CabangFilterTrait;
 
-    /**
-     * Menampilkan halaman utama Laporan (Menu Pilihan Laporan).
-     */
     public function index()
     {
         return view('pages.laporan.index');
@@ -31,18 +29,12 @@ class LaporanController extends Controller
     // FUNGSI PEMBANTU
     // =========================================================================
 
-    /**
-     * Fungsi Pembantu untuk Mengatur Query dan Filter berdasarkan tanggal.
-     * ✅ UPDATED: Menambahkan filter cabang otomatis
-     */
     private function applyDateFilter(Request $request, $model, $dateColumn, $status = null)
     {
         $tanggalDari = $request->get('tanggal_dari', Carbon::now()->subYear()->format('Y-m-d'));
         $tanggalSampai = $request->get('tanggal_sampai', Carbon::now()->format('Y-m-d'));
 
         $query = $model::query();
-
-        // ✅ APPLY FILTER CABANG
         $query = $this->applyCabangFilter($query);
 
         if ($status) {
@@ -63,10 +55,6 @@ class LaporanController extends Controller
     // LAPORAN TRANSAKSI & KEUANGAN
     // =========================================================================
 
-    /**
-     * Laporan Penjualan.
-     * ✅ UPDATED: Dengan filter cabang
-     */
     public function penjualan(Request $request)
     {
         $data = $this->applyDateFilter($request, Penjualan::class, 'tanggal_penjualan');
@@ -77,7 +65,6 @@ class LaporanController extends Controller
         $totalPenjualan = (clone $query)->sum('grand_total');
         $jumlahTransaksi = (clone $query)->count();
 
-        // Per hari
         $perHari = (clone $query)
                         ->select(
                             DB::raw('DATE(tanggal_penjualan) as tanggal'),
@@ -88,13 +75,11 @@ class LaporanController extends Controller
                         ->orderBy('tanggal', 'asc')
                         ->get();
 
-        // ✅ Barang terlaris - DENGAN FILTER CABANG
         $cabangId = $this->getActiveCabangId();
         
         $barangTerlarisQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
                                          ->whereBetween('penjualan.tanggal_penjualan', [$tanggalDari, $tanggalSampai]);
         
-        // Apply filter cabang ke penjualan
         if ($cabangId !== null) {
             $barangTerlarisQuery->where('penjualan.cabang_id', $cabangId);
         }
@@ -110,7 +95,6 @@ class LaporanController extends Controller
                                          ->with('barang')
                                          ->get();
 
-        // Per metode pembayaran
         $perMetode = (clone $query)
                         ->select(
                             'metode_pembayaran',
@@ -126,10 +110,6 @@ class LaporanController extends Controller
         ));
     }
 
-    /**
-     * Laporan Pembelian.
-     * ✅ UPDATED: Dengan filter cabang
-     */
     public function pembelian(Request $request)
     {
         $data = $this->applyDateFilter($request, Pembelian::class, 'tanggal_pembelian', 'approved');
@@ -140,7 +120,6 @@ class LaporanController extends Controller
         $totalPembelian = (clone $query)->sum('grand_total');
         $jumlahTransaksi = (clone $query)->count();
 
-        // Per hari
         $perHari = (clone $query)
                         ->select(
                             DB::raw('DATE(tanggal_pembelian) as tanggal'),
@@ -151,14 +130,12 @@ class LaporanController extends Controller
                         ->orderBy('tanggal', 'asc')
                         ->get();
 
-        // ✅ Barang paling banyak dibeli - DENGAN FILTER CABANG
         $cabangId = $this->getActiveCabangId();
         
         $barangTerbanyakQuery = DetailPembelian::join('pembelian', 'detail_pembelian.pembelian_id', '=', 'pembelian.id')
                                          ->whereBetween('pembelian.tanggal_pembelian', [$tanggalDari, $tanggalSampai])
                                          ->where('pembelian.status', 'approved');
         
-        // Apply filter cabang ke pembelian
         if ($cabangId !== null) {
             $barangTerbanyakQuery->where('pembelian.cabang_id', $cabangId);
         }
@@ -174,7 +151,6 @@ class LaporanController extends Controller
                                          ->with('barang')
                                          ->get();
 
-        // Per supplier
         $perSupplier = (clone $query)
                         ->select(
                             'supplier_id',
@@ -192,10 +168,6 @@ class LaporanController extends Controller
         ));
     }
 
-    /**
-     * Laporan Laba Rugi (Gross Profit).
-     * ✅ UPDATED: Dengan filter cabang
-     */
     public function labaRugi(Request $request)
     {
         $dataPenjualan = $this->applyDateFilter($request, Penjualan::class, 'tanggal_penjualan');
@@ -208,7 +180,6 @@ class LaporanController extends Controller
         $queryPembelian = $this->applyDateFilter($request, Pembelian::class, 'tanggal_pembelian', 'approved')['query'];
         $totalPembelian = (clone $queryPembelian)->sum('grand_total');
 
-        // ✅ HPP (Harga Pokok Penjualan) - DENGAN FILTER CABANG
         $cabangId = $this->getActiveCabangId();
         
         $hppQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
@@ -225,7 +196,6 @@ class LaporanController extends Controller
         $labaKotor = $totalPendapatan - $hpp;
         $marginLaba = $totalPendapatan > 0 ? ($labaKotor / $totalPendapatan) * 100 : 0;
 
-        // ✅ Detail per item - DENGAN FILTER CABANG
         $detailPerItemQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
                                         ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
                                         ->whereBetween('penjualan.tanggal_penjualan', [$tanggalDari, $tanggalSampai]);
@@ -256,15 +226,9 @@ class LaporanController extends Controller
     // LAPORAN STOK
     // =========================================================================
 
-    /**
-     * Laporan Stok Barang (Nilai Inventori).
-     * ✅ UPDATED: Dengan filter cabang
-     */
     public function stok(Request $request)
     {
         $query = Barang::query();
-
-        // ✅ APPLY FILTER CABANG
         $query = $this->applyCabangFilter($query);
 
         if ($request->filled('kategori')) {
@@ -285,7 +249,6 @@ class LaporanController extends Controller
         $totalNilaiJual = $barang->sum(fn($item) => $item->stok * $item->harga_jual);
         $potensialLaba = $totalNilaiJual - $totalNilaiStok;
 
-        // ✅ Kategori list dengan filter cabang
         $cabangId = $this->getActiveCabangId();
         $kategoriListQuery = Barang::select('kategori')
                               ->distinct()
@@ -302,13 +265,8 @@ class LaporanController extends Controller
         ));
     }
 
-    /**
-     * Laporan Kartu Stok (Mutasi Barang).
-     * ✅ UPDATED: Dengan filter cabang
-     */
     public function kartuStok(Request $request)
     {
-        // ✅ Daftar barang dengan filter cabang
         $daftarBarangQuery = Barang::orderBy('nama_barang');
         $daftarBarang = $this->applyCabangFilter($daftarBarangQuery)->get();
         
@@ -324,29 +282,31 @@ class LaporanController extends Controller
         if ($barangId) {
             $barang = Barang::with('satuanKonversi')->findOrFail($barangId);
             
-            // ✅ Validasi akses cabang
             $cabangId = $this->getActiveCabangId();
             if ($cabangId !== null && $barang->cabang_id != $cabangId) {
                 abort(403, 'Barang ini bukan milik cabang yang sedang diakses.');
             }
             
-            // Hitung stok awal (sebelum tanggal_dari)
             $stokAwal = $this->hitungStokAwal($barangId, $tanggalDari);
             
-            // ✅ Ambil transaksi pembelian dengan filter cabang
             $pembelianQuery = DetailPembelian::where('barang_id', $barangId)
                 ->whereHas('pembelian', function($q) use ($tanggalDari, $tanggalSampai, $cabangId) {
                     $q->where('status', 'approved')
-                      ->whereBetween('tanggal_pembelian', [$tanggalDari, $tanggalSampai]);
+                      ->whereDate('tanggal_pembelian', '>=', $tanggalDari) 
+                      ->whereDate('tanggal_pembelian', '<=', $tanggalSampai); 
                     
                     if ($cabangId !== null) {
-                        $q->where('cabang_id', $cabangId);
+                        $q->where(function($subQ) use ($cabangId) {
+                            $subQ->where('cabang_id', $cabangId)->orWhereNull('cabang_id');
+                        });
                     }
                 });
             
-            $pembelian = $pembelianQuery->with(['pembelian.supplier'])
+            $pembelian = $pembelianQuery->with(['pembelian.supplier', 'pembelian.user'])
                 ->get()
                 ->map(function($detail) use ($barang) {
+                    $qtyDasar = $this->convertToStokDasar($detail->jumlah, $detail->satuan, $barang);
+                    
                     return [
                         'tanggal' => $detail->pembelian->tanggal_pembelian,
                         'nomor' => $detail->pembelian->nomor_pembelian,
@@ -354,48 +314,50 @@ class LaporanController extends Controller
                         'masuk' => $detail->jumlah . ' ' . $detail->satuan,
                         'keluar' => '-',
                         'sisa' => 0,
-                        'paraf' => '',
+                        'paraf' => $detail->pembelian->user->name ?? '-',
                         'ed' => $detail->tanggal_kadaluarsa ? \Carbon\Carbon::parse($detail->tanggal_kadaluarsa)->format('m/y') : '-',
                         'sort_date' => $detail->pembelian->tanggal_pembelian,
-                        'qty_dasar' => $this->convertToStokDasar($detail->jumlah, $detail->satuan, $barang),
+                        'qty_dasar' => $qtyDasar,
                         'type' => 'masuk'
                     ];
                 });
             
-            // ✅ Ambil transaksi penjualan dengan filter cabang
             $penjualanQuery = DetailPenjualan::where('barang_id', $barangId)
                 ->whereHas('penjualan', function($q) use ($tanggalDari, $tanggalSampai, $cabangId) {
-                    $q->whereBetween('tanggal_penjualan', [$tanggalDari, $tanggalSampai]);
+                    $q->whereDate('tanggal_penjualan', '>=', $tanggalDari)
+                      ->whereDate('tanggal_penjualan', '<=', $tanggalSampai);
                     
                     if ($cabangId !== null) {
-                        $q->where('cabang_id', $cabangId);
+                        $q->where(function($subQ) use ($cabangId) {
+                            $subQ->where('cabang_id', $cabangId)->orWhereNull('cabang_id');
+                        });
                     }
                 });
             
-            $penjualan = $penjualanQuery->with(['penjualan'])
+            $penjualan = $penjualanQuery->with(['penjualan.user'])
                 ->get()
                 ->map(function($detail) use ($barang) {
+                    $qtyDasar = $this->convertToStokDasar($detail->jumlah, $detail->satuan, $barang);
+                    
                     return [
                         'tanggal' => $detail->penjualan->tanggal_penjualan,
                         'nomor' => $detail->penjualan->nomor_nota,
-                        'keterangan' => 'Penjualan',
+                        'keterangan' => 'Penjualan' . ($detail->penjualan->nama_pelanggan ? ' - ' . $detail->penjualan->nama_pelanggan : ''),
                         'masuk' => '-',
                         'keluar' => $detail->jumlah . ' ' . $detail->satuan,
                         'sisa' => 0,
-                        'paraf' => '',
-                        'ed' => '',
+                        'paraf' => $detail->penjualan->user->name ?? '-',
+                        'ed' => '-',
                         'sort_date' => $detail->penjualan->tanggal_penjualan,
-                        'qty_dasar' => $this->convertToStokDasar($detail->jumlah, $detail->satuan, $barang),
+                        'qty_dasar' => $qtyDasar,
                         'type' => 'keluar'
                     ];
                 });
             
-            // Gabungkan dan urutkan berdasarkan tanggal
-            $kartuStok = $pembelian->merge($penjualan)
+            $kartuStok = $pembelian->concat($penjualan)
                 ->sortBy('sort_date')
                 ->values();
             
-            // Hitung sisa stok untuk setiap baris
             $sisa = $stokAwal;
             $kartuStok = $kartuStok->map(function($item) use (&$sisa) {
                 if ($item['type'] === 'masuk') {
@@ -421,20 +383,20 @@ class LaporanController extends Controller
         ));
     }
 
-    // ✅ Helper: Hitung stok awal sebelum periode (dengan filter cabang)
     private function hitungStokAwal($barangId, $tanggalDari)
     {
         $barang = Barang::findOrFail($barangId);
         $cabangId = $this->getActiveCabangId();
         
-        // Hitung total pembelian sebelum tanggal_dari
         $totalMasukQuery = DetailPembelian::where('barang_id', $barangId)
             ->whereHas('pembelian', function($q) use ($tanggalDari, $cabangId) {
                 $q->where('status', 'approved')
                   ->where('tanggal_pembelian', '<', $tanggalDari);
                 
                 if ($cabangId !== null) {
-                    $q->where('cabang_id', $cabangId);
+                    $q->where(function($subQ) use ($cabangId) {
+                        $subQ->where('cabang_id', $cabangId)->orWhereNull('cabang_id');
+                    });
                 }
             });
         
@@ -443,13 +405,14 @@ class LaporanController extends Controller
                 return $this->convertToStokDasar($detail->jumlah, $detail->satuan, $barang);
             });
         
-        // Hitung total penjualan sebelum tanggal_dari
         $totalKeluarQuery = DetailPenjualan::where('barang_id', $barangId)
             ->whereHas('penjualan', function($q) use ($tanggalDari, $cabangId) {
                 $q->where('tanggal_penjualan', '<', $tanggalDari);
                 
                 if ($cabangId !== null) {
-                    $q->where('cabang_id', $cabangId);
+                    $q->where(function($subQ) use ($cabangId) {
+                        $subQ->where('cabang_id', $cabangId)->orWhereNull('cabang_id');
+                    });
                 }
             });
         
@@ -461,7 +424,6 @@ class LaporanController extends Controller
         return $totalMasuk - $totalKeluar;
     }
 
-    // Helper: Konversi ke satuan terkecil
     private function convertToStokDasar($qty, $satuan, $barang)
     {
         if ($satuan === $barang->satuan_terkecil) {
@@ -476,19 +438,15 @@ class LaporanController extends Controller
     }
 
     // =========================================================================
-    // EXPORT IMPLEMENTATION
+    // EXPORT
     // =========================================================================
 
-    /**
-     * Export data laporan ke format Excel.
-     * ✅ UPDATED: Dengan filter cabang
-     */
     public function exportExcel(Request $request)
     {
-        $reportType = $request->get('type', 'penjualan'); 
+        $jenis = $request->get('jenis', 'penjualan'); // ✅ Ubah dari 'type' ke 'jenis' sesuai dengan view
         $cabangId = $this->getActiveCabangId();
         
-        switch ($reportType) {
+        switch ($jenis) {
             case 'penjualan':
                 $data = $this->applyDateFilter($request, Penjualan::class, 'tanggal_penjualan');
                 
@@ -496,7 +454,6 @@ class LaporanController extends Controller
                                                  ->whereDate('penjualan.tanggal_penjualan', '>=', $data['tanggalDari'])
                                                  ->whereDate('penjualan.tanggal_penjualan', '<=', $data['tanggalSampai']);
                 
-                // ✅ Apply filter cabang
                 if ($cabangId !== null) {
                     $detailPenjualanQuery->where('penjualan.cabang_id', $cabangId);
                 }
@@ -510,20 +467,31 @@ class LaporanController extends Controller
                 return Excel::download(new PenjualanExport($detailPenjualan), $fileName);
 
             case 'pembelian':
-                $dataPembelian = $this->applyDateFilter($request, Pembelian::class, 'tanggal_pembelian', 'approved');
-                $pembelian = $dataPembelian['query']->with('supplier')->get();
+                // ✅ IMPLEMENTASI EXPORT PEMBELIAN
+                $data = $this->applyDateFilter($request, Pembelian::class, 'tanggal_pembelian', 'approved');
                 
-                return back()->with('warning', 'Export Pembelian belum diimplementasikan. Buat class PembelianExport terlebih dahulu.');
+                $detailPembelianQuery = DetailPembelian::join('pembelian', 'detail_pembelian.pembelian_id', '=', 'pembelian.id')
+                                                 ->whereDate('pembelian.tanggal_pembelian', '>=', $data['tanggalDari'])
+                                                 ->whereDate('pembelian.tanggal_pembelian', '<=', $data['tanggalSampai'])
+                                                 ->where('pembelian.status', 'approved');
+                
+                if ($cabangId !== null) {
+                    $detailPembelianQuery->where('pembelian.cabang_id', $cabangId);
+                }
+                
+                $detailPembelian = $detailPembelianQuery->with(['pembelian.supplier', 'pembelian.user', 'pembelian.cabang', 'barang'])
+                                                 ->select('detail_pembelian.*')
+                                                 ->orderBy('pembelian.tanggal_pembelian', 'asc')
+                                                 ->get();
+                
+                $fileName = "Laporan_Pembelian_{$data['tanggalDari']}_to_{$data['tanggalSampai']}.xlsx";
+                return Excel::download(new PembelianExport($detailPembelian), $fileName);
 
             default:
                 return back()->with('error', 'Jenis laporan tidak valid.');
         }
     }
 
-    /**
-     * Export data laporan ke format PDF.
-     * ✅ UPDATED: Dengan filter cabang
-     */
     public function exportPdf(Request $request)
     {
         $reportType = $request->get('type', 'penjualan'); 

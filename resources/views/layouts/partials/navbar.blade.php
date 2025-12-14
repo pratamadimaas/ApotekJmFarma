@@ -5,15 +5,30 @@
             <i class="bi bi-list fs-4" style="color: var(--primary-color);"></i>
         </button>
         
+        
         {{-- LOGO BRAND --}}
-        <a class="navbar-brand d-flex align-items-center me-auto" href="{{ route('dashboard') }}" style="gap: 12px;">
-            <div class="brand-icon-box">
-                <i class="bi bi-capsule-pill text-white" style="font-size: 1.5rem; transform: rotate(-45deg);"></i>
-            </div>
-            <span class="brand-text">
-                Apotek JM Farma
-            </span>
-        </a>
+<a class="navbar-brand d-flex align-items-center me-auto" href="{{ route('dashboard') }}" style="gap: 12px;">
+    <div class="brand-icon-box">
+        <i class="bi bi-capsule-pill text-white" style="font-size: 1.5rem; transform: rotate(-45deg);"></i>
+    </div>
+    <span class="brand-text" id="brandText">
+        @if(auth()->user()->isSuperAdmin())
+            {{-- Super Admin: Tampilkan cabang yang dipilih dari filter (FRESH dari DB) --}}
+            @php
+                $selectedCabangId = session('selected_cabang_id');
+                // Ambil data FRESH dari database, bukan cache
+                $selectedCabang = $selectedCabangId ? \App\Models\Cabang::where('id', $selectedCabangId)->first() : null;
+            @endphp
+            {{ $selectedCabang ? $selectedCabang->nama_cabang : 'Apotek JM Farma' }}
+        @elseif(auth()->user()->cabang)
+            {{-- Admin Cabang & Kasir: Tampilkan cabang mereka (FRESH dari DB) --}}
+            {{ auth()->user()->fresh()->cabang->nama_cabang ?? 'Apotek JM Farma' }}
+        @else
+            {{-- Fallback --}}
+            Apotek JM Farma
+        @endif
+    </span>
+</a>
         
         {{-- Tombol Toggler Navigasi Utama (d-flex/ms-auto) --}}
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">

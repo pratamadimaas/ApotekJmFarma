@@ -35,14 +35,6 @@
                     </button>
                 </div>
             </form>
-            <div class="mt-3">
-                <a href="{{ route('laporan.export-excel', ['jenis' => 'laba-rugi', 'tanggal_dari' => $tanggalDari, 'tanggal_sampai' => $tanggalSampai]) }}" class="btn btn-sm btn-success">
-                    <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
-                </a>
-                <a href="{{ route('laporan.export-pdf', ['jenis' => 'laba-rugi', 'tanggal_dari' => $tanggalDari, 'tanggal_sampai' => $tanggalSampai]) }}" class="btn btn-sm btn-danger">
-                    <i class="bi bi-file-earmark-pdf me-1"></i> Export PDF
-                </a>
-            </div>
         </div>
     </div>
 

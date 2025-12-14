@@ -7,7 +7,7 @@ use App\Models\DetailPembelian;
 use App\Models\Barang;
 use App\Models\Supplier;
 use App\Models\SatuanKonversi;
-use App\Traits\CabangFilterTrait; // ✅ IMPORT TRAIT
+use App\Traits\CabangFilterTrait; 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -412,6 +412,105 @@ class PembelianController extends Controller
         }
     }
 
+    public function cetakBarcode($id)
+{
+    $pembelian = Pembelian::with(['detailPembelian.barang', 'cabang', 'supplier'])->findOrFail($id);
+    
+    // ✅ CEK AKSES CABANG
+    $cabangId = $this->getActiveCabangId();
+    if (!$this->isSuperAdmin() && $pembelian->cabang_id != $cabangId) {
+        abort(403, 'Pembelian ini bukan milik cabang Anda.');
+    }
+    
+    return view('pages.pembelian.cetak-barcode', compact('pembelian'));
+}
+
+/**
+ * Generate barcode untuk item tertentu (AJAX)
+ */
+public function generateBarcode(Request $request)
+{
+    $request->validate([
+        'detail_pembelian_id' => 'required|exists:detail_pembelian,id',
+        'jumlah_cetak' => 'required|integer|min:1|max:1000'
+    ]);
+    
+    $detail = DetailPembelian::with('barang')->findOrFail($request->detail_pembelian_id);
+    $barang = $detail->barang;
+    
+    // ✅ VALIDASI CABANG
+    $cabangId = $this->getActiveCabangId();
+    if (!$this->isSuperAdmin() && $barang->cabang_id != $cabangId) {
+        return response()->json(['error' => 'Akses ditolak'], 403);
+    }
+    
+    // Generate barcode data
+    $barcodes = [];
+    for ($i = 0; $i < $request->jumlah_cetak; $i++) {
+        $barcodes[] = [
+            'barcode' => $barang->barcode ?? $barang->kode_barang,
+            'nama_barang' => $barang->nama_barang,
+            'harga' => $barang->harga_jual,
+            'kode' => $barang->kode_barang,
+        ];
+    }
+    
+    return response()->json([
+        'success' => true,
+        'barcodes' => $barcodes
+    ]);
+}
+
+/**
+ * Generate barcode untuk semua item dalam pembelian (AJAX)
+ */
+public function generateBarcodeAll(Request $request, $id)
+{
+    $request->validate([
+        'mode' => 'required|in:qty,custom',
+        'jumlah_custom' => 'required_if:mode,custom|nullable|integer|min:1|max:100'
+    ]);
+    
+    $pembelian = Pembelian::with('detailPembelian.barang')->findOrFail($id);
+    
+    // ✅ CEK AKSES CABANG
+    $cabangId = $this->getActiveCabangId();
+    if (!$this->isSuperAdmin() && $pembelian->cabang_id != $cabangId) {
+        return response()->json(['error' => 'Akses ditolak'], 403);
+    }
+    
+    $barcodes = [];
+    
+    foreach ($pembelian->detailPembelian as $detail) {
+        $barang = $detail->barang;
+        
+        if (!$barang) continue;
+        
+        // Tentukan jumlah cetak
+        $jumlahCetak = $request->mode === 'qty' 
+            ? (int) $detail->jumlah 
+            : (int) $request->jumlah_custom;
+        
+        // Generate barcode sebanyak jumlah yang diminta
+        for ($i = 0; $i < $jumlahCetak; $i++) {
+            $barcodes[] = [
+                'barcode' => $barang->barcode ?? $barang->kode_barang,
+                'nama_barang' => $barang->nama_barang,
+                'harga' => $barang->harga_jual,
+                'kode' => $barang->kode_barang,
+                'qty_asli' => $detail->jumlah,
+                'satuan' => $detail->satuan,
+            ];
+        }
+    }
+    
+    return response()->json([
+        'success' => true,
+        'barcodes' => $barcodes,
+        'total_items' => count($barcodes)
+    ]);
+}
+
     public function destroy($id)
     {
         DB::beginTransaction();
@@ -496,6 +595,7 @@ class PembelianController extends Controller
             }
         }
     }
+
 
     /**
      * Update atau Insert Satuan Konversi

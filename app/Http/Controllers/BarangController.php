@@ -134,137 +134,125 @@ class BarangController extends Controller
     }
 
     public function store(Request $request)
-    {
-        Log::info('=== STORE BARANG DEBUG START ===');
-        Log::info('Request Data:', $request->except(['_token']));
-        
-        $rules = [
-            'kode_barang' => 'required|string|unique:barang,kode_barang',
-            'barcode' => 'nullable|string|max:50|unique:barang,barcode',
-            'nama_barang' => 'required|string',
-            'kategori' => 'required|string',
-            'satuan_dasar' => 'required|string',
-            'harga_beli' => 'required|numeric|min:0',
-            'harga_jual' => 'required|numeric|min:0',
-            'stok' => 'required|numeric|min:0',
-            'stok_minimal' => 'required|numeric|min:0',
-            'satuan_konversi.*.nama_satuan' => 'nullable|string',
-            'satuan_konversi.*.jumlah_konversi' => 'nullable|integer|min:1',
-            'satuan_konversi.*.harga_jual' => 'nullable|numeric|min:0',
-            'satuan_konversi.*.is_default' => 'nullable|boolean',
+{
+    Log::info('=== STORE BARANG DEBUG START ===');
+    Log::info('Request Data:', $request->except(['_token']));
+    
+    // ✅ TENTUKAN CABANG_ID DULU
+    $cabangId = null;
+    
+    if (auth()->user()->isSuperAdmin()) {
+        $cabangId = $request->cabang_id;
+    } else {
+        $cabangId = auth()->user()->cabang_id;
+    }
+    
+    // ✅ VALIDASI FINAL: cabang_id HARUS ada!
+    if (!$cabangId) {
+        return back()->with('error', 'Error: Cabang tidak valid. Silakan pilih cabang atau hubungi administrator.')->withInput();
+    }
+    
+    // ✅ UBAH VALIDASI: unique per cabang
+    $rules = [
+        'kode_barang' => [
+            'required',
+            'string',
+            \Illuminate\Validation\Rule::unique('barang', 'kode_barang')
+                ->where(function ($query) use ($cabangId) {
+                    $query->where('cabang_id', $cabangId);
+                })
+        ],
+        'barcode' => [
+            'nullable',
+            'string',
+            'max:50',
+            \Illuminate\Validation\Rule::unique('barang', 'barcode')
+                ->where(function ($query) use ($cabangId) {
+                    $query->where('cabang_id', $cabangId)
+                          ->whereNotNull('barcode');
+                })
+        ],
+        'nama_barang' => 'required|string',
+        'kategori' => 'required|string',
+        'satuan_dasar' => 'required|string',
+        'harga_beli' => 'required|numeric|min:0',
+        'harga_jual' => 'required|numeric|min:0',
+        'stok' => 'required|numeric|min:0',
+        'stok_minimal' => 'required|numeric|min:0',
+        'satuan_konversi.*.nama_satuan' => 'nullable|string',
+        'satuan_konversi.*.jumlah_konversi' => 'nullable|integer|min:1',
+        'satuan_konversi.*.harga_jual' => 'nullable|numeric|min:0',
+        'satuan_konversi.*.is_default' => 'nullable|boolean',
+    ];
+
+    // ✅ Untuk Super Admin, cabang_id wajib dari form
+    if (auth()->user()->isSuperAdmin()) {
+        $rules['cabang_id'] = 'required|exists:cabang,id';
+    }
+
+    $request->validate($rules);
+
+    DB::beginTransaction();
+    try {
+        $barangData = [
+            'kode_barang' => $request->kode_barang,
+            'barcode' => $request->barcode,
+            'nama_barang' => $request->nama_barang,
+            'kategori' => $request->kategori,
+            'satuan_terkecil' => $request->satuan_dasar,
+            'harga_beli' => $request->harga_beli,
+            'harga_jual' => $request->harga_jual,
+            'stok' => $request->stok,
+            'stok_minimal' => $request->stok_minimal,
+            'lokasi_rak' => $request->lokasi_rak,
+            'deskripsi' => $request->deskripsi,
+            'cabang_id' => $cabangId
         ];
 
-        // ✅ Untuk Super Admin, cabang_id wajib dari form
-        if (auth()->user()->isSuperAdmin()) {
-            $rules['cabang_id'] = 'required|exists:cabang,id';
-        }
+        Log::info('Barang Data to Insert:', $barangData);
 
-        $request->validate($rules);
+        $barang = Barang::create($barangData);
+        
+        Log::info('✅ Barang Created Successfully!', [
+            'barang_id' => $barang->id,
+            'kode_barang' => $barang->kode_barang,
+            'nama_barang' => $barang->nama_barang,
+            'cabang_id' => $barang->cabang_id
+        ]);
 
-        DB::beginTransaction();
-        try {
-            // ✅ PRIORITAS PENGAMBILAN CABANG_ID:
-            // 1. Dari request (untuk Super Admin yang mengisi form)
-            // 2. Dari user->cabang_id (untuk Admin Cabang/Kasir)
-            
-            $cabangId = null;
-            
-            if (auth()->user()->isSuperAdmin()) {
-                // Super Admin: ambil dari form
-                $cabangId = $request->cabang_id;
-                Log::info('Store - Super Admin Mode', [
-                    'cabang_id_from_request' => $cabangId,
-                    'user_id' => auth()->id()
-                ]);
-            } else {
-                // User biasa: ambil dari user profile
-                $cabangId = auth()->user()->cabang_id;
-                Log::info('Store - Regular User Mode', [
-                    'cabang_id_from_user' => $cabangId,
-                    'user_id' => auth()->id(),
-                    'user_role' => auth()->user()->role
-                ]);
-            }
-            
-            // ✅ VALIDASI FINAL: cabang_id HARUS ada!
-            if (!$cabangId) {
-                Log::error('Store failed: No cabang_id available', [
-                    'is_super_admin' => auth()->user()->isSuperAdmin(),
-                    'user_cabang_id' => auth()->user()->cabang_id,
-                    'request_cabang_id' => $request->cabang_id
-                ]);
-                
-                return back()->with('error', 'Error: Cabang tidak valid. Silakan pilih cabang atau hubungi administrator.')->withInput();
-            }
-
-            $barangData = [
-                'kode_barang' => $request->kode_barang,
-                'barcode' => $request->barcode,
-                'nama_barang' => $request->nama_barang,
-                'kategori' => $request->kategori,
-                'satuan_terkecil' => $request->satuan_dasar,
-                'harga_beli' => $request->harga_beli,
-                'harga_jual' => $request->harga_jual,
-                'stok' => $request->stok,
-                'stok_minimal' => $request->stok_minimal,
-                'lokasi_rak' => $request->lokasi_rak,
-                'deskripsi' => $request->deskripsi,
-                'cabang_id' => $cabangId  // ✅ PENTING!
-            ];
-
-            Log::info('Barang Data to Insert:', $barangData);
-
-            $barang = Barang::create($barangData);
-            
-            Log::info('✅ Barang Created Successfully!', [
-                'barang_id' => $barang->id,
-                'kode_barang' => $barang->kode_barang,
-                'nama_barang' => $barang->nama_barang,
-                'cabang_id' => $barang->cabang_id
-            ]);
-
-            // Verify data tersimpan
-            $verify = Barang::find($barang->id);
-            Log::info('Verify Barang in DB:', [
-                'id' => $verify->id,
-                'kode' => $verify->kode_barang,
-                'cabang_id' => $verify->cabang_id,
-                'exists' => $verify !== null
-            ]);
-
-            // Satuan Konversi
-            if ($request->filled('satuan_konversi')) {
-                foreach ($request->satuan_konversi as $konversi) {
-                    if (!empty($konversi['nama_satuan']) && !empty($konversi['jumlah_konversi'])) {
-                        SatuanKonversi::create([
-                            'barang_id' => $barang->id,
-                            'nama_satuan' => $konversi['nama_satuan'],
-                            'jumlah_konversi' => $konversi['jumlah_konversi'],
-                            'harga_jual' => $konversi['harga_jual'] ?? 0,
-                            'is_default' => $konversi['is_default'] ?? false
-                        ]);
-                        Log::info('Satuan Konversi Created:', $konversi);
-                    }
+        // Satuan Konversi
+        if ($request->filled('satuan_konversi')) {
+            foreach ($request->satuan_konversi as $konversi) {
+                if (!empty($konversi['nama_satuan']) && !empty($konversi['jumlah_konversi'])) {
+                    SatuanKonversi::create([
+                        'barang_id' => $barang->id,
+                        'nama_satuan' => $konversi['nama_satuan'],
+                        'jumlah_konversi' => $konversi['jumlah_konversi'],
+                        'harga_jual' => $konversi['harga_jual'] ?? 0,
+                        'is_default' => $konversi['is_default'] ?? false
+                    ]);
+                    Log::info('Satuan Konversi Created:', $konversi);
                 }
             }
-
-            DB::commit();
-            Log::info('=== STORE BARANG DEBUG END - SUCCESS ===');
-            
-            $cabangName = Cabang::find($cabangId)->nama_cabang ?? 'cabang yang tidak diketahui';
-            return redirect()->route('barang.index')->with('success', 'Barang berhasil ditambahkan ke ' . $cabangName . '!');
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('=== STORE BARANG DEBUG END - ERROR ===', [
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            return back()->with('error', 'Error: ' . $e->getMessage())->withInput();
         }
+
+        DB::commit();
+        Log::info('=== STORE BARANG DEBUG END - SUCCESS ===');
+        
+        $cabangName = Cabang::find($cabangId)->nama_cabang ?? 'cabang yang tidak diketahui';
+        return redirect()->route('barang.index')->with('success', 'Barang berhasil ditambahkan ke ' . $cabangName . '!');
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error('=== STORE BARANG DEBUG END - ERROR ===', [
+            'error' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        return back()->with('error', 'Error: ' . $e->getMessage())->withInput();
     }
+}
 
     public function show($id)
     {
@@ -289,10 +277,36 @@ class BarangController extends Controller
     }
 
     public function update(Request $request, $id)
-    {
+{
+    DB::beginTransaction();
+    try {
+        $cabangId = $this->getActiveCabangId();
+        
+        $barang = Barang::when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
+            ->findOrFail($id);
+        
+        // ✅ Ubah validasi: unique per cabang, ignore current record
         $request->validate([
-            'kode_barang' => 'required|string|unique:barang,kode_barang,' . $id,
-            'barcode' => 'nullable|string|max:50|unique:barang,barcode,' . $id,
+            'kode_barang' => [
+                'required',
+                'string',
+                \Illuminate\Validation\Rule::unique('barang', 'kode_barang')
+                    ->where(function ($query) use ($barang) {
+                        $query->where('cabang_id', $barang->cabang_id);
+                    })
+                    ->ignore($id)
+            ],
+            'barcode' => [
+                'nullable',
+                'string',
+                'max:50',
+                \Illuminate\Validation\Rule::unique('barang', 'barcode')
+                    ->where(function ($query) use ($barang) {
+                        $query->where('cabang_id', $barang->cabang_id)
+                              ->whereNotNull('barcode');
+                    })
+                    ->ignore($id)
+            ],
             'nama_barang' => 'required|string',
             'kategori' => 'required|string',
             'satuan_dasar' => 'required|string',
@@ -305,52 +319,45 @@ class BarangController extends Controller
             'satuan_konversi.*.harga_jual' => 'nullable|numeric|min:0',
             'satuan_konversi.*.is_default' => 'nullable|boolean',
         ]);
+        
+        $barang->update([
+            'kode_barang' => $request->kode_barang,
+            'barcode' => $request->barcode,
+            'nama_barang' => $request->nama_barang,
+            'kategori' => $request->kategori,
+            'satuan_terkecil' => $request->satuan_dasar,
+            'harga_beli' => $request->harga_beli,
+            'harga_jual' => $request->harga_jual,
+            'stok' => $request->stok,
+            'stok_minimal' => $request->stok_minimal,
+            'lokasi_rak' => $request->lokasi_rak,
+            'deskripsi' => $request->deskripsi
+        ]);
 
-        DB::beginTransaction();
-        try {
-            $cabangId = $this->getActiveCabangId();
-            
-            $barang = Barang::when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
-                ->findOrFail($id);
-            
-            $barang->update([
-                'kode_barang' => $request->kode_barang,
-                'barcode' => $request->barcode,
-                'nama_barang' => $request->nama_barang,
-                'kategori' => $request->kategori,
-                'satuan_terkecil' => $request->satuan_dasar,
-                'harga_beli' => $request->harga_beli,
-                'harga_jual' => $request->harga_jual,
-                'stok' => $request->stok,
-                'stok_minimal' => $request->stok_minimal,
-                'lokasi_rak' => $request->lokasi_rak,
-                'deskripsi' => $request->deskripsi
-            ]);
+        $barang->satuanKonversi()->delete();
 
-            $barang->satuanKonversi()->delete();
-
-            if ($request->filled('satuan_konversi')) {
-                foreach ($request->satuan_konversi as $konversi) {
-                    if (!empty($konversi['nama_satuan']) && !empty($konversi['jumlah_konversi'])) {
-                        SatuanKonversi::create([
-                            'barang_id' => $barang->id,
-                            'nama_satuan' => $konversi['nama_satuan'],
-                            'jumlah_konversi' => $konversi['jumlah_konversi'],
-                            'harga_jual' => $konversi['harga_jual'] ?? 0,
-                            'is_default' => $konversi['is_default'] ?? false
-                        ]);
-                    }
+        if ($request->filled('satuan_konversi')) {
+            foreach ($request->satuan_konversi as $konversi) {
+                if (!empty($konversi['nama_satuan']) && !empty($konversi['jumlah_konversi'])) {
+                    SatuanKonversi::create([
+                        'barang_id' => $barang->id,
+                        'nama_satuan' => $konversi['nama_satuan'],
+                        'jumlah_konversi' => $konversi['jumlah_konversi'],
+                        'harga_jual' => $konversi['harga_jual'] ?? 0,
+                        'is_default' => $konversi['is_default'] ?? false
+                    ]);
                 }
             }
-
-            DB::commit();
-            return redirect()->route('barang.index')->with('success', 'Barang berhasil diupdate!');
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return back()->with('error', 'Error: ' . $e->getMessage())->withInput();
         }
+
+        DB::commit();
+        return redirect()->route('barang.index')->with('success', 'Barang berhasil diupdate!');
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        return back()->with('error', 'Error: ' . $e->getMessage())->withInput();
     }
+}
 
     public function destroy($id)
     {
