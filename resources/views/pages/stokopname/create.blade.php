@@ -5,9 +5,6 @@
 @push('styles')
 <style>
     /* Custom styles for better scanner visibility */
-    #cameraPreview {
-        transform: scaleX(-1); /* Mirror effect for better UX */
-    }
     
     #scanRegion {
         position: absolute;
@@ -268,102 +265,79 @@
     <h6 class="m-0 font-weight-bold text-primary">Daftar Barang yang Di-scan</h6>
 </div>
 <div class="card-body">
-    {{-- Mobile View --}}
-    <div class="d-md-none" id="mobileView">
-        <div id="mobileItems">
-            @forelse($itemsScanned as $index => $item)
-            <div class="card mb-3 mobile-item" data-id="{{ $item->id }}">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <div>
-                            <strong class="d-block">{{ $item->barang->nama_barang }}</strong>
+    {{-- Mobile View - HORIZONTAL TABLE --}}
+    <div class="d-lg-none" id="mobileView">
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered table-hover" id="tableMobile" style="font-size: 0.75rem; min-width: 800px;">
+                <thead class="table-light sticky-top" style="position: sticky; top: 0; z-index: 10;">
+                    <tr>
+                        <th width="5%" class="text-center">NO</th>
+                        <th width="20%">BARANG</th>
+                        <th width="10%" class="text-center">LOK RAK</th>
+                        <th width="10%" class="text-center">STOK SISTEM</th>
+                        <th width="15%">STOK FISIK</th>
+                        <th width="10%" class="text-center">SELISIH</th>
+                        <th width="15%">EXPIRED</th>
+                        <th width="10%" class="text-center">AKSI</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyMobile">
+                    @forelse($itemsScanned as $index => $item)
+                    <tr data-id="{{ $item->id }}" class="mobile-item-row">
+                        <td class="text-center align-middle">{{ $index + 1 }}</td>
+                        <td class="align-middle">
+                            <strong style="font-size: 0.8rem; display: block;">{{ $item->barang->nama_barang }}</strong>
                             <small class="text-muted">{{ $item->barang->kode_barang }}</small>
-                        </div>
-                        <button type="button" class="btn btn-sm btn-danger btn-delete-mobile" data-id="{{ $item->id }}">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </div>
-                    
-                    <div class="row g-2 mb-2">
-                        <div class="col-6">
-                            <small class="text-muted d-block">Lokasi Rak</small>
-                            <span class="badge bg-info">{{ $item->barang->lokasi_rak ?? '-' }}</span>
-                        </div>
-                        <div class="col-6">
-                            <small class="text-muted d-block">Stok Sistem</small>
-                            <strong class="fs-5">{{ $item->stok_sistem }}</strong>
-                        </div>
-                    </div>
-                    
-                    <div class="row g-2 mb-2">
-                        <div class="col-12">
-                            <label class="form-label fw-bold mb-1">
-                                <i class="bi bi-box-seam me-1"></i>Stok Fisik
-                            </label>
+                        </td>
+                        <td class="text-center align-middle">
+                            <span class="badge bg-info" style="font-size: 0.65rem;">{{ $item->barang->lokasi_rak ?? '-' }}</span>
+                        </td>
+                        <td class="text-center align-middle">
+                            <strong style="font-size: 0.95rem;">{{ $item->stok_sistem }}</strong>
+                        </td>
+                        <td class="align-middle">
                             <input type="number" 
-                                   class="form-control form-control-lg stok-fisik-input-mobile text-center fw-bold" 
-                                   style="font-size: 1.5rem; height: 60px;"
+                                   class="form-control form-control-sm stok-fisik-input-mobile text-center fw-bold" 
+                                   style="font-size: 1.1rem; height: 45px; min-width: 70px;"
                                    value="{{ $item->stok_fisik }}" 
                                    min="0"
                                    data-id="{{ $item->id }}"
                                    placeholder="0">
-                        </div>
-                    </div>
-                    
-                    <div class="row g-2 mb-2">
-                        <div class="col-12">
-                            <label class="form-label fw-bold mb-1">
-                                <i class="bi bi-calendar-event me-1"></i>Expired Date
-                            </label>
+                        </td>
+                        <td class="text-center align-middle selisih-cell-mobile">
+                            @if($item->selisih > 0)
+                                <span class="badge bg-success" style="font-size: 0.75rem;">+{{ $item->selisih }}</span>
+                            @elseif($item->selisih < 0)
+                                <span class="badge bg-danger" style="font-size: 0.75rem;">{{ $item->selisih }}</span>
+                            @else
+                                <span class="badge bg-secondary" style="font-size: 0.75rem;">0</span>
+                            @endif
+                        </td>
+                        <td class="align-middle">
                             <input type="date" 
-                                   class="form-control form-control-lg expired-date-input-mobile" 
-                                   style="height: 50px;"
+                                   class="form-control form-control-sm expired-date-input-mobile" 
+                                   style="font-size: 0.7rem; min-width: 115px;"
                                    value="{{ $item->expired_date?->format('Y-m-d') }}"
                                    data-id="{{ $item->id }}">
-                        </div>
-                    </div>
-                    
-                    <div class="row g-2">
-                        <div class="col-6">
-                            <small class="text-muted d-block">Selisih</small>
-                            <div class="selisih-cell-mobile">
-                                @if($item->selisih > 0)
-                                    <span class="badge bg-success fs-6">+{{ $item->selisih }}</span>
-                                @elseif($item->selisih < 0)
-                                    <span class="badge bg-danger fs-6">{{ $item->selisih }}</span>
-                                @else
-                                    <span class="badge bg-secondary fs-6">0</span>
-                                @endif
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <small class="text-muted d-block">Status</small>
-                            <div class="status-cell-mobile">
-                                @php
-                                    $isExpiringSoon = $item->expired_date && $item->expired_date->lte(now()->addDays(30));
-                                @endphp
-                                @if($isExpiringSoon)
-                                    <span class="badge bg-warning text-dark">
-                                        <i class="bi bi-exclamation-triangle"></i> Segera Expired
-                                    </span>
-                                @else
-                                    <span class="badge bg-success">Normal</span>
-                                @endif
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            @empty
-            <div class="alert alert-info text-center" id="emptyRowMobile">
-                Belum ada barang yang di-scan. Silakan scan barcode untuk memulai.
-            </div>
-            @endforelse
+                        </td>
+                        <td class="text-center align-middle">
+                            <button type="button" class="btn btn-sm btn-danger btn-delete-mobile" data-id="{{ $item->id }}" style="font-size: 0.75rem;">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    @empty
+                    <tr id="emptyRowMobile">
+                        <td colspan="8" class="text-center text-muted py-4">Belum ada barang yang di-scan.</td>
+                    </tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
     </div>
 
     {{-- Desktop View --}}
-    <div class="table-responsive d-none d-md-block">
+    <div class="table-responsive d-none d-lg-block">
         <table class="table table-bordered table-hover" id="tableScanned">
             <thead class="table-light">
                 <tr>
@@ -490,7 +464,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const barcodeInput = document.getElementById('barcodeInput');
     const btnScan = document.getElementById('btnScan');
     const tbody = document.getElementById('tbodyScanned');
-    const mobileItems = document.getElementById('mobileItems');
+    const mobileItems = document.getElementById('tbodyMobile');
     const sesiId = {{ $sesiAktif->id }};
     const csrfToken = '{{ csrf_token() }}';
     
@@ -968,79 +942,51 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ✅ Mobile card view
     function addItemRowMobile(detail) {
-        const card = document.createElement('div');
-        card.className = 'card mb-3 mobile-item';
-        card.setAttribute('data-id', detail.id);
+        const tbody = document.getElementById('tbodyMobile');
+        const rowCount = tbody.querySelectorAll('tr:not(#emptyRowMobile)').length + 1;
+        const row = document.createElement('tr');
+        row.className = 'mobile-item-row';
+        row.setAttribute('data-id', detail.id);
         
-        card.innerHTML = `
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <div>
-                        <strong class="d-block">${detail.barang.nama_barang}</strong>
-                        <small class="text-muted">${detail.barang.kode_barang}</small>
-                    </div>
-                    <button type="button" class="btn btn-sm btn-danger btn-delete-mobile" data-id="${detail.id}">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </div>
-                
-                <div class="row g-2 mb-2">
-                    <div class="col-6">
-                        <small class="text-muted d-block">Lokasi Rak</small>
-                        <span class="badge bg-info">${detail.barang.lokasi_rak || '-'}</span>
-                    </div>
-                    <div class="col-6">
-                        <small class="text-muted d-block">Stok Sistem</small>
-                        <strong class="fs-5">${detail.stok_sistem}</strong>
-                    </div>
-                </div>
-                
-                <div class="row g-2 mb-2">
-                    <div class="col-12">
-                        <label class="form-label fw-bold mb-1">
-                            <i class="bi bi-box-seam me-1"></i>Stok Fisik
-                        </label>
-                        <input type="number" 
-                               class="form-control form-control-lg stok-fisik-input-mobile text-center fw-bold" 
-                               style="font-size: 1.5rem; height: 60px;"
-                               value="${detail.stok_fisik}" 
-                               min="0"
-                               data-id="${detail.id}"
-                               placeholder="0">
-                    </div>
-                </div>
-                
-                <div class="row g-2 mb-2">
-                    <div class="col-12">
-                        <label class="form-label fw-bold mb-1">
-                            <i class="bi bi-calendar-event me-1"></i>Expired Date
-                        </label>
-                        <input type="date" 
-                               class="form-control form-control-lg expired-date-input-mobile" 
-                               style="height: 50px;"
-                               value=""
-                               data-id="${detail.id}">
-                    </div>
-                </div>
-                
-                <div class="row g-2">
-                    <div class="col-6">
-                        <small class="text-muted d-block">Selisih</small>
-                        <div class="selisih-cell-mobile">
-                            <span class="badge bg-secondary fs-6">0</span>
-                        </div>
-                    </div>
-                    <div class="col-6">
-                        <small class="text-muted d-block">Status</small>
-                        <div class="status-cell-mobile">
-                            <span class="badge bg-success">Normal</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        row.innerHTML = `
+            <td class="text-center align-middle">${rowCount}</td>
+            <td class="align-middle">
+                <strong style="font-size: 0.8rem; display: block;">${detail.barang.nama_barang}</strong>
+                <small class="text-muted">${detail.barang.kode_barang}</small>
+            </td>
+            <td class="text-center align-middle">
+                <span class="badge bg-info" style="font-size: 0.65rem;">${detail.barang.lokasi_rak || '-'}</span>
+            </td>
+            <td class="text-center align-middle">
+                <strong style="font-size: 0.95rem;">${detail.stok_sistem}</strong>
+            </td>
+            <td class="align-middle">
+                <input type="number" 
+                       class="form-control form-control-sm stok-fisik-input-mobile text-center fw-bold" 
+                       style="font-size: 1.1rem; height: 45px; min-width: 70px;"
+                       value="${detail.stok_fisik}" 
+                       min="0"
+                       data-id="${detail.id}"
+                       placeholder="0">
+            </td>
+            <td class="text-center align-middle selisih-cell-mobile">
+                <span class="badge bg-secondary" style="font-size: 0.75rem;">0</span>
+            </td>
+            <td class="align-middle">
+                <input type="date" 
+                       class="form-control form-control-sm expired-date-input-mobile" 
+                       style="font-size: 0.7rem; min-width: 115px;"
+                       value=""
+                       data-id="${detail.id}">
+            </td>
+            <td class="text-center align-middle">
+                <button type="button" class="btn btn-sm btn-danger btn-delete-mobile" data-id="${detail.id}" style="font-size: 0.75rem;">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
         `;
         
-        mobileItems.insertBefore(card, mobileItems.firstChild);
+        tbody.insertBefore(row, tbody.firstChild);
     }
 
     // ✅ Update item (Desktop)
@@ -1063,7 +1009,7 @@ document.addEventListener('DOMContentLoaded', function() {
             e.target.classList.contains('expired-date-input-mobile')) {
             
             const id = e.target.getAttribute('data-id');
-            const card = e.target.closest('.mobile-item');
+            const card = e.target.closest('.mobile-item-row');
             const stokFisik = card.querySelector('.stok-fisik-input-mobile').value;
             const expiredDate = card.querySelector('.expired-date-input-mobile').value;
 
@@ -1109,7 +1055,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         const selisihCell = element.querySelector('.selisih-cell');
                         updateSelisihBadge(selisihCell, selisih);
                         updateExpiredStatus(element.querySelector('.status-cell'), expiredDate);
-                    } else if (element.classList.contains('mobile-item')) {
+                    } else if (element.classList.contains('mobile-item-row')) {
                         const selisihCellMobile = element.querySelector('.selisih-cell-mobile');
                         updateSelisihBadge(selisihCellMobile, selisih);
                         updateExpiredStatus(element.querySelector('.status-cell-mobile'), expiredDate);
@@ -1175,7 +1121,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.target.closest('.btn-delete-mobile')) {
             const btn = e.target.closest('.btn-delete-mobile');
             const id = btn.getAttribute('data-id');
-            const card = btn.closest('.mobile-item');
+            const card = btn.closest('.mobile-item-row');
             
             if (confirm('Hapus item ini dari daftar?')) {
                 deleteItem(id, null, card);
@@ -1209,11 +1155,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     </tr>`;
                 }
                 
-                if (mobileItems.querySelectorAll('.mobile-item').length === 0) {
-                    mobileItems.innerHTML = `<div class="alert alert-info text-center" id="emptyRowMobile">
-                        Belum ada barang yang di-scan. Silakan scan barcode untuk memulai.
-                    </div>`;
-                }
+                if (mobileItems.querySelectorAll('.mobile-item-row').length === 0) {
+                mobileItems.innerHTML = `<tr id="emptyRowMobile">
+                <td colspan="8" class="text-center text-muted py-4">Belum ada barang yang di-scan.</td>
+                </tr>`;
+}
             }
         })
         .catch(error => {
