@@ -169,101 +169,92 @@ class LaporanController extends Controller
     }
 
     public function labaRugi(Request $request)
-{
-    $dataPenjualan = $this->applyDateFilter($request, Penjualan::class, 'tanggal_penjualan');
-    $queryPenjualan = $dataPenjualan['query'];
-    $tanggalDari = $dataPenjualan['tanggalDari']; 
-    $tanggalSampai = $dataPenjualan['tanggalSampai'];
-    
-    $totalPendapatan = (clone $queryPenjualan)->sum('grand_total');
-    
-    $queryPembelian = $this->applyDateFilter($request, Pembelian::class, 'tanggal_pembelian', 'approved')['query'];
-    $totalPembelian = (clone $queryPembelian)->sum('grand_total');
+    {
+        $dataPenjualan = $this->applyDateFilter($request, Penjualan::class, 'tanggal_penjualan');
+        $queryPenjualan = $dataPenjualan['query'];
+        $tanggalDari = $dataPenjualan['tanggalDari']; 
+        $tanggalSampai = $dataPenjualan['tanggalSampai'];
+        
+        $totalPendapatan = (clone $queryPenjualan)->sum('grand_total');
+        
+        $queryPembelian = $this->applyDateFilter($request, Pembelian::class, 'tanggal_pembelian', 'approved')['query'];
+        $totalPembelian = (clone $queryPembelian)->sum('grand_total');
 
-    $cabangId = $this->getActiveCabangId();
-    
-    // ✅ HPP dari penjualan (hanya yang TIDAK di-return)
-    $hppQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
-                          ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
-                          ->whereDate('penjualan.tanggal_penjualan', '>=', $tanggalDari)
-                          ->whereDate('penjualan.tanggal_penjualan', '<=', $tanggalSampai)
-                          ->where(function($q) {
-                              $q->where('detail_penjualan.is_return', false)
-                                ->orWhereNull('detail_penjualan.is_return');
-                          });
-    
-    if ($cabangId !== null) {
-        $hppQuery->where('penjualan.cabang_id', $cabangId);
-    }
-    
-    $hpp = $hppQuery->select(DB::raw('SUM(detail_penjualan.jumlah * barang.harga_beli) as total_hpp'))
-                    ->value('total_hpp') ?? 0;
+        $cabangId = $this->getActiveCabangId();
+        
+        $hppQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
+                              ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
+                              ->whereDate('penjualan.tanggal_penjualan', '>=', $tanggalDari)
+                              ->whereDate('penjualan.tanggal_penjualan', '<=', $tanggalSampai)
+                              ->where(function($q) {
+                                  $q->where('detail_penjualan.is_return', false)
+                                    ->orWhereNull('detail_penjualan.is_return');
+                              });
+        
+        if ($cabangId !== null) {
+            $hppQuery->where('penjualan.cabang_id', $cabangId);
+        }
+        
+        $hpp = $hppQuery->select(DB::raw('SUM(detail_penjualan.jumlah * barang.harga_beli) as total_hpp'))
+                        ->value('total_hpp') ?? 0;
 
-    // ✅ Total return berdasarkan KAPAN return terjadi (pakai whereDate)
-    $totalReturnQuery = DetailPenjualan::where('is_return', true)
-                                ->whereDate('return_date', '>=', $tanggalDari)
-                                ->whereDate('return_date', '<=', $tanggalSampai);
-    
-    if ($cabangId !== null) {
-        $totalReturnQuery->whereHas('penjualan', function($q) use ($cabangId) {
-            $q->where('cabang_id', $cabangId);
-        });
-    }
-    
-    $totalReturn = $totalReturnQuery->sum('jumlah_return') ?? 0;
+        $totalReturnQuery = DetailPenjualan::where('is_return', true)
+                                    ->whereDate('return_date', '>=', $tanggalDari)
+                                    ->whereDate('return_date', '<=', $tanggalSampai);
+        
+        if ($cabangId !== null) {
+            $totalReturnQuery->whereHas('penjualan', function($q) use ($cabangId) {
+                $q->where('cabang_id', $cabangId);
+            });
+        }
+        
+        $totalReturn = $totalReturnQuery->sum('jumlah_return') ?? 0;
 
-    // ✅ HPP dari barang yang di-return dalam periode ini
-    $hppReturnQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
-                                ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
-                                ->where('detail_penjualan.is_return', true)
-                                ->whereDate('detail_penjualan.return_date', '>=', $tanggalDari)
-                                ->whereDate('detail_penjualan.return_date', '<=', $tanggalSampai);
-    
-    if ($cabangId !== null) {
-        $hppReturnQuery->where('penjualan.cabang_id', $cabangId);
-    }
-    
-    $hppReturn = $hppReturnQuery->select(DB::raw('SUM(detail_penjualan.jumlah * barang.harga_beli) as total_hpp_return'))
-                                ->value('total_hpp_return') ?? 0;
-
-    // ✅ Hitung pendapatan bersih (pendapatan - return)
-    $pendapatanBersih = $totalPendapatan - $totalReturn;
-    
-    // ✅ Hitung HPP bersih (hpp dari barang yang tidak di-return)
-    $hppBersih = $hpp;
-
-    // ✅ Laba kotor = Pendapatan Bersih - HPP Bersih
-    $labaKotor = $pendapatanBersih - $hppBersih;
-    $marginLaba = $pendapatanBersih > 0 ? ($labaKotor / $pendapatanBersih) * 100 : 0;
-
-    // ✅ Detail per item
-    $detailPerItemQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
+        $hppReturnQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
                                     ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
-                                    ->whereDate('penjualan.tanggal_penjualan', '>=', $tanggalDari)
-                                    ->whereDate('penjualan.tanggal_penjualan', '<=', $tanggalSampai);
-    
-    if ($cabangId !== null) {
-        $detailPerItemQuery->where('penjualan.cabang_id', $cabangId);
-    }
-    
-    $detailPerItem = $detailPerItemQuery->select(
-                                        'detail_penjualan.barang_id',
-                                        'barang.nama_barang',
-                                        DB::raw('SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.jumlah ELSE 0 END) as total_qty'),
-                                        DB::raw('SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.subtotal ELSE 0 END) as total_penjualan'),
-                                        DB::raw('SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.jumlah * barang.harga_beli ELSE 0 END) as total_hpp'),
-                                        DB::raw('SUM(CASE WHEN detail_penjualan.is_return = true THEN detail_penjualan.jumlah_return ELSE 0 END) as total_return'),
-                                        DB::raw('(SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.subtotal ELSE 0 END) - SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.jumlah * barang.harga_beli ELSE 0 END) - SUM(CASE WHEN detail_penjualan.is_return = true THEN detail_penjualan.jumlah_return ELSE 0 END)) as laba')
-                                    )
-                                    ->groupBy('detail_penjualan.barang_id', 'barang.nama_barang')
-                                    ->orderBy('laba', 'desc')
-                                    ->get();
+                                    ->where('detail_penjualan.is_return', true)
+                                    ->whereDate('detail_penjualan.return_date', '>=', $tanggalDari)
+                                    ->whereDate('detail_penjualan.return_date', '<=', $tanggalSampai);
+        
+        if ($cabangId !== null) {
+            $hppReturnQuery->where('penjualan.cabang_id', $cabangId);
+        }
+        
+        $hppReturn = $hppReturnQuery->select(DB::raw('SUM(detail_penjualan.jumlah * barang.harga_beli) as total_hpp_return'))
+                                    ->value('total_hpp_return') ?? 0;
 
-    return view('pages.laporan.laba-rugi', compact(
-        'tanggalDari', 'tanggalSampai', 'totalPendapatan', 'totalPembelian', 'hpp', 
-        'labaKotor', 'marginLaba', 'detailPerItem', 'totalReturn', 'pendapatanBersih', 'hppBersih', 'hppReturn'
-    ));
-}
+        $pendapatanBersih = $totalPendapatan - $totalReturn;
+        $hppBersih = $hpp;
+        $labaKotor = $pendapatanBersih - $hppBersih;
+        $marginLaba = $pendapatanBersih > 0 ? ($labaKotor / $pendapatanBersih) * 100 : 0;
+
+        $detailPerItemQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
+                                        ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
+                                        ->whereDate('penjualan.tanggal_penjualan', '>=', $tanggalDari)
+                                        ->whereDate('penjualan.tanggal_penjualan', '<=', $tanggalSampai);
+        
+        if ($cabangId !== null) {
+            $detailPerItemQuery->where('penjualan.cabang_id', $cabangId);
+        }
+        
+        $detailPerItem = $detailPerItemQuery->select(
+                                            'detail_penjualan.barang_id',
+                                            'barang.nama_barang',
+                                            DB::raw('SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.jumlah ELSE 0 END) as total_qty'),
+                                            DB::raw('SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.subtotal ELSE 0 END) as total_penjualan'),
+                                            DB::raw('SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.jumlah * barang.harga_beli ELSE 0 END) as total_hpp'),
+                                            DB::raw('SUM(CASE WHEN detail_penjualan.is_return = true THEN detail_penjualan.jumlah_return ELSE 0 END) as total_return'),
+                                            DB::raw('(SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.subtotal ELSE 0 END) - SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.jumlah * barang.harga_beli ELSE 0 END) - SUM(CASE WHEN detail_penjualan.is_return = true THEN detail_penjualan.jumlah_return ELSE 0 END)) as laba')
+                                        )
+                                        ->groupBy('detail_penjualan.barang_id', 'barang.nama_barang')
+                                        ->orderBy('laba', 'desc')
+                                        ->get();
+
+        return view('pages.laporan.laba-rugi', compact(
+            'tanggalDari', 'tanggalSampai', 'totalPendapatan', 'totalPembelian', 'hpp', 
+            'labaKotor', 'marginLaba', 'detailPerItem', 'totalReturn', 'pendapatanBersih', 'hppBersih', 'hppReturn'
+        ));
+    }
 
     // =========================================================================
     // LAPORAN STOK
@@ -330,8 +321,25 @@ class LaporanController extends Controller
                 abort(403, 'Barang ini bukan milik cabang yang sedang diakses.');
             }
             
+            // ✅ HITUNG STOK AWAL (dari transaksi sebelum periode)
             $stokAwal = $this->hitungStokAwal($barangId, $tanggalDari);
             
+            // ✅ TAMBAHKAN BARIS STOK AWAL
+            $stokAwalEntry = [
+                'tanggal' => Carbon::parse($tanggalDari)->subDay()->format('Y-m-d'),
+                'nomor' => '-',
+                'keterangan' => 'Saldo Awal Periode',
+                'masuk' => '-',
+                'keluar' => '-',
+                'sisa' => $stokAwal,
+                'paraf' => '-',
+                'ed' => '-',
+                'sort_date' => Carbon::parse($tanggalDari)->subDay(),
+                'qty_dasar' => $stokAwal,
+                'type' => 'saldo_awal'
+            ];
+            
+            // PEMBELIAN dalam periode
             $pembelianQuery = DetailPembelian::where('barang_id', $barangId)
                 ->whereHas('pembelian', function($q) use ($tanggalDari, $tanggalSampai, $cabangId) {
                     $q->where('status', 'approved')
@@ -358,13 +366,14 @@ class LaporanController extends Controller
                         'keluar' => '-',
                         'sisa' => 0,
                         'paraf' => $detail->pembelian->user->name ?? '-',
-                        'ed' => $detail->tanggal_kadaluarsa ? \Carbon\Carbon::parse($detail->tanggal_kadaluarsa)->format('m/y') : '-',
+                        'ed' => $detail->tanggal_kadaluarsa ? Carbon::parse($detail->tanggal_kadaluarsa)->format('m/y') : '-',
                         'sort_date' => $detail->pembelian->tanggal_pembelian,
                         'qty_dasar' => $qtyDasar,
                         'type' => 'masuk'
                     ];
                 });
             
+            // PENJUALAN dalam periode
             $penjualanQuery = DetailPenjualan::where('barang_id', $barangId)
                 ->whereHas('penjualan', function($q) use ($tanggalDari, $tanggalSampai, $cabangId) {
                     $q->whereDate('tanggal_penjualan', '>=', $tanggalDari)
@@ -397,20 +406,28 @@ class LaporanController extends Controller
                     ];
                 });
             
-            $kartuStok = $pembelian->concat($penjualan)
+            // ✅ GABUNGKAN: Stok Awal + Pembelian + Penjualan
+            $kartuStok = collect([$stokAwalEntry])
+                ->concat($pembelian)
+                ->concat($penjualan)
                 ->sortBy('sort_date')
                 ->values();
             
-            $sisa = $stokAwal;
-            $kartuStok = $kartuStok->map(function($item) use (&$sisa) {
-                if ($item['type'] === 'masuk') {
-                    $sisa += $item['qty_dasar'];
-                } else {
-                    $sisa -= $item['qty_dasar'];
-                }
-                $item['sisa'] = $sisa;
-                return $item;
-            });
+            // ✅ HITUNG RUNNING BALANCE
+           $sisa = 0; // Mulai dari 0
+$kartuStok = $kartuStok->map(function($item) use (&$sisa) {
+    // Proses SEMUA baris termasuk Stok Awal
+    if ($item['type'] === 'saldo_awal') {
+        $sisa = $item['qty_dasar']; // Set dari qty_dasar
+    } elseif ($item['type'] === 'masuk') {
+        $sisa += $item['qty_dasar'];
+    } elseif ($item['type'] === 'keluar') {
+        $sisa -= $item['qty_dasar'];
+    }
+    
+    $item['sisa'] = $sisa; // Update untuk SETIAP baris
+    return $item;
+});
             
             $stokAkhir = $sisa;
         }
@@ -431,6 +448,7 @@ class LaporanController extends Controller
         $barang = Barang::findOrFail($barangId);
         $cabangId = $this->getActiveCabangId();
         
+        // Total MASUK dari pembelian SEBELUM tanggal_dari
         $totalMasukQuery = DetailPembelian::where('barang_id', $barangId)
             ->whereHas('pembelian', function($q) use ($tanggalDari, $cabangId) {
                 $q->where('status', 'approved')
@@ -448,6 +466,7 @@ class LaporanController extends Controller
                 return $this->convertToStokDasar($detail->jumlah, $detail->satuan, $barang);
             });
         
+        // Total KELUAR dari penjualan SEBELUM tanggal_dari
         $totalKeluarQuery = DetailPenjualan::where('barang_id', $barangId)
             ->whereHas('penjualan', function($q) use ($tanggalDari, $cabangId) {
                 $q->where('tanggal_penjualan', '<', $tanggalDari);
@@ -486,7 +505,7 @@ class LaporanController extends Controller
 
     public function exportExcel(Request $request)
     {
-        $jenis = $request->get('jenis', 'penjualan'); // ✅ Ubah dari 'type' ke 'jenis' sesuai dengan view
+        $jenis = $request->get('jenis', 'penjualan');
         $cabangId = $this->getActiveCabangId();
         
         switch ($jenis) {
@@ -510,7 +529,6 @@ class LaporanController extends Controller
                 return Excel::download(new PenjualanExport($detailPenjualan), $fileName);
 
             case 'pembelian':
-                // ✅ IMPLEMENTASI EXPORT PEMBELIAN
                 $data = $this->applyDateFilter($request, Pembelian::class, 'tanggal_pembelian', 'approved');
                 
                 $detailPembelianQuery = DetailPembelian::join('pembelian', 'detail_pembelian.pembelian_id', '=', 'pembelian.id')

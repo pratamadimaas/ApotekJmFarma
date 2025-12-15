@@ -92,7 +92,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @if($kartuStok->isEmpty())
+                                    @if($kartuStok->where('type', '!=', 'saldo_awal')->isEmpty())
                                         <tr>
                                             <td colspan="7" class="text-center text-muted py-4">
                                                 <i class="bi bi-inbox fs-1 d-block mb-2"></i>
@@ -100,60 +100,51 @@
                                             </td>
                                         </tr>
                                     @else
-                                        {{-- Tampilkan Stok Awal --}}
-                                        <tr class="table-primary fw-bold">
-                                            <td class="text-center">-</td>
-                                            <td>STOK AWAL</td>
-                                            <td class="text-center">-</td>
-                                            <td class="text-center">-</td>
-                                            <td class="text-center">{{ number_format($stokAwal, 0, ',', '.') }}</td>
-                                            <td class="text-center">-</td>
-                                            <td class="text-center">-</td>
-                                        </tr>
-
-                                        {{-- Loop Data Transaksi --}}
+                                        {{-- ✅ LOOP HANYA TRANSAKSI (SKIP SALDO_AWAL) --}}
                                         @foreach($kartuStok as $item)
-                                            <tr>
-                                                <td class="text-center">
-                                                    <small>{{ \Carbon\Carbon::parse($item['tanggal'])->format('d/m/Y') }}</small>
-                                                </td>
-                                                <td>
-                                                    <small class="text-muted d-block" style="font-size: 0.75rem;">
-                                                        {{ $item['nomor'] }}
-                                                    </small>
-                                                    <span class="fw-semibold">{{ $item['keterangan'] }}</span>
-                                                </td>
-                                                <td class="text-center">
-                                                    @if($item['masuk'] !== '-')
-                                                        <span class="badge bg-success">{{ $item['masuk'] }}</span>
-                                                    @else
-                                                        <span class="text-muted">-</span>
-                                                    @endif
-                                                </td>
-                                                <td class="text-center">
-                                                    @if($item['keluar'] !== '-')
-                                                        <span class="badge bg-danger">{{ $item['keluar'] }}</span>
-                                                    @else
-                                                        <span class="text-muted">-</span>
-                                                    @endif
-                                                </td>
-                                                <td class="text-center fw-bold">
-                                                    {{ number_format($item['sisa'], 0, ',', '.') }}
-                                                </td>
-                                                <td class="text-center">
-                                                    <small class="text-muted">{{ $item['paraf'] }}</small>
-                                                </td>
-                                                <td class="text-center">
-                                                    @if($item['ed'] && $item['ed'] !== '-')
-                                                        <small class="badge bg-warning text-dark">{{ $item['ed'] }}</small>
-                                                    @else
-                                                        <span class="text-muted">-</span>
-                                                    @endif
-                                                </td>
-                                            </tr>
+                                            @if($item['type'] !== 'saldo_awal')
+                                                <tr>
+                                                    <td class="text-center">
+                                                        <small>{{ \Carbon\Carbon::parse($item['tanggal'])->format('d/m/Y') }}</small>
+                                                    </td>
+                                                    <td>
+                                                        <small class="text-muted d-block" style="font-size: 0.75rem;">
+                                                            {{ $item['nomor'] }}
+                                                        </small>
+                                                        <span class="fw-semibold">{{ $item['keterangan'] }}</span>
+                                                    </td>
+                                                    <td class="text-center">
+                                                        @if($item['masuk'] !== '-')
+                                                            <span class="badge bg-success">{{ $item['masuk'] }}</span>
+                                                        @else
+                                                            <span class="text-muted">-</span>
+                                                        @endif
+                                                    </td>
+                                                    <td class="text-center">
+                                                        @if($item['keluar'] !== '-')
+                                                            <span class="badge bg-danger">{{ $item['keluar'] }}</span>
+                                                        @else
+                                                            <span class="text-muted">-</span>
+                                                        @endif
+                                                    </td>
+                                                    <td class="text-center fw-bold">
+                                                        {{ number_format($item['sisa'], 0, ',', '.') }}
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <small class="text-muted">{{ $item['paraf'] }}</small>
+                                                    </td>
+                                                    <td class="text-center">
+                                                        @if($item['ed'] && $item['ed'] !== '-')
+                                                            <small class="badge bg-warning text-dark">{{ $item['ed'] }}</small>
+                                                        @else
+                                                            <span class="text-muted">-</span>
+                                                        @endif
+                                                    </td>
+                                                </tr>
+                                            @endif
                                         @endforeach
 
-                                        {{-- Tampilkan Stok Akhir --}}
+                                        {{-- ✅ TAMBAHKAN BARIS STOK AKHIR --}}
                                         <tr class="table-success fw-bold">
                                             <td class="text-center">-</td>
                                             <td>STOK AKHIR</td>
@@ -170,7 +161,7 @@
 
                         {{-- Summary Cards --}}
                         <div class="row mt-4 g-3">
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <div class="card border-success">
                                     <div class="card-body text-center py-3">
                                         <small class="text-muted d-block mb-1">Total Masuk</small>
@@ -181,7 +172,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <div class="card border-danger">
                                     <div class="card-body text-center py-3">
                                         <small class="text-muted d-block mb-1">Total Keluar</small>
@@ -192,21 +183,15 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <div class="card border-primary">
                                     <div class="card-body text-center py-3">
                                         <small class="text-muted d-block mb-1">Stok Akhir Periode</small>
                                         <h4 class="text-primary mb-0">{{ number_format($stokAkhir, 0, ',', '.') }}</h4>
                                         <small class="text-muted">{{ $barang->satuan_terkecil }}</small>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="card border-info">
-                                    <div class="card-body text-center py-3">
-                                        <small class="text-muted d-block mb-1">Stok Real-time</small>
-                                        <h4 class="text-info mb-0">{{ number_format($barang->stok, 0, ',', '.') }}</h4>
-                                        <small class="text-muted">{{ $barang->satuan_terkecil }}</small>
+                                        <div class="mt-2">
+                                            <small class="text-muted">Stok Real-time: <strong>{{ number_format($barang->stok, 0, ',', '.') }}</strong></small>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

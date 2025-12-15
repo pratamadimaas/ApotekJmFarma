@@ -102,27 +102,29 @@ class DashboardController extends Controller
 
         // 3. GRAFIK PENJUALAN 7 HARI TERAKHIR (EXCLUDE RETURN)
         $grafikPenjualan = [];
-        for ($i = 6; $i >= 0; $i--) {
-            $tanggal = Carbon::today()->subDays($i);
-            
-            $totalKotor = Penjualan::whereDate('tanggal_penjualan', $tanggal)
-                ->when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
-                ->sum('grand_total');
-            
-            // ✅ Kurangi return di hari tersebut
-            $totalReturn = DetailPenjualan::where('is_return', true)
-                ->whereDate('return_date', $tanggal)
-                ->when($cabangId, fn($q) => $q->whereHas('penjualan', fn($pq) => $pq->where('cabang_id', $cabangId)))
-                ->sum('jumlah_return') ?? 0;
-            
-            $total = $totalKotor - $totalReturn;
-            
-            $grafikPenjualan[] = [
-                'tanggal' => $tanggal->format('d/m'),
-                'hari' => $tanggal->isoFormat('dddd'),
-                'total' => $total
-            ];
-        }
+for ($i = 6; $i >= 0; $i--) {
+    $tanggal = Carbon::today()->subDays($i);
+    
+    $totalKotor = Penjualan::whereDate('tanggal_penjualan', $tanggal)
+        ->when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
+        ->sum('grand_total');
+    
+    // ✅ Kurangi return di hari tersebut
+    $totalReturn = DetailPenjualan::where('is_return', true)
+        ->whereDate('return_date', $tanggal)
+        ->when($cabangId, fn($q) => $q->whereHas('penjualan', fn($pq) => $pq->where('cabang_id', $cabangId)))
+        ->sum('jumlah_return') ?? 0;
+    
+    $total = $totalKotor - $totalReturn;
+    
+    // ✅ PERBAIKAN: Gunakan format yang konsisten untuk JavaScript
+    $grafikPenjualan[] = [
+        'tanggal' => $tanggal->format('Y-m-d'), // Format ISO standar
+        'label' => $tanggal->format('d/m'), // Label untuk display
+        'hari' => $tanggal->isoFormat('dddd'),
+        'total' => $total
+    ];
+}
 
         // 4. TOP 5 BARANG TERLARIS BULAN INI (EXCLUDE RETURN)
         $topBarang = DB::table('detail_penjualan')
