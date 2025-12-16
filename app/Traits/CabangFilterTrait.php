@@ -5,23 +5,21 @@ namespace App\Traits;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use App\Models\Cabang;
 
 trait CabangFilterTrait
 {
     /**
-     * Ambil Cabang ID yang sedang aktif untuk user saat ini
-     * 
-     * Logic:
-     * - Super Admin: baca dari session 'selected_cabang_id'
-     *   - Jika ada session: gunakan cabang tersebut
-     *   - Jika tidak ada: return null (tampilkan semua cabang)
-     * - Admin Cabang / Kasir: return cabang_id dari user (tidak bisa diganti)
-     * 
-     * @return int|null
+     * Ambil Cabang ID yang sedang aktif
+     * ✅ DENGAN CACHE CLEAR
      */
     protected function getActiveCabangId()
     {
+        // ✅ Clear cache dulu
+        $this->clearCabangCache();
+        
         $user = Auth::user();
         
         if (!$user) {
@@ -29,48 +27,30 @@ trait CabangFilterTrait
             return null;
         }
         
-        // ✅ FIXED: Super Admin bisa filter via session
-        if (method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) {
+        // Super Admin: baca dari session
+        if ($this->isSuperAdmin()) {
             $selectedCabangId = Session::get('selected_cabang_id');
             
             Log::info('getActiveCabangId: Super Admin', [
                 'user_id' => $user->id,
-                'user_name' => $user->name,
-                'session_cabang_id' => $selectedCabangId
-            ]);
-            
-            // Return session value (bisa null = semua cabang, bisa ID tertentu)
-            return $selectedCabangId;
-        }
-        
-        // Fallback: cek langsung dari role
-        if ($user->role === 'super_admin') {
-            $selectedCabangId = Session::get('selected_cabang_id');
-            
-            Log::info('getActiveCabangId: Super Admin by role', [
-                'user_id' => $user->id,
-                'user_name' => $user->name,
                 'session_cabang_id' => $selectedCabangId
             ]);
             
             return $selectedCabangId;
         }
         
-        // ✅ User biasa (Admin Cabang / Kasir): ambil dari field cabang_id
+        // User biasa: ambil dari cabang_id
         $cabangId = $user->cabang_id;
         
         Log::info('getActiveCabangId: Regular User', [
             'user_id' => $user->id,
-            'user_name' => $user->name,
             'user_role' => $user->role,
             'cabang_id' => $cabangId
         ]);
         
-        // ⚠️ VALIDASI: Pastikan cabang_id tidak null untuk user non-super_admin
         if ($cabangId === null) {
-            Log::error('getActiveCabangId: User cabang_id is NULL!', [
+            Log::error('getActiveCabangId: cabang_id is NULL!', [
                 'user_id' => $user->id,
-                'user_name' => $user->name,
                 'user_role' => $user->role
             ]);
         }
@@ -79,26 +59,61 @@ trait CabangFilterTrait
     }
 
     /**
+     * ✅ CLEAR CACHE METHOD
+     */
+    protected function clearCabangCache()
+    {
+        $user = Auth::user();
+        
+        if (!$user) {
+            return;
+        }
+        
+        // Tentukan cabang yang akan di-clear cache-nya
+        $cabangIds = [];
+        
+        if ($this->isSuperAdmin()) {
+            $selectedCabangId = Session::get('selected_cabang_id');
+            if ($selectedCabangId) {
+                $cabangIds[] = $selectedCabangId;
+            }
+            // Juga clear cache "all cabang" untuk super admin
+            $cabangIds[] = 'all';
+        } else {
+            $cabangIds[] = $user->cabang_id;
+        }
+        
+        // Clear cache untuk setiap cabang
+        foreach ($cabangIds as $cabangId) {
+            Cache::forget('barang_list_' . $cabangId);
+            Cache::forget('barang_kategori_' . $cabangId);
+            Cache::forget('cabang_data_' . $cabangId);
+        }
+        
+        // Clear query cache MySQL (jika support)
+        try {
+            DB::unprepared('RESET QUERY CACHE');
+        } catch (\Exception $e) {
+            // Ignore jika tidak support
+        }
+    }
+
+    /**
      * Ambil nama cabang yang sedang aktif
-     * 
-     * @return string
      */
     public function getActiveCabangName()
     {
         $cabangId = $this->getActiveCabangId();
         
-        // Untuk Super Admin tanpa filter (session kosong)
         if (!$cabangId) {
             return 'Semua Cabang';
         }
         
-        // Cari nama cabang berdasarkan ID
         $cabang = Cabang::find($cabangId);
         
         if (!$cabang) {
             Log::warning('getActiveCabangName: Cabang not found', [
-                'cabang_id' => $cabangId,
-                'user_id' => auth()->id()
+                'cabang_id' => $cabangId
             ]);
             return 'Cabang Tidak Ditemukan';
         }
@@ -108,38 +123,30 @@ trait CabangFilterTrait
 
     /**
      * Apply filter cabang ke query builder
-     * 
-     * PENTING: Sekarang menggunakan session untuk Super Admin!
-     * 
-     * @param \Illuminate\Database\Eloquent\Builder $query
-     * @return \Illuminate\Database\Eloquent\Builder
      */
     protected function applyCabangFilter($query)
     {
         $cabangId = $this->getActiveCabangId();
         
-        Log::info('applyCabangFilter called', [
+        Log::info('applyCabangFilter', [
             'cabang_id' => $cabangId,
-            'user_id' => auth()->id(),
-            'is_super_admin' => auth()->user()->isSuperAdmin() ?? false
+            'is_super_admin' => $this->isSuperAdmin()
         ]);
         
-        // Jika cabangId = null (Super Admin tanpa filter), tidak ada filter
         if ($cabangId === null) {
-            Log::info('applyCabangFilter: No filter applied (showing all cabang)');
+            Log::info('applyCabangFilter: No filter (showing all)');
             return $query;
         }
         
-        // Filter berdasarkan cabang yang dipilih
-        Log::info('applyCabangFilter: Filtering by cabang_id', ['cabang_id' => $cabangId]);
+        Log::info('applyCabangFilter: Filtering by cabang_id', [
+            'cabang_id' => $cabangId
+        ]);
+        
         return $query->where('cabang_id', $cabangId);
     }
 
     /**
-     * Cek apakah user memiliki akses ke cabang tertentu
-     * 
-     * @param int $cabangId
-     * @return bool
+     * Cek akses ke cabang tertentu
      */
     protected function hasAccessToCabang($cabangId)
     {
@@ -149,26 +156,15 @@ trait CabangFilterTrait
             return false;
         }
         
-        // Super Admin punya akses ke semua cabang
-        if (method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) {
+        if ($this->isSuperAdmin()) {
             return true;
         }
         
-        // Fallback: cek langsung dari role
-        if ($user->role === 'super_admin') {
-            return true;
-        }
-        
-        // User biasa: hanya akses ke cabang sendiri
         return $user->cabang_id == $cabangId;
     }
 
     /**
      * Validasi akses cabang atau abort 403
-     * 
-     * @param int $cabangId
-     * @return void
-     * @throws \Symfony\Component\HttpKernel\Exception\HttpException
      */
     protected function validateCabangAccess($cabangId)
     {
@@ -178,32 +174,31 @@ trait CabangFilterTrait
     }
 
     /**
-     * Cek apakah user adalah Super Admin
-     * 
-     * @return bool
+     * Role checkers
      */
     protected function isSuperAdmin()
     {
         $user = auth()->user();
-        return $user && $user->role === 'super_admin';
+        
+        if (!$user) {
+            return false;
+        }
+        
+        // Cek via method jika ada
+        if (method_exists($user, 'isSuperAdmin')) {
+            return $user->isSuperAdmin();
+        }
+        
+        // Fallback: cek role langsung
+        return $user->role === 'super_admin';
     }
 
-    /**
-     * Cek apakah user adalah Admin Cabang
-     * 
-     * @return bool
-     */
     protected function isAdminCabang()
     {
         $user = auth()->user();
         return $user && $user->role === 'admin_cabang';
     }
 
-    /**
-     * Cek apakah user adalah Kasir
-     * 
-     * @return bool
-     */
     protected function isKasir()
     {
         $user = auth()->user();

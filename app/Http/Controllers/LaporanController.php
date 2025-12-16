@@ -65,6 +65,48 @@ class LaporanController extends Controller
         $totalPenjualan = (clone $query)->sum('grand_total');
         $jumlahTransaksi = (clone $query)->count();
 
+        $cabangId = $this->getActiveCabangId();
+        
+        // 🟢 (PERUBAHAN) LOGIKA HPP dan LABA KOTOR DARI LABA RUGI:
+        
+        // 1. Hitung HPP barang yang terjual (bukan return)
+        $hppQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
+                            ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
+                            ->whereDate('penjualan.tanggal_penjualan', '>=', $tanggalDari)
+                            ->whereDate('penjualan.tanggal_penjualan', '<=', $tanggalSampai)
+                            ->where(function($q) {
+                                $q->where('detail_penjualan.is_return', false)
+                                  ->orWhereNull('detail_penjualan.is_return');
+                            });
+        
+        if ($cabangId !== null) {
+            $hppQuery->where('penjualan.cabang_id', $cabangId);
+        }
+        
+        $totalHPP = $hppQuery->select(DB::raw('SUM(detail_penjualan.jumlah * barang.harga_beli) as total_hpp'))
+                             ->value('total_hpp') ?? 0;
+                             
+        // 2. Hitung Nilai Return Penjualan (nilai yang dikembalikan ke pelanggan)
+        $totalReturnQuery = DetailPenjualan::where('is_return', true)
+                                         ->whereDate('return_date', '>=', $tanggalDari)
+                                         ->whereDate('return_date', '<=', $tanggalSampai);
+        
+        if ($cabangId !== null) {
+            $totalReturnQuery->whereHas('penjualan', function($q) use ($cabangId) {
+                $q->where('cabang_id', $cabangId);
+            });
+        }
+        
+        $totalNilaiReturn = $totalReturnQuery->sum('subtotal') ?? 0; // menggunakan subtotal karena ini nilai penjualan yang di-return
+
+        // 3. Hitung Pendapatan Bersih (Total Penjualan - Total Nilai Return)
+        $pendapatanBersih = $totalPenjualan - $totalNilaiReturn;
+        
+        // 4. Hitung Laba Kotor (Pendapatan Bersih - HPP)
+        $labaKotor = $pendapatanBersih - $totalHPP;
+        // ----------------------------------------------------------------------
+
+        // 🟢 (MODIFIKASI) Hitung penjualan per hari dengan laba kotor
         $perHari = (clone $query)
                         ->select(
                             DB::raw('DATE(tanggal_penjualan) as tanggal'),
@@ -73,12 +115,45 @@ class LaporanController extends Controller
                         )
                         ->groupBy('tanggal')
                         ->orderBy('tanggal', 'asc')
-                        ->get();
+                        ->get()
+                        ->map(function($item) use ($cabangId) {
+                            // Hitung HPP untuk tanggal ini
+                            $hppQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
+                                        ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
+                                        ->whereDate('penjualan.tanggal_penjualan', $item->tanggal)
+                                        ->where(function($q) {
+                                            $q->where('detail_penjualan.is_return', false)
+                                              ->orWhereNull('detail_penjualan.is_return');
+                                        });
+                            
+                            if ($cabangId !== null) {
+                                $hppQuery->where('penjualan.cabang_id', $cabangId);
+                            }
+                            
+                            $hpp = $hppQuery->select(DB::raw('SUM(detail_penjualan.jumlah * barang.harga_beli) as total_hpp'))
+                                           ->value('total_hpp') ?? 0;
+                            
+                            // Hitung nilai return untuk tanggal ini
+                            $returnQuery = DetailPenjualan::whereDate('return_date', $item->tanggal)
+                                                    ->where('is_return', true);
+                            
+                            if ($cabangId !== null) {
+                                $returnQuery->whereHas('penjualan', function($q) use ($cabangId) {
+                                    $q->where('cabang_id', $cabangId);
+                                });
+                            }
+                            
+                            $nilaiReturn = $returnQuery->sum('subtotal') ?? 0;
+                            
+                            // Laba kotor = (Total Penjualan - Nilai Return) - HPP
+                            $item->laba_kotor = ($item->total - $nilaiReturn) - $hpp;
+                            
+                            return $item;
+                        });
 
-        $cabangId = $this->getActiveCabangId();
-        
+        // Ambil barang terlaris seperti sebelumnya
         $barangTerlarisQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
-                                         ->whereBetween('penjualan.tanggal_penjualan', [$tanggalDari, $tanggalSampai]);
+                                             ->whereBetween('penjualan.tanggal_penjualan', [$tanggalDari, $tanggalSampai]);
         
         if ($cabangId !== null) {
             $barangTerlarisQuery->where('penjualan.cabang_id', $cabangId);
@@ -88,12 +163,12 @@ class LaporanController extends Controller
                                              'detail_penjualan.barang_id',
                                              DB::raw('SUM(detail_penjualan.jumlah) as total_qty'),
                                              DB::raw('SUM(detail_penjualan.subtotal) as total_omzet')
-                                         )
-                                         ->groupBy('detail_penjualan.barang_id')
-                                         ->orderBy('total_qty', 'desc')
-                                         ->limit(10)
-                                         ->with('barang')
-                                         ->get();
+                                           )
+                                             ->groupBy('detail_penjualan.barang_id')
+                                             ->orderBy('total_qty', 'desc')
+                                             ->limit(10)
+                                             ->with('barang')
+                                             ->get();
 
         $perMetode = (clone $query)
                         ->select(
@@ -106,65 +181,7 @@ class LaporanController extends Controller
 
         return view('pages.laporan.penjualan', compact(
             'tanggalDari', 'tanggalSampai', 'totalPenjualan', 'jumlahTransaksi', 
-            'perHari', 'barangTerlaris', 'perMetode'
-        ));
-    }
-
-    public function pembelian(Request $request)
-    {
-        $data = $this->applyDateFilter($request, Pembelian::class, 'tanggal_pembelian', 'approved');
-        $query = $data['query'];
-        $tanggalDari = $data['tanggalDari'];
-        $tanggalSampai = $data['tanggalSampai'];
-        
-        $totalPembelian = (clone $query)->sum('grand_total');
-        $jumlahTransaksi = (clone $query)->count();
-
-        $perHari = (clone $query)
-                        ->select(
-                            DB::raw('DATE(tanggal_pembelian) as tanggal'),
-                            DB::raw('COUNT(*) as jumlah_transaksi'),
-                            DB::raw('SUM(grand_total) as total')
-                        )
-                        ->groupBy('tanggal')
-                        ->orderBy('tanggal', 'asc')
-                        ->get();
-
-        $cabangId = $this->getActiveCabangId();
-        
-        $barangTerbanyakQuery = DetailPembelian::join('pembelian', 'detail_pembelian.pembelian_id', '=', 'pembelian.id')
-                                         ->whereBetween('pembelian.tanggal_pembelian', [$tanggalDari, $tanggalSampai])
-                                         ->where('pembelian.status', 'approved');
-        
-        if ($cabangId !== null) {
-            $barangTerbanyakQuery->where('pembelian.cabang_id', $cabangId);
-        }
-        
-        $barangTerbanyak = $barangTerbanyakQuery->select(
-                                             'detail_pembelian.barang_id',
-                                             DB::raw('SUM(detail_pembelian.jumlah) as total_qty'),
-                                             DB::raw('SUM(detail_pembelian.subtotal) as total_harga')
-                                         )
-                                         ->groupBy('detail_pembelian.barang_id')
-                                         ->orderBy('total_qty', 'desc')
-                                         ->limit(10)
-                                         ->with('barang')
-                                         ->get();
-
-        $perSupplier = (clone $query)
-                        ->select(
-                            'supplier_id',
-                            DB::raw('COUNT(*) as jumlah'),
-                            DB::raw('SUM(grand_total) as total')
-                        )
-                        ->groupBy('supplier_id')
-                        ->with('supplier')
-                        ->orderBy('total', 'desc')
-                        ->get();
-
-        return view('pages.laporan.pembelian', compact(
-            'tanggalDari', 'tanggalSampai', 'totalPembelian', 'jumlahTransaksi', 
-            'perHari', 'barangTerbanyak', 'perSupplier'
+            'perHari', 'barangTerlaris', 'perMetode', 'labaKotor' // <-- labaKotor dikirim ke view
         ));
     }
 

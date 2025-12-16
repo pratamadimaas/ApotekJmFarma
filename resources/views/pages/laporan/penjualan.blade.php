@@ -44,7 +44,8 @@
     </div>
 
     <div class="row mb-4">
-        <div class="col-md-4">
+        {{-- Ubah col-md-4 menjadi col-md-3 untuk menampung 4 kolom --}}
+        <div class="col-md-3"> 
             <div class="card bg-primary text-white shadow">
                 <div class="card-body">
                     <i class="bi bi-cash-stack float-end fa-2x"></i>
@@ -53,7 +54,19 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        
+        {{-- 🟢 (BARU) Kartu Total Laba Kotor --}}
+        <div class="col-md-3">
+            <div class="card bg-warning text-white shadow">
+                <div class="card-body">
+                    <i class="bi bi-graph-up-arrow float-end fa-2x"></i>
+                    <h6>Total Laba Kotor</h6>
+                    <h3 class="fw-bold">Rp {{ number_format($labaKotor, 0, ',', '.') }}</h3>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
             <div class="card bg-success text-white shadow">
                 <div class="card-body">
                     <i class="bi bi-receipt-cutoff float-end fa-2x"></i>
@@ -62,7 +75,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card bg-info text-white shadow">
                 <div class="card-body">
                     <i class="bi bi-currency-dollar float-end fa-2x"></i>
@@ -72,7 +85,6 @@
             </div>
         </div>
     </div>
-
     <div class="row">
         <div class="col-lg-6">
             <div class="card mb-4 shadow">
@@ -88,14 +100,26 @@
                                 <tr>
                                     <th>Tanggal</th>
                                     <th>Jumlah Transaksi</th>
+                                    <th class="text-end">Total Laba</th>
                                     <th class="text-end">Total Penjualan</th>
                                 </tr>
                             </thead>
                             <tbody>
+                                @php
+                                    $totalLabaKeseluruhan = 0;
+                                @endphp
                                 @foreach($perHari as $item)
+                                @php
+                                    $totalLabaKeseluruhan += $item->laba_kotor;
+                                @endphp
                                 <tr>
                                     <td>{{ \Carbon\Carbon::parse($item->tanggal)->format('d F Y') }}</td>
                                     <td>{{ $item->jumlah_transaksi }}</td>
+                                    <td class="text-end">
+                                        <span class="badge {{ $item->laba_kotor >= 0 ? 'bg-success' : 'bg-danger' }}">
+                                            Rp {{ number_format($item->laba_kotor, 0, ',', '.') }}
+                                        </span>
+                                    </td>
                                     <td class="text-end">Rp {{ number_format($item->total, 0, ',', '.') }}</td>
                                 </tr>
                                 @endforeach
@@ -103,6 +127,11 @@
                             <tfoot>
                                 <tr>
                                     <th colspan="2">TOTAL KESELURUHAN</th>
+                                    <th class="text-end">
+                                        <span class="badge {{ $totalLabaKeseluruhan >= 0 ? 'bg-success' : 'bg-danger' }}">
+                                            Rp {{ number_format($totalLabaKeseluruhan, 0, ',', '.') }}
+                                        </span>
+                                    </th>
                                     <th class="text-end">Rp {{ number_format($totalPenjualan, 0, ',', '.') }}</th>
                                 </tr>
                             </tfoot>

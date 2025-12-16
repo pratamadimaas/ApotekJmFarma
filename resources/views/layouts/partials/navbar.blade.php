@@ -1,36 +1,40 @@
 <nav class="navbar navbar-expand-lg navbar-custom">
     <div class="container-fluid">
-        {{-- Tombol Toggle Sidebar untuk Mobile (d-lg-none) --}}
+        {{-- Tombol Toggle Sidebar untuk Mobile --}}
         <button class="btn btn-link d-lg-none me-2" id="sidebarToggle" type="button">
             <i class="bi bi-list fs-4" style="color: var(--primary-color);"></i>
         </button>
         
-        
         {{-- LOGO BRAND --}}
-<a class="navbar-brand d-flex align-items-center me-auto" href="{{ route('dashboard') }}" style="gap: 12px;">
-    <div class="brand-icon-box">
-        <i class="bi bi-capsule-pill text-white" style="font-size: 1.5rem; transform: rotate(-45deg);"></i>
-    </div>
-    <span class="brand-text" id="brandText">
-        @if(auth()->user()->isSuperAdmin())
-            {{-- Super Admin: Tampilkan cabang yang dipilih dari filter (FRESH dari DB) --}}
-            @php
-                $selectedCabangId = session('selected_cabang_id');
-                // Ambil data FRESH dari database, bukan cache
-                $selectedCabang = $selectedCabangId ? \App\Models\Cabang::where('id', $selectedCabangId)->first() : null;
-            @endphp
-            {{ $selectedCabang ? $selectedCabang->nama_cabang : 'Apotek JM Farma' }}
-        @elseif(auth()->user()->cabang)
-            {{-- Admin Cabang & Kasir: Tampilkan cabang mereka (FRESH dari DB) --}}
-            {{ auth()->user()->fresh()->cabang->nama_cabang ?? 'Apotek JM Farma' }}
-        @else
-            {{-- Fallback --}}
-            Apotek JM Farma
-        @endif
-    </span>
-</a>
+        <a class="navbar-brand d-flex align-items-center me-auto" href="{{ route('dashboard') }}" style="gap: 12px;">
+            <div class="brand-icon-box">
+                <i class="bi bi-capsule-pill text-white" style="font-size: 1.5rem; transform: rotate(-45deg);"></i>
+            </div>
+            <span class="brand-text" id="brandText">
+                @if(auth()->user()->isSuperAdmin())
+                    @php
+                        $selectedCabangId = session('selected_cabang_id');
+                        // ✅ Jika session kosong/null, tampilkan "Semua Cabang"
+                        if ($selectedCabangId) {
+                            $selectedCabang = \App\Models\Cabang::find($selectedCabangId);
+                            $displayText = $selectedCabang ? $selectedCabang->nama_cabang : 'Apotek JM Farma';
+                        } else {
+                            $displayText = 'Semua Cabang';
+                        }
+                    @endphp
+                    {{ $displayText }}
+                @elseif(auth()->user()->cabang)
+                    @php
+                        $userCabang = \App\Models\Cabang::find(auth()->user()->cabang_id);
+                    @endphp
+                    {{ $userCabang->nama_cabang ?? 'Apotek JM Farma' }}
+                @else
+                    Apotek JM Farma
+                @endif
+            </span>
+        </a>
         
-        {{-- Tombol Toggler Navigasi Utama (d-flex/ms-auto) --}}
+        {{-- Tombol Toggler Navigasi Utama --}}
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
             <span class="navbar-toggler-icon"></span>
         </button>
@@ -44,6 +48,12 @@
                 <li class="nav-item me-3 d-flex align-items-center">
                     <select class="form-select form-select-sm" id="filterCabang" 
                             style="min-width: 200px; border-radius: 8px; border: 2px solid var(--primary-color); font-weight: 600;">
+                        {{-- ✅ OPSI PERTAMA: Semua Cabang (value kosong) --}}
+                        <option value="" {{ session('selected_cabang_id') === null ? 'selected' : '' }}>
+                            🌐 Semua Cabang
+                        </option>
+                        
+                        {{-- ✅ OPSI CABANG SPESIFIK --}}
                         @foreach(\App\Models\Cabang::aktif()->orderBy('nama_cabang')->get() as $c)
                         <option value="{{ $c->id }}" {{ session('selected_cabang_id') == $c->id ? 'selected' : '' }}>
                             🏢 {{ $c->nama_cabang }}
@@ -62,11 +72,9 @@
                 </li>
                 @endif
                 @endif
-
-
                 
                 {{-- 📅 WAKTU SAAT INI --}}
-                <li class="nav-item me-3 d-flex align-items-center d-none d-md-block"> {{-- Sembunyikan di layar sangat kecil --}}
+                <li class="nav-item me-3 d-flex align-items-center d-none d-md-block">
                     <span class="navbar-text" style="color: var(--text-secondary); font-weight: 500; font-size: 0.9rem;">
                         <i class="bi bi-calendar3 me-2" style="color: var(--primary-color);"></i>
                         <span id="current-datetime"></span>
@@ -108,11 +116,9 @@
     </div>
 </nav>
 
-{{-- STYLES: Digabungkan dan Disederhanakan --}}
 @push('styles')
 <style>
     :root {
-        /* Asumsi Anda memiliki variabel CSS ini */
         --primary-color: #667eea; 
         --text-secondary: #4b5563;
     }
@@ -145,14 +151,10 @@
         justify-content: center; 
         box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
     }
-    
-    /* Hover effect untuk logo */
     .navbar-brand:hover .brand-icon-box {
         transform: scale(1.1) rotate(5deg);
         box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
     }
-    
-    /* Hover effect untuk dropdown items */
     .dropdown-item {
         border-radius: 8px; 
         padding: 0.65rem 1rem; 
@@ -168,10 +170,9 @@
 </style>
 @endpush
 
-{{-- SCRIPTS: Dipindahkan ke @push('scripts') --}}
 @push('scripts')
 <script>
-    // Update waktu real-time
+    // ✅ Update waktu real-time
     function updateDateTime() {
         const now = new Date();
         const options = { 
@@ -185,39 +186,69 @@
         };
         const dtElement = document.getElementById('current-datetime');
         if (dtElement) {
-             dtElement.textContent = now.toLocaleDateString('id-ID', options);
+            dtElement.textContent = now.toLocaleDateString('id-ID', options);
         }
     }
     
     updateDateTime();
     setInterval(updateDateTime, 1000);
     
-    // Logic AJAX untuk filter cabang
+    // ✅ AJAX Filter Cabang dengan Support "Semua Cabang"
     const filterCabang = document.getElementById('filterCabang');
     if (filterCabang) {
         filterCabang.addEventListener('change', function() {
-            const selectedCabangId = this.value;
+            const selectedCabangId = this.value; // Bisa "" (empty) atau ID cabang
+            
+            // Show loading indicator
+            this.disabled = true;
+            this.style.opacity = '0.6';
+            
+            console.log('🔄 Changing filter to:', selectedCabangId || 'Semua Cabang');
             
             fetch("{{ route('set-cabang-filter') }}", {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0'
                 },
-                body: JSON.stringify({ cabang_id: selectedCabangId })
+                body: JSON.stringify({ 
+                    cabang_id: selectedCabangId || null  // ✅ Kirim null jika empty string
+                })
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Muat ulang halaman setelah filter berhasil diset
-                    window.location.reload(); 
+                    const filterName = selectedCabangId ? `Cabang ID ${selectedCabangId}` : 'Semua Cabang';
+                    console.log('✅ Filter set successfully:', filterName);
+                    
+                    // ✅ CLEAR ALL CACHE
+                    if (typeof(Storage) !== "undefined") {
+                        localStorage.clear();
+                        sessionStorage.clear();
+                    }
+                    
+                    // ✅ HARD RELOAD dengan timestamp
+                    const currentUrl = window.location.pathname;
+                    const timestamp = new Date().getTime();
+                    window.location.href = currentUrl + '?refresh=' + timestamp;
+                    
                 } else {
+                    console.error('❌ Failed to set filter:', data.message);
                     alert('Gagal mengatur filter cabang: ' + data.message);
+                    
+                    this.disabled = false;
+                    this.style.opacity = '1';
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
+                console.error('❌ AJAX Error:', error);
                 alert('Terjadi kesalahan saat memproses filter.');
+                
+                this.disabled = false;
+                this.style.opacity = '1';
             });
         });
     }
