@@ -500,4 +500,33 @@ class BarangController extends Controller
             'data_barang_' . date('Y-m-d') . '.xlsx'
         );
     }
+    public function importForm()
+    {
+        return view('pages.barang.import');
+    }
+    
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls|max:2048'
+        ]);
+
+        try {
+            $cabangId = $this->getActiveCabangId();
+            
+            \Maatwebsite\Excel\Facades\Excel::import(
+                new \App\Imports\BarangImport($cabangId), 
+                $request->file('file')
+            );
+            
+            // Clear cache
+            Cache::forget('barang_list_' . $cabangId);
+            
+            return redirect()->route('barang.index')
+                ->with('success', 'Data barang berhasil diimport!');
+                
+        } catch (\Exception $e) {
+            return back()->with('error', 'Error: ' . $e->getMessage());
+        }
+    }
 }
