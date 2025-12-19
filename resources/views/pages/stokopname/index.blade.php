@@ -36,10 +36,11 @@
                     <thead class="table-light">
                         <tr>
                             <th width="5%">No</th>
-                            <th width="15%">Tanggal</th>
-                            <th width="20%">User</th>
-                            <th width="20%">Cabang</th>
-                            <th width="25%">Keterangan</th>
+                            <th width="12%">Tanggal</th>
+                            <th width="15%">Periode SO</th>
+                            <th width="15%">User</th>
+                            <th width="15%">Cabang</th>
+                            <th width="23%">Keterangan</th>
                             <th width="10%">Status</th>
                             <th width="5%">Aksi</th>
                         </tr>
@@ -48,7 +49,25 @@
                         @forelse($sesiSO as $index => $sesi)
                             <tr>
                                 <td>{{ $sesiSO->firstItem() + $index }}</td>
-                                <td>{{ $sesi->tanggal->format('d M Y') }}</td>
+                                <td>
+                                    <strong>{{ \Carbon\Carbon::parse($sesi->tanggal)->format('d/m/Y') }}</strong>
+                                </td>
+                                <td>
+                                    @php
+                                        $bulanNama = [
+                                            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 
+                                            4 => 'April', 5 => 'Mei', 6 => 'Juni',
+                                            7 => 'Juli', 8 => 'Agustus', 9 => 'September', 
+                                            10 => 'Oktober', 11 => 'November', 12 => 'Desember'
+                                        ];
+                                        $periode = ucfirst($sesi->periode ?? 'awal');
+                                        $bulan = $bulanNama[$sesi->bulan] ?? '';
+                                    @endphp
+                                    <span class="badge bg-info text-dark">
+                                        <i class="bi bi-calendar-event me-1"></i>
+                                        {{ $periode }} {{ $bulan }} {{ $sesi->tahun }}
+                                    </span>
+                                </td>
                                 <td>
                                     <strong>{{ $sesi->user->name }}</strong>
                                     <br>
@@ -86,7 +105,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="text-center py-4">
+                                <td colspan="8" class="text-center py-4">
                                     <i class="bi bi-inbox fs-1 text-muted"></i>
                                     <p class="text-muted mt-2">Belum ada riwayat stok opname</p>
                                     <a href="{{ route('stokopname.create') }}" class="btn btn-primary mt-2">

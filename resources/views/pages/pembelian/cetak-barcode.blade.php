@@ -5,7 +5,318 @@
 @push('styles')
 <style>
     /* ========================================
-       GENERAL STYLES
+       RESET & BASE STYLES
+       ======================================== */
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    /* ========================================
+       BARCODE PAGE CONTAINER - FLEX GRID
+       ======================================== */
+    .barcode-page {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: flex-start;
+        justify-content: flex-start;
+        margin: 0;
+        padding: 0;
+        gap: 3mm; /* NO GAP antara label */
+        page-break-after: always;
+    }
+
+    /* ========================================
+       BARCODE ITEM - 33x15mm PRECISE
+       ======================================== */
+    .barcode-item {
+        /* Dimensi Statis */
+        width: 33mm !important;
+        height: 15mm !important;
+        min-width: 33mm;
+        max-width: 33mm;
+        min-height: 15mm;
+        max-height: 15mm;
+        
+        /* Box Model */
+        box-sizing: border-box;
+        overflow: hidden;
+        
+        /* Border (Preview Only) */
+        border: 0.5mm solid #333;
+        
+        /* Internal Layout */
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        
+        /* Spacing */
+        padding: 0.5mm 1mm;
+        margin: 0;
+        
+        /* Positioning */
+        position: relative;
+        flex-shrink: 0;
+        
+        /* Background */
+        background: white;
+    }
+
+    /* ========================================
+       HEADER ROW: NAMA + HARGA (SATU BARIS)
+       ======================================== */
+    .barcode-header {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: flex-start;
+        width: 100%;
+        height: 3.5mm;
+        margin-bottom: 0.3mm;
+        gap: 1mm;
+    }
+
+    .item-name {
+        font-family: Arial, sans-serif;
+        font-size: 6pt;
+        font-weight: bold;
+        line-height: 1.1;
+        color: #000;
+        
+        /* Text Handling */
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        
+        /* Sizing */
+        flex: 1;
+        max-width: 18mm;
+    }
+
+    .item-price {
+        font-family: Arial, sans-serif;
+        font-size: 6.5pt;
+        font-weight: bold;
+        color: #000;
+        white-space: nowrap;
+        flex-shrink: 0;
+        text-align: right;
+    }
+
+    /* ========================================
+       BARCODE SVG SECTION
+       ======================================== */
+    .barcode-svg-container {
+        width: 100%;
+        height: 9mm; /* Increased from 8mm */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0;
+        padding: 0;
+    }
+
+    .barcode-item svg {
+        display: block !important;
+        width: 100% !important;
+        height: 100% !important;
+        max-width: 31mm !important;
+        max-height: 9mm !important;
+    }
+
+    /* ========================================
+       BARCODE NUMBER (HUMAN READABLE)
+       ======================================== */
+    .barcode-number {
+        font-family: 'Courier New', monospace;
+        font-size: 5pt;
+        font-weight: bold;
+        text-align: center;
+        color: #000;
+        letter-spacing: 0.3px;
+        width: 100%;
+        margin-top: 0.2mm;
+        line-height: 1;
+    }
+
+    /* ========================================
+       SIZE VARIANTS (MULTI-COLUMN)
+       ======================================== */
+    /* 1 COLUMN - 1 Label per Row */
+    .barcode-page.size-1line {
+        width: 33mm;
+    }
+
+    /* 2 COLUMNS - 2 Labels per Row */
+    .barcode-page.size-2line {
+        width: 66mm; /* 33mm x 2 */
+    }
+
+    /* 3 COLUMNS - 3 Labels per Row */
+    .barcode-page.size-3line {
+        width: 99mm; /* 33mm x 3 */
+    }
+
+    /* A4 GRID - Different Size */
+    .barcode-item.size-a4 {
+        width: 60mm !important;
+        height: 25mm !important;
+        min-width: 60mm;
+        max-width: 60mm;
+        min-height: 25mm;
+        max-height: 25mm;
+        padding: 2mm;
+    }
+
+    .barcode-page.size-a4 {
+        width: auto;
+        flex-wrap: wrap;
+        gap: 2mm;
+    }
+
+    .size-a4 .barcode-header {
+        height: 6mm;
+        margin-bottom: 1mm;
+    }
+
+    .size-a4 .item-name {
+        font-size: 7pt;
+        max-width: 35mm;
+        white-space: normal;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
+
+    .size-a4 .item-price {
+        font-size: 9pt;
+    }
+
+    .size-a4 .barcode-svg-container {
+        height: 12mm;
+    }
+
+    .size-a4 svg {
+        max-width: 56mm;
+        max-height: 12mm;
+    }
+
+    .size-a4 .barcode-number {
+        font-size: 7pt;
+    }
+
+    /* ========================================
+       PRINT STYLES
+       ======================================== */
+    @media print {
+        @page {
+            size: auto;
+            margin: 0;
+        }
+
+        body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+        }
+
+        /* ✅ HIDE NAVBAR, SIDEBAR, HEADERS */
+        .container-fluid > .row > .col-lg-4,
+        .container-fluid > div:first-child,
+        .card-header,
+        nav,
+        .navbar,
+        header,
+        footer,
+        .no-print {
+            display: none !important;
+        }
+
+        /* ✅ MAKE BARCODE CONTAINER FULL SCREEN */
+        .container-fluid {
+            width: 100% !important;
+            max-width: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        .row {
+            margin: 0 !important;
+        }
+
+        .col-lg-8 {
+            width: 100% !important;
+            max-width: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        .card {
+            border: none !important;
+            box-shadow: none !important;
+            margin: 0 !important;
+        }
+
+        .card-body {
+            padding: 0 !important;
+        }
+
+        #barcodeContainer {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            background: white !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        .barcode-page {
+            page-break-after: always;
+            page-break-inside: avoid;
+            display: flex !important;
+        }
+
+        .barcode-item {
+            border: none !important;
+            page-break-inside: avoid;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+
+        .barcode-header {
+            display: flex !important;
+        }
+
+        .item-name,
+        .item-price,
+        .barcode-number {
+            display: block !important;
+            visibility: visible !important;
+        }
+
+        .barcode-svg-container {
+            display: flex !important;
+            visibility: visible !important;
+        }
+
+        .barcode-item svg {
+            display: block !important;
+            visibility: visible !important;
+        }
+
+        /* Force print colors */
+        * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+        }
+    }
+
+    /* ========================================
+       UI ELEMENTS (NO PRINT)
        ======================================== */
     .barcode-card {
         border: 2px solid #dee2e6;
@@ -32,182 +343,6 @@
         justify-content: center;
     }
 
-    /* ========================================
-       BARCODE ITEM - UNIVERSAL STYLE
-       ======================================== */
-    .barcode-item {
-        border: 2px solid #000;
-        padding: 3mm;
-        margin: 2mm;
-        display: inline-block;
-        text-align: center;
-        background: white;
-        page-break-inside: avoid;
-        vertical-align: top;
-        box-sizing: border-box;
-    }
-    
-    .barcode-item svg {
-        display: block;
-        margin: 0 auto 1mm;
-    }
-    
-    .barcode-item .item-name {
-        font-family: Arial, sans-serif;
-        font-weight: bold;
-        text-align: center;
-        margin-bottom: 1mm;
-        line-height: 1.2;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    
-    .barcode-item .item-price {
-        font-family: Arial, sans-serif;
-        font-weight: bold;
-        text-align: center;
-        margin-bottom: 1mm;
-        color: #000;
-    }
-    
-    .barcode-item .barcode-number {
-        font-family: 'Courier New', monospace;
-        font-weight: bold;
-        text-align: center;
-        letter-spacing: 0.5px;
-        margin-top: 1mm;
-    }
-
-    /* Size: 2 Line (33x15mm) - MINIMAL */
-    .barcode-item.size-2line {
-        width: 33mm;
-        height: 15mm;
-        padding: 1mm;
-    }
-    
-    .barcode-item.size-2line svg {
-        width: 30mm;
-        height: 7mm;
-    }
-    
-    .barcode-item.size-2line .item-name {
-        font-size: 5pt;
-        max-height: 2.5mm;
-        display: -webkit-box;
-        -webkit-line-clamp: 1;
-        -webkit-box-orient: vertical;
-    }
-    
-    .barcode-item.size-2line .item-price {
-        font-size: 6pt;
-    }
-    
-    .barcode-item.size-2line .barcode-number {
-        font-size: 5pt;
-    }
-
-    /* Size: 1 Line (50x30mm) - COMFORTABLE */
-    .barcode-item.size-1line {
-        width: 50mm;
-        height: 30mm;
-        padding: 2mm;
-    }
-    
-    .barcode-item.size-1line svg {
-        width: 45mm;
-        height: 14mm;
-    }
-    
-    .barcode-item.size-1line .item-name {
-        font-size: 8pt;
-        max-height: 8mm;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-    }
-    
-    .barcode-item.size-1line .item-price {
-        font-size: 10pt;
-    }
-    
-    .barcode-item.size-1line .barcode-number {
-        font-size: 8pt;
-    }
-
-    /* Size: A4 Grid (60x25mm per label) - STANDARD */
-    .barcode-item.size-a4 {
-        width: 60mm;
-        height: 25mm;
-        padding: 2mm;
-    }
-    
-    .barcode-item.size-a4 svg {
-        width: 55mm;
-        height: 12mm;
-    }
-    
-    .barcode-item.size-a4 .item-name {
-        font-size: 7pt;
-        max-height: 6mm;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-    }
-    
-    .barcode-item.size-a4 .item-price {
-        font-size: 9pt;
-    }
-    
-    .barcode-item.size-a4 .barcode-number {
-        font-size: 7pt;
-    }
-
-    /* ========================================
-       PRINT STYLES
-       ======================================== */
-    @media print {
-        /* Hide non-print elements */
-        .no-print {
-            display: none !important;
-        }
-        
-        body {
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-        
-        /* Page settings for A4 */
-        @page {
-            size: A4 portrait;
-            margin: 5mm;
-        }
-        
-        /* Container for print */
-        #barcodeContainer {
-            background: white !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            border: none !important;
-        }
-        
-        /* Barcode items */
-        .barcode-item {
-            border: 2px solid #000 !important;
-            margin: 1mm !important;
-            page-break-inside: avoid;
-        }
-        
-        /* Make sure all elements are visible */
-        .barcode-item svg,
-        .barcode-item .item-name,
-        .barcode-item .item-price,
-        .barcode-item .barcode-number {
-            display: block !important;
-            visibility: visible !important;
-        }
-    }
-    
-    /* Size badges */
     .size-badge {
         display: inline-block;
         padding: 8px 18px;
@@ -248,7 +383,7 @@
     {{-- Header --}}
     <div class="no-print d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2 class="h3 mb-1 text-gray-800">Cetak Barcode</h2>
+            <h2 class="h3 mb-1 text-gray-800">Cetak Barcode Thermal 33x15mm</h2>
             <p class="text-muted mb-0">{{ $pembelian->nomor_pembelian }} - {{ $pembelian->supplier->nama_supplier }}</p>
         </div>
         <div>
@@ -285,19 +420,22 @@
                             <i class="bi bi-rulers me-2"></i>Ukuran Label:
                         </label>
                         <div class="d-grid gap-2 mb-3">
-                            <span class="size-badge active" data-size="2line" onclick="setLabelSize('2line')">
-                                📏 33 x 15mm (Thermal 2 Line)
+                            <span class="size-badge active" data-size="1line" onclick="setLabelSize('1line')">
+                                📏 1 Kolom (33x15mm)
                             </span>
-                            <span class="size-badge" data-size="1line" onclick="setLabelSize('1line')">
-                                📏 50 x 30mm (Thermal 1 Line)
+                            <span class="size-badge" data-size="2line" onclick="setLabelSize('2line')">
+                                📏 2 Kolom (66mm)
+                            </span>
+                            <span class="size-badge" data-size="3line" onclick="setLabelSize('3line')">
+                                📏 3 Kolom (99mm)
                             </span>
                             <span class="size-badge" data-size="a4" onclick="setLabelSize('a4')">
-                                📄 60 x 25mm (A4 Grid)
+                                📄 A4 Grid (60x25mm)
                             </span>
                         </div>
                         <div class="alert alert-info py-2 px-3 mb-0" style="font-size: 12px;" id="sizeInfo">
-                            <strong>✓ 33x15mm:</strong> Kompak - Nama (1 baris) + Harga + Barcode<br>
-                            <strong>Note:</strong> Untuk label thermal kecil
+                            <strong>✓ 1 Kolom:</strong> 1 label per baris (33x15mm)<br>
+                            <strong>Note:</strong> Cocok untuk printer thermal roll
                         </div>
                     </div>
 
@@ -406,7 +544,7 @@
                             <i class="bi bi-eye me-2"></i>Preview Barcode
                         </h6>
                         <span class="badge bg-secondary" id="labelSizeDisplay">
-                            33 x 15mm
+                            1 Kolom (33x15mm)
                         </span>
                     </div>
                 </div>
@@ -417,7 +555,7 @@
                             <p class="text-muted mb-0 mt-3">
                                 <strong>Pilih ukuran</strong>, lalu klik <strong>"Generate"</strong>
                             </p>
-                            <small class="text-muted">Format: Nama + Harga + Barcode + Angka</small>
+                            <small class="text-muted">Format: Nama + Harga | Barcode | Kode</small>
                         </div>
                     </div>
                 </div>
@@ -431,7 +569,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 
 <script>
-let currentLabelSize = '2line';
+let currentLabelSize = '1line';
 
 function setLabelSize(size) {
     currentLabelSize = size;
@@ -442,16 +580,18 @@ function setLabelSize(size) {
     document.querySelector(`.size-badge[data-size="${size}"]`).classList.add('active');
     
     const sizeLabels = {
-        '2line': '33 x 15mm',
-        '1line': '50 x 30mm',
+        '1line': '1 Kolom (33x15mm)',
+        '2line': '2 Kolom (66mm)',
+        '3line': '3 Kolom (99mm)',
         'a4': '60 x 25mm (A4)'
     };
     document.getElementById('labelSizeDisplay').textContent = sizeLabels[size];
     
     const sizeInfos = {
-        '2line': '<strong>✓ 33x15mm:</strong> Kompak - Nama (1 baris) + Harga + Barcode<br><strong>Note:</strong> Untuk label thermal kecil',
-        '1line': '<strong>✓ 50x30mm:</strong> Nyaman - Nama (2 baris) + Harga + Barcode<br><strong>Note:</strong> Untuk gudang/warehouse',
-        'a4': '<strong>✓ 60x25mm:</strong> Standard - Nama (2 baris) + Harga + Barcode<br><strong>Note:</strong> Bisa print di printer biasa. 3 kolom per baris.'
+        '1line': '<strong>✓ 1 Kolom:</strong> 1 label per baris (33x15mm)<br><strong>Note:</strong> Cocok untuk printer thermal roll',
+        '2line': '<strong>✓ 2 Kolom:</strong> 2 label per baris (66mm total)<br><strong>Note:</strong> Cocok untuk gap/die-cut label 2 kolom',
+        '3line': '<strong>✓ 3 Kolom:</strong> 3 label per baris (99mm total)<br><strong>Note:</strong> Maksimal untuk kertas thermal 110mm',
+        'a4': '<strong>✓ A4 Grid:</strong> Standard 60x25mm<br><strong>Note:</strong> Untuk printer laser biasa'
     };
     document.getElementById('sizeInfo').innerHTML = sizeInfos[size];
 }
@@ -548,73 +688,108 @@ function renderBarcodes(barcodes) {
     
     container.innerHTML = '';
 
-    barcodes.forEach((item, index) => {
-        const div = document.createElement('div');
-        div.className = `barcode-item size-${size}`;
+    // Tentukan berapa label per baris
+    const labelsPerRow = size === '1line' ? 1 : (size === '2line' ? 2 : (size === '3line' ? 3 : 3));
+    
+    let currentRow = null;
+    
+    for (let i = 0; i < barcodes.length; i++) {
+        // Buat baris baru setiap labelsPerRow
+        if (i % labelsPerRow === 0) {
+            currentRow = document.createElement('div');
+            currentRow.className = `barcode-page size-${size}`;
+            container.appendChild(currentRow);
+        }
         
-        // Nama Barang
+        const item = barcodes[i];
+        
+        // Container Label
+        const labelDiv = document.createElement('div');
+        labelDiv.className = `barcode-item ${size === 'a4' ? 'size-a4' : ''}`;
+        
+        // Header: Nama + Harga (Satu Baris)
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'barcode-header';
+        
         const nameDiv = document.createElement('div');
         nameDiv.className = 'item-name';
         let displayName = item.nama_barang || 'Nama Barang';
-        
-        // Truncate berdasarkan ukuran
-        if (size === '2line') {
-            displayName = truncateText(displayName, 20);
-        } else if (size === '1line') {
-            displayName = truncateText(displayName, 35);
-        } else {
-            displayName = truncateText(displayName, 30);
-        }
+        displayName = truncateText(displayName, size === 'a4' ? 30 : 15);
         nameDiv.textContent = displayName;
         
-        // Harga
         const priceDiv = document.createElement('div');
         priceDiv.className = 'item-price';
         priceDiv.textContent = formatRupiah(item.harga || 0);
         
-        // SVG Barcode
-        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.id = 'barcode-' + index;
+        headerDiv.appendChild(nameDiv);
+        headerDiv.appendChild(priceDiv);
         
-        // Nomor Barcode
+        // SVG Barcode Container
+        const svgContainer = document.createElement('div');
+        svgContainer.className = 'barcode-svg-container';
+        
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.id = 'barcode-' + i;
+        svgContainer.appendChild(svg);
+        
+        // Nomor Barcode (Human Readable)
         const numberDiv = document.createElement('div');
         numberDiv.className = 'barcode-number';
         numberDiv.textContent = item.barcode || item.kode;
         
-        // Susun elemen
-        div.appendChild(nameDiv);
-        div.appendChild(priceDiv);
-        div.appendChild(svg);
-        div.appendChild(numberDiv);
-        container.appendChild(div);
+        // Susun Elemen
+        labelDiv.appendChild(headerDiv);
+        labelDiv.appendChild(svgContainer);
+        labelDiv.appendChild(numberDiv);
+        currentRow.appendChild(labelDiv);
         
-        // Generate barcode
+        // Generate Barcode dengan JsBarcode
         try {
-            let barcodeOptions = {
+            // Konfigurasi berdasarkan ukuran
+            let barcodeConfig = {
                 format: 'CODE128',
-                displayValue: false,
+                displayValue: false, // Kita render manual
                 margin: 0,
                 background: '#ffffff',
-                lineColor: '#000000'
+                lineColor: '#000000',
             };
             
-            if (size === '2line') {
-                barcodeOptions.width = 1.5;
-                barcodeOptions.height = 25;
-            } else if (size === '1line') {
-                barcodeOptions.width = 2;
-                barcodeOptions.height = 50;
+            if (size === 'a4') {
+                barcodeConfig.width = 2;
+                barcodeConfig.height = 50;
+            } else if (size === '3line') {
+                barcodeConfig.width = 1.5; // Increased from 1.0
+                barcodeConfig.height = 35; // Increased from 25
+            } else if (size === '2line') {
+                barcodeConfig.width = 1.8; // Increased from 1.2
+                barcodeConfig.height = 35; // Increased from 25
             } else {
-                barcodeOptions.width = 2;
-                barcodeOptions.height = 45;
+                barcodeConfig.width = 2; // Increased from 1.5
+                barcodeConfig.height = 35; // Increased from 25
             }
             
-            JsBarcode('#barcode-' + index, item.barcode || item.kode, barcodeOptions);
+            JsBarcode('#barcode-' + i, item.barcode || item.kode, barcodeConfig);
+            
+            // Force render SVG
+            svg.setAttribute('style', 'display:block;visibility:visible;');
         } catch (e) {
             console.error('Error generating barcode:', e);
-            svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" font-size="12" fill="red">ERROR</text>';
+            svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" font-size="8" fill="red">ERROR</text>';
         }
-    });
+    }
+    
+    // ✅ FORCE RENDER ALL SVG AFTER GENERATION
+    setTimeout(() => {
+        document.querySelectorAll('.barcode-item svg').forEach(svg => {
+            svg.style.display = 'block';
+            svg.style.visibility = 'visible';
+            svg.style.opacity = '1';
+            
+            // Force repaint
+            svg.offsetHeight;
+        });
+        console.log('✅ SVG rendering forced');
+    }, 100);
 }
 </script>
 @endpush

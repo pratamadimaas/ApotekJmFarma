@@ -6,6 +6,7 @@ use App\Models\Barang;
 use App\Models\StokOpname;
 use App\Models\DetailStokOpname;
 use App\Traits\CabangFilterTrait;
+use App\Traits\RecordsStokHistory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\Log;
 class StokOpnameController extends Controller
 {
     use CabangFilterTrait;
+    use RecordsStokHistory;
 
     /**
      * ✅ FIXED: Menampilkan daftar sesi Stok Opname (Riwayat) - FILTERED BY CABANG
@@ -94,11 +96,18 @@ class StokOpnameController extends Controller
             ->first();
 
         if (!$sesiAktif) {
+            $now = now();
+            // Tentukan apakah awal atau akhir bulan (jika tanggal <= 15 = awal, > 15 = akhir)
+            $periode = $now->day <= 15 ? 'Awal' : 'Akhir';
+            
             $sesiAktif = StokOpname::create([
                 'user_id' => $user->id,
-                'cabang_id' => $cabangId, // ✅ PENTING: Set cabang_id
-                'tanggal' => now(),
-                'keterangan' => 'Sesi SO - ' . now()->format('d M Y H:i'),
+                'cabang_id' => $cabangId,
+                'tanggal' => $now,
+                'bulan' => $now->month,
+                'tahun' => $now->year,
+                'periode' => strtolower($periode), // 'awal' atau 'akhir'
+                'keterangan' => "SO {$periode} Bulan - {$now->format('F Y')}",
                 'status' => 'draft'
             ]);
 
@@ -106,6 +115,9 @@ class StokOpnameController extends Controller
                 'sesi_id' => $sesiAktif->id,
                 'user_id' => $user->id,
                 'cabang_id' => $cabangId,
+                'bulan' => $sesiAktif->bulan,
+                'tahun' => $sesiAktif->tahun,
+                'periode' => $sesiAktif->periode,
                 'status' => 'draft'
             ]);
         } else {
@@ -323,20 +335,12 @@ class StokOpnameController extends Controller
         $user = Auth::user();
         $cabangId = $this->getActiveCabangId();
         
-        // ✅ Validasi sesi: harus milik user dan cabang yang aktif
         $sesi = StokOpname::where('id', $id)
-            ->where('user_id', $user->id)
             ->where('cabang_id', $cabangId)
             ->first();
 
         if (!$sesi) {
-            Log::error('StokOpname Finalize - Unauthorized', [
-                'sesi_id' => $id,
-                'user_id' => $user->id,
-                'expected_cabang_id' => $cabangId
-            ]);
-            
-            return back()->with('error', 'Unauthorized: Sesi ini bukan milik Anda atau cabang tidak sesuai!');
+            return back()->with('error', 'Unauthorized: Sesi ini bukan milik cabang Anda!');
         }
 
         if ($sesi->status !== 'draft') {
@@ -347,35 +351,41 @@ class StokOpnameController extends Controller
         try {
             $details = DetailStokOpname::where('stok_opname_id', $id)->get();
 
+            if ($details->isEmpty()) {
+                return back()->with('error', 'Tidak ada barang yang ditambahkan ke Stok Opname!');
+            }
+
             $totalItemUpdated = 0;
-            $totalItemSkipped = 0;
 
             foreach ($details as $detail) {
-                // ✅ Validasi: barang harus dari cabang yang sama
                 $barang = Barang::where('id', $detail->barang_id)
                     ->where('cabang_id', $cabangId)
                     ->first();
                 
                 if ($barang) {
-                    $barang->update(['stok' => $detail->stok_fisik]);
+                    $stokLama = $barang->stok;
+                    $stokBaru = $detail->stok_fisik;
+                    $selisih = $stokBaru - $stokLama;
+
+                    // Update stok barang
+                    $barang->update(['stok' => $stokBaru]);
+
+                    // ✅ CATAT RIWAYAT STOK
+                    $this->catatRiwayatStok(
+                        barangId: $barang->id,
+                        tipeTransaksi: 'stok_opname',
+                        jumlahPerubahan: $selisih,
+                        satuan: $barang->satuan_terkecil,
+                        keterangan: "Stok Opname: {$sesi->keterangan}. Stok Fisik: {$stokBaru}, Stok Sistem: {$stokLama}",
+                        nomorReferensi: "SO-{$id}",
+                        cabangId: $cabangId
+                    );
+
                     $totalItemUpdated++;
-                    
-                    Log::info('StokOpname - Item Updated', [
-                        'barang_id' => $barang->id,
-                        'old_stok' => $detail->stok_sistem,
-                        'new_stok' => $detail->stok_fisik,
-                        'selisih' => $detail->selisih,
-                        'cabang_id' => $barang->cabang_id
-                    ]);
-                } else {
-                    $totalItemSkipped++;
-                    Log::warning('StokOpname - Item Skipped (cabang mismatch)', [
-                        'barang_id' => $detail->barang_id,
-                        'expected_cabang_id' => $cabangId
-                    ]);
                 }
             }
 
+            // Update status sesi SO
             $sesi->update([
                 'status' => 'completed',
                 'keterangan' => $request->keterangan ?? $sesi->keterangan,
@@ -384,33 +394,66 @@ class StokOpnameController extends Controller
 
             DB::commit();
 
-            Log::info('StokOpname - Finalized', [
+            Log::info('Stok Opname Completed', [
                 'sesi_id' => $id,
+                'total_items' => $totalItemUpdated,
                 'user_id' => $user->id,
-                'cabang_id' => $cabangId,
-                'total_items_updated' => $totalItemUpdated,
-                'total_items_skipped' => $totalItemSkipped
+                'cabang_id' => $cabangId
             ]);
 
-            $message = "Stok Opname berhasil diselesaikan! {$totalItemUpdated} item diperbarui.";
-            
-            if ($totalItemSkipped > 0) {
-                $message .= " ({$totalItemSkipped} item dilewati karena tidak sesuai cabang)";
-            }
-
             return redirect()->route('stokopname.show', $id)
-                ->with('success', $message);
+                ->with('success', "Stok Opname berhasil diselesaikan! {$totalItemUpdated} item diperbarui.");
 
         } catch (\Exception $e) {
             DB::rollBack();
             
             Log::error('StokOpname Finalize Error', [
-                'sesi_id' => $id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-
+            
             return back()->with('error', 'Gagal menyelesaikan SO: ' . $e->getMessage());
+        }
+    }
+
+    public function destroy($id)
+    {
+        $user = Auth::user();
+        $cabangId = $this->getActiveCabangId();
+
+        $sesi = StokOpname::where('id', $id)
+            ->where('cabang_id', $cabangId)
+            ->first();
+
+        if (!$sesi) {
+            return back()->with('error', 'Unauthorized!');
+        }
+
+        if ($sesi->status !== 'draft') {
+            return back()->with('error', 'Tidak dapat menghapus! Sesi sudah diselesaikan.');
+        }
+
+        DB::beginTransaction();
+        try {
+            // Hapus detail dulu
+            DetailStokOpname::where('stok_opname_id', $id)->delete();
+            
+            // Hapus sesi
+            $sesi->delete();
+
+            DB::commit();
+
+            return redirect()->route('stokopname.index')
+                ->with('success', 'Sesi Stok Opname berhasil dihapus!');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            Log::error('StokOpname Delete Error', [
+                'error' => $e->getMessage()
+            ]);
+            
+            return back()->with('error', 'Gagal menghapus sesi: ' . $e->getMessage());
         }
     }
 

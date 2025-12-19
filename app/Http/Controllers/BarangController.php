@@ -148,6 +148,62 @@ class BarangController extends Controller
         return view('pages.barang.index', compact('barang', 'kategoriList', 'stokFilterOptions'));
     }
 
+    public function getSatuan($id)
+{
+    try {
+        $cabangId = $this->getActiveCabangId();
+        
+        Log::info('getSatuan called', [
+            'barang_id' => $id,
+            'cabang_id' => $cabangId
+        ]);
+        
+        $barang = Barang::with('satuanKonversi')
+            ->when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
+            ->findOrFail($id);
+        
+        $konversi = $barang->satuanKonversi->map(function($konv) {
+            return [
+                'id' => $konv->id,
+                'nama_satuan' => $konv->nama_satuan,
+                'jumlah_konversi' => $konv->jumlah_konversi,
+                'harga_jual' => $konv->harga_jual,
+                'is_default' => (bool) $konv->is_default
+            ];
+        });
+
+        $response = [
+            'satuan_dasar' => $barang->satuan_terkecil,
+            'harga_beli' => $barang->harga_beli,
+            'harga_jual' => $barang->harga_jual,
+            'konversi' => $konversi
+        ];
+        
+        Log::info('getSatuan response', $response);
+        
+        return response()->json($response);
+        
+    } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+        Log::error('Barang not found', ['barang_id' => $id]);
+        
+        return response()->json([
+            'error' => 'Barang tidak ditemukan'
+        ], 404);
+        
+    } catch (\Exception $e) {
+        Log::error('Get Satuan Error:', [
+            'barang_id' => $id,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        
+        return response()->json([
+            'error' => 'Gagal mengambil data satuan',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
+
     public function create()
     {
         return view('pages.barang.create');

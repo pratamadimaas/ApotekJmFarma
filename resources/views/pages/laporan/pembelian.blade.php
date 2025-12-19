@@ -125,12 +125,12 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @forelse ($barangTerbanyak as $item)
+                                @forelse ($barangTerbeli as $item)
                                 <tr>
                                     <td>{{ $loop->iteration }}.</td>
                                     <td>{{ $item->barang->nama_barang ?? 'Barang Dihapus' }}</td>
                                     <td class="text-end">{{ number_format($item->total_qty, 0, ',', '.') }}</td>
-                                    <td class="text-end">{{ number_format($item->total_harga, 0, ',', '.') }}</td>
+                                    <td class="text-end">{{ number_format($item->total_nilai, 0, ',', '.') }}</td>
                                 </tr>
                                 @empty
                                 <tr><td colspan="4" class="text-center">Tidak ada data barang dibeli.</td></tr>
@@ -162,7 +162,7 @@
                             <tbody>
                                 @forelse ($perSupplier as $supplier)
                                 <tr>
-                                    <td>{{ $supplier->supplier->nama_supplier ?? 'Supplier Dihapus' }}</td>
+                                    <td>{{ $supplier->nama_supplier }}</td>
                                     <td class="text-end">{{ $supplier->jumlah }}</td>
                                     <td class="text-end">{{ number_format($supplier->total, 0, ',', '.') }}</td>
                                 </tr>
@@ -187,7 +187,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Data dari PHP
     const perHariData = @json($perHari);
-    const barangTerbanyakData = @json($barangTerbanyak);
+    const barangTerbanyakData = @json($barangTerbeli);
     const perSupplierData = @json($perSupplier);
 
     // Helper untuk format rupiah

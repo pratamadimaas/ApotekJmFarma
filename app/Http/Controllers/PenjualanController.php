@@ -8,6 +8,7 @@ use App\Models\Barang;
 use App\Models\Shift;
 use App\Models\SatuanKonversi;
 use App\Traits\CabangFilterTrait;
+use App\Traits\RecordsStokHistory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -15,7 +16,7 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class PenjualanController extends Controller
 {
-    use CabangFilterTrait;
+    use CabangFilterTrait, RecordsStokHistory;
 
     public function index()
     {
@@ -182,6 +183,16 @@ class PenjualanController extends Controller
                 ]);
 
                 $barang->decrement('stok', $qtyDasar);
+                // ✅ TAMBAHKAN INI - Catat Riwayat Penjualan
+                $this->catatRiwayatStok(
+                    barangId: $barang->id,
+                    tipeTransaksi: 'penjualan',
+                    jumlahPerubahan: -$qtyDasar, // NEGATIF karena keluar
+                    satuan: $barang->satuan_terkecil,
+                    keterangan: "Penjualan" . ($request->nama_pelanggan ? " kepada {$request->nama_pelanggan}" : ""),
+                    nomorReferensi: $nomorNota,
+                    cabangId: $cabangId
+                );
             }
 
             DB::commit();
@@ -332,6 +343,16 @@ class PenjualanController extends Controller
                 
                 // Tambah stok kembali
                 $barang->increment('stok', $qtyDasar);
+                // ✅ TAMBAHKAN INI - Catat Riwayat Return
+                $this->catatRiwayatStok(
+                    barangId: $barang->id,
+                    tipeTransaksi: 'return_penjualan',
+                    jumlahPerubahan: $qtyDasar, // POSITIF karena barang kembali
+                    satuan: $barang->satuan_terkecil,
+                    keterangan: "Return: " . ($request->keterangan ?? 'Pengembalian barang'),
+                    nomorReferensi: $detail->penjualan->nomor_nota,
+                    cabangId: $cabangId
+                );
                 
                 // Hitung total uang yang harus dikembalikan
                 $jumlahReturn = $detail->subtotal;

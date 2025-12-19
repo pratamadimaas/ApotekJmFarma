@@ -77,6 +77,15 @@
                             </div>
                         </div>
 
+                        {{-- ✅ INFO STOK AWAL --}}
+                        <div class="alert alert-info d-flex align-items-center mb-3" role="alert">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <div>
+                                <strong>Stok Awal Periode ({{ \Carbon\Carbon::parse($tanggalDari)->subDay()->format('d/m/Y') }}):</strong>
+                                <span class="ms-2 badge bg-primary">{{ number_format($stokAwal, 0, ',', '.') }} {{ $barang->satuan_terkecil }}</span>
+                            </div>
+                        </div>
+
                         {{-- Tabel Kartu Stok --}}
                         <div class="table-responsive">
                             <table class="table table-bordered table-hover align-middle">
@@ -92,62 +101,64 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @if($kartuStok->where('type', '!=', 'saldo_awal')->isEmpty())
+                                    {{-- ✅ TAMPILKAN SEMUA TRANSAKSI (TERMASUK SALDO AWAL JIKA ADA) --}}
+                                    @forelse($kartuStok as $item)
+                                        <tr class="{{ $item['type'] === 'saldo_awal' ? 'table-primary fw-bold' : '' }}">
+                                            <td class="text-center">
+                                                <small>{{ \Carbon\Carbon::parse($item['tanggal'])->format('d/m/Y') }}</small>
+                                            </td>
+                                            <td>
+                                                @if($item['type'] === 'saldo_awal')
+                                                    <span class="fw-bold">{{ $item['keterangan'] }}</span>
+                                                @else
+                                                    <small class="text-muted d-block" style="font-size: 0.75rem;">
+                                                        {{ $item['nomor'] }}
+                                                    </small>
+                                                    <span class="fw-semibold">{{ $item['keterangan'] }}</span>
+                                                @endif
+                                            </td>
+                                            <td class="text-center">
+                                                @if($item['masuk'] !== '-')
+                                                    <span class="badge bg-success">{{ $item['masuk'] }}</span>
+                                                @else
+                                                    <span class="text-muted">-</span>
+                                                @endif
+                                            </td>
+                                            <td class="text-center">
+                                                @if($item['keluar'] !== '-')
+                                                    <span class="badge bg-danger">{{ $item['keluar'] }}</span>
+                                                @else
+                                                    <span class="text-muted">-</span>
+                                                @endif
+                                            </td>
+                                            <td class="text-center fw-bold">
+                                                {{ number_format($item['sisa'], 0, ',', '.') }}
+                                            </td>
+                                            <td class="text-center">
+                                                <small class="text-muted">{{ $item['paraf'] }}</small>
+                                            </td>
+                                            <td class="text-center">
+                                                @if($item['ed'] && $item['ed'] !== '-')
+                                                    <small class="badge bg-warning text-dark">{{ $item['ed'] }}</small>
+                                                @else
+                                                    <span class="text-muted">-</span>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @empty
                                         <tr>
                                             <td colspan="7" class="text-center text-muted py-4">
                                                 <i class="bi bi-inbox fs-1 d-block mb-2"></i>
                                                 Tidak ada data transaksi pada periode yang dipilih
                                             </td>
                                         </tr>
-                                    @else
-                                        {{-- ✅ LOOP HANYA TRANSAKSI (SKIP SALDO_AWAL) --}}
-                                        @foreach($kartuStok as $item)
-                                            @if($item['type'] !== 'saldo_awal')
-                                                <tr>
-                                                    <td class="text-center">
-                                                        <small>{{ \Carbon\Carbon::parse($item['tanggal'])->format('d/m/Y') }}</small>
-                                                    </td>
-                                                    <td>
-                                                        <small class="text-muted d-block" style="font-size: 0.75rem;">
-                                                            {{ $item['nomor'] }}
-                                                        </small>
-                                                        <span class="fw-semibold">{{ $item['keterangan'] }}</span>
-                                                    </td>
-                                                    <td class="text-center">
-                                                        @if($item['masuk'] !== '-')
-                                                            <span class="badge bg-success">{{ $item['masuk'] }}</span>
-                                                        @else
-                                                            <span class="text-muted">-</span>
-                                                        @endif
-                                                    </td>
-                                                    <td class="text-center">
-                                                        @if($item['keluar'] !== '-')
-                                                            <span class="badge bg-danger">{{ $item['keluar'] }}</span>
-                                                        @else
-                                                            <span class="text-muted">-</span>
-                                                        @endif
-                                                    </td>
-                                                    <td class="text-center fw-bold">
-                                                        {{ number_format($item['sisa'], 0, ',', '.') }}
-                                                    </td>
-                                                    <td class="text-center">
-                                                        <small class="text-muted">{{ $item['paraf'] }}</small>
-                                                    </td>
-                                                    <td class="text-center">
-                                                        @if($item['ed'] && $item['ed'] !== '-')
-                                                            <small class="badge bg-warning text-dark">{{ $item['ed'] }}</small>
-                                                        @else
-                                                            <span class="text-muted">-</span>
-                                                        @endif
-                                                    </td>
-                                                </tr>
-                                            @endif
-                                        @endforeach
+                                    @endforelse
 
-                                        {{-- ✅ TAMBAHKAN BARIS STOK AKHIR --}}
+                                    {{-- ✅ BARIS STOK AKHIR (hanya jika ada transaksi) --}}
+                                    @if($kartuStok->isNotEmpty())
                                         <tr class="table-success fw-bold">
-                                            <td class="text-center">-</td>
-                                            <td>STOK AKHIR</td>
+                                            <td class="text-center">{{ \Carbon\Carbon::parse($tanggalSampai)->format('d/m/Y') }}</td>
+                                            <td>STOK AKHIR PERIODE</td>
                                             <td class="text-center">-</td>
                                             <td class="text-center">-</td>
                                             <td class="text-center">{{ number_format($stokAkhir, 0, ',', '.') }}</td>
@@ -161,29 +172,40 @@
 
                         {{-- Summary Cards --}}
                         <div class="row mt-4 g-3">
-                            <div class="col-md-4">
+                            <div class="col-md-3">
+                                <div class="card border-info">
+                                    <div class="card-body text-center py-3">
+                                        <small class="text-muted d-block mb-1">Stok Awal</small>
+                                        <h4 class="text-info mb-0">
+                                            {{ number_format($stokAwal, 0, ',', '.') }}
+                                        </h4>
+                                        <small class="text-muted">{{ $barang->satuan_terkecil }}</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
                                 <div class="card border-success">
                                     <div class="card-body text-center py-3">
                                         <small class="text-muted d-block mb-1">Total Masuk</small>
                                         <h4 class="text-success mb-0">
-                                            {{ number_format($kartuStok->where('type', 'masuk')->sum('qty_dasar'), 0, ',', '.') }}
+                                            {{ number_format(abs($kartuStok->where('type', 'masuk')->sum('qty_dasar')), 0, ',', '.') }}
                                         </h4>
                                         <small class="text-muted">{{ $barang->satuan_terkecil }}</small>
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <div class="card border-danger">
                                     <div class="card-body text-center py-3">
                                         <small class="text-muted d-block mb-1">Total Keluar</small>
                                         <h4 class="text-danger mb-0">
-                                            {{ number_format($kartuStok->where('type', 'keluar')->sum('qty_dasar'), 0, ',', '.') }}
+                                            {{ number_format(abs($kartuStok->where('type', 'keluar')->sum('qty_dasar')), 0, ',', '.') }}
                                         </h4>
                                         <small class="text-muted">{{ $barang->satuan_terkecil }}</small>
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <div class="card border-primary">
                                     <div class="card-body text-center py-3">
                                         <small class="text-muted d-block mb-1">Stok Akhir Periode</small>
@@ -218,7 +240,7 @@
 {{-- Print Styles --}}
 <style>
 @media print {
-    .btn, .card-header a, nav, footer, form {
+    .btn, .card-header a, nav, footer, form, .alert {
         display: none !important;
     }
     .card {
@@ -231,6 +253,11 @@
     }
     .badge {
         border: 1px solid #000;
+    }
+    .table-primary {
+        background-color: #cfe2ff !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
 }
 </style>

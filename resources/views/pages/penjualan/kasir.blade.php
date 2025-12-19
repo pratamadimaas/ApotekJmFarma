@@ -94,9 +94,6 @@
 
             <!-- Action Buttons Bottom -->
             <div class="d-flex gap-2 mt-2">
-                <button class="btn btn-info" onclick="tampilkanPending()" tabindex="-1">
-                    <i class="bi bi-list-ul me-1"></i>Lihat Pending <kbd>F6</kbd>
-                </button>
                 <button class="btn btn-danger ms-auto" onclick="clearKeranjang()" tabindex="-1">
                     <i class="bi bi-x-circle me-1"></i>Batal <kbd>ESC</kbd>
                 </button>
@@ -172,20 +169,27 @@
                     <!-- Kembalian (only for cash) -->
                     <div class="mb-3" id="divKembalian">
                         <label class="form-label mb-1 fw-bold">Kembalian</label>
-                        <input type="text" id="kembalian" class="form-control form-control-lg text-end fw-bold bg-warning" 
-                               value="0" readonly tabindex="-1">
+                        <div class="d-flex align-items-center gap-2">
+                            <div style="flex: 1; height: 3px; background: #ffc107; border-radius: 2px;"></div>
+                            <input type="text" id="kembalian" class="form-control form-control-lg text-end fw-bold bg-warning" 
+                                   value="0" readonly tabindex="-1" style="flex: 3;">
+                            <div style="flex: 1; height: 3px; background: #ffc107; border-radius: 2px;"></div>
+                        </div>
                     </div>
 
-                    <!-- Action Buttons -->
+                     <!-- Action Buttons -->
                     <div class="d-grid gap-2">
-                        <button class="btn btn-warning btn-lg" onclick="simpanPending()" tabindex="-1">
+                        <button class="btn btn-success btn-lg" id="btnSimpan" onclick="prosesTransaksi()" tabindex="-1">
+                            <i class="bi bi-check-circle me-2"></i>Simpan <kbd>CTRL+S</kbd>
+                        </button>
+                        <button class="btn btn-secondary btn-lg" onclick="simpanPending()" tabindex="-1">
                             <i class="bi bi-save me-2"></i>Pending <kbd>F5</kbd>
+                        </button>
+                        <button class="btn btn-secondary btn-lg" onclick="tampilkanPending()" tabindex="-1">
+                            <i class="bi bi-list-ul me-2"></i>Lihat Pending <kbd>F6</kbd>
                         </button>
                         <button class="btn btn-secondary btn-lg" onclick="bukaModalReturn()" tabindex="-1">
                             <i class="bi bi-arrow-return-left me-2"></i>Return <kbd>F8</kbd>
-                        </button>
-                        <button class="btn btn-success btn-lg" id="btnSimpan" onclick="prosesTransaksi()" tabindex="-1">
-                            <i class="bi bi-check-circle me-2"></i>Simpan <kbd>CTRL+S</kbd>
                         </button>
                         <button class="btn btn-danger btn-lg" onclick="tutupTransaksi()" tabindex="-1">
                             <i class="bi bi-box-arrow-right me-2"></i>Tutup <kbd>F10</kbd>

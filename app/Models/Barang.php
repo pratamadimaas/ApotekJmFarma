@@ -113,6 +113,11 @@ class Barang extends Model
     {
         return $query->whereRaw('stok <= stok_minimal');
     }
+    
+     public function riwayatStok()
+    {
+        return $this->hasMany(RiwayatStok::class);
+    }
 
     // ✅ Alias untuk stokRendah (untuk backward compatibility)
     public function scopeStokMinimum($query)
