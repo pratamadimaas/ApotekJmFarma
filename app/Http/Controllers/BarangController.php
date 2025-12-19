@@ -491,6 +491,104 @@ class BarangController extends Controller
         ]);
     }
 
+    // ============================================
+    // IMPORT & EXPORT
+    // ============================================
+    
+    public function importForm()
+    {
+        return view('pages.barang.import');
+    }
+    
+    public function importExcel(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls,csv|max:5120' // max 5MB
+        ]);
+
+        try {
+            $cabangId = $this->getActiveCabangId();
+            
+            if (!$cabangId) {
+                return back()->with('error', 'Error: Silakan pilih cabang terlebih dahulu!');
+            }
+            
+            $import = new \App\Imports\BarangImport();
+            
+            \Maatwebsite\Excel\Facades\Excel::import(
+                $import,
+                $request->file('file')
+            );
+            
+            // Clear cache setelah import
+            Cache::forget('barang_list_' . $cabangId);
+            Cache::forget('barang_kategori_' . $cabangId);
+            
+            $imported = $import->getImportedCount();
+            $skipped = $import->getSkippedCount();
+            $errors = $import->getErrors();
+            
+            $message = "Import selesai! Berhasil: {$imported}, Dilewati: {$skipped}";
+            
+            if (!empty($errors) && count($errors) > 0) {
+                $errorSummary = implode('; ', array_slice($errors, 0, 5));
+                if (count($errors) > 5) {
+                    $errorSummary .= " (dan " . (count($errors) - 5) . " error lainnya)";
+                }
+                session()->flash('warning', $errorSummary);
+            }
+            
+            return redirect()->route('barang.index')
+                ->with('success', $message);
+                
+        } catch (\Exception $e) {
+            Log::error('Import Barang Error:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return back()->with('error', 'Error: ' . $e->getMessage());
+        }
+    }
+    
+    public function downloadTemplate()
+    {
+        $headers = [
+            'kode_barang',
+            'barcode',
+            'nama_barang',
+            'kategori',
+            'satuan_terkecil',
+            'harga_beli',
+            'harga_jual',
+            'stok',
+            'stok_minimal',
+            'lokasi_rak',
+            'deskripsi'
+        ];
+        
+        $exampleData = [
+            [
+                'BRG001',
+                '8992761123456',
+                'Paracetamol 500mg',
+                'Obat',
+                'Strip',
+                5000,
+                7000,
+                100,
+                20,
+                'A1',
+                'Obat demam'
+            ]
+        ];
+        
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\BarangTemplateExport($headers, $exampleData),
+            'template_barang.xlsx'
+        );
+    }
+    
     public function exportExcel()
     {
         $cabangId = $this->getActiveCabangId();
@@ -500,33 +598,84 @@ class BarangController extends Controller
             'data_barang_' . date('Y-m-d') . '.xlsx'
         );
     }
-    public function importForm()
+    
+    // ============================================
+    // HELPER METHODS (untuk AJAX)
+    // ============================================
+    
+    public function getByBarcode(Request $request)
     {
-        return view('pages.barang.import');
+        $barcode = $request->get('barcode');
+        
+        if (empty($barcode)) {
+            return response()->json(['error' => 'Barcode tidak boleh kosong'], 400);
+        }
+
+        $cabangId = $this->getActiveCabangId();
+
+        $barang = Barang::with('satuanKonversi')
+            ->where('barcode', $barcode)
+            ->where('stok', '>', 0)
+            ->where('aktif', 1)
+            ->when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
+            ->first();
+
+        if (!$barang) {
+            return response()->json(['error' => 'Barang tidak ditemukan'], 404);
+        }
+
+        return response()->json([
+            'id' => $barang->id,
+            'kode_barang' => $barang->kode_barang,
+            'barcode' => $barang->barcode,
+            'nama_barang' => $barang->nama_barang,
+            'harga_jual' => $barang->harga_jual,
+            'stok' => $barang->stok,
+            'satuan_dasar' => $barang->satuan_terkecil,
+            'satuan_konversi' => $barang->satuanKonversi,
+        ]);
     }
     
-    public function import(Request $request)
+    public function hargaSatuan(Request $request)
     {
-        $request->validate([
-            'file' => 'required|mimes:xlsx,xls|max:2048'
-        ]);
-
-        try {
-            $cabangId = $this->getActiveCabangId();
-            
-            \Maatwebsite\Excel\Facades\Excel::import(
-                new \App\Imports\BarangImport($cabangId), 
-                $request->file('file')
-            );
-            
-            // Clear cache
-            Cache::forget('barang_list_' . $cabangId);
-            
-            return redirect()->route('barang.index')
-                ->with('success', 'Data barang berhasil diimport!');
-                
-        } catch (\Exception $e) {
-            return back()->with('error', 'Error: ' . $e->getMessage());
+        $barangId = $request->get('barang_id');
+        $satuan = $request->get('satuan');
+        
+        if (!$barangId || !$satuan) {
+            return response()->json(['error' => 'Parameter tidak lengkap'], 400);
         }
+
+        $cabangId = $this->getActiveCabangId();
+
+        $barang = Barang::with('satuanKonversi')
+            ->when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
+            ->find($barangId);
+
+        if (!$barang) {
+            return response()->json(['error' => 'Barang tidak ditemukan'], 404);
+        }
+
+        // Jika satuan sama dengan satuan dasar
+        if ($satuan === $barang->satuan_terkecil) {
+            return response()->json([
+                'harga' => $barang->harga_jual,
+                'satuan' => $satuan
+            ]);
+        }
+
+        // Cari di konversi
+        $konversi = $barang->satuanKonversi()
+            ->where('nama_satuan', $satuan)
+            ->first();
+
+        if (!$konversi) {
+            return response()->json(['error' => 'Satuan tidak ditemukan'], 404);
+        }
+
+        return response()->json([
+            'harga' => $konversi->harga_jual,
+            'satuan' => $konversi->nama_satuan,
+            'konversi' => $konversi->jumlah_konversi
+        ]);
     }
 }
