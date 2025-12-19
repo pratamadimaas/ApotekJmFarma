@@ -102,29 +102,29 @@ class DashboardController extends Controller
 
         // 3. GRAFIK PENJUALAN 7 HARI TERAKHIR (EXCLUDE RETURN)
         $grafikPenjualan = [];
-for ($i = 6; $i >= 0; $i--) {
-    $tanggal = Carbon::today()->subDays($i);
-    
-    $totalKotor = Penjualan::whereDate('tanggal_penjualan', $tanggal)
-        ->when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
-        ->sum('grand_total');
-    
-    // ✅ Kurangi return di hari tersebut
-    $totalReturn = DetailPenjualan::where('is_return', true)
-        ->whereDate('return_date', $tanggal)
-        ->when($cabangId, fn($q) => $q->whereHas('penjualan', fn($pq) => $pq->where('cabang_id', $cabangId)))
-        ->sum('jumlah_return') ?? 0;
-    
-    $total = $totalKotor - $totalReturn;
-    
-    // ✅ PERBAIKAN: Gunakan format yang konsisten untuk JavaScript
-    $grafikPenjualan[] = [
-        'tanggal' => $tanggal->format('Y-m-d'), // Format ISO standar
-        'label' => $tanggal->format('d/m'), // Label untuk display
-        'hari' => $tanggal->isoFormat('dddd'),
-        'total' => $total
-    ];
-}
+        for ($i = 6; $i >= 0; $i--) {
+            $tanggal = Carbon::today()->subDays($i);
+            
+            $totalKotor = Penjualan::whereDate('tanggal_penjualan', $tanggal)
+                ->when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
+                ->sum('grand_total');
+            
+            // ✅ Kurangi return di hari tersebut
+            $totalReturn = DetailPenjualan::where('is_return', true)
+                ->whereDate('return_date', $tanggal)
+                ->when($cabangId, fn($q) => $q->whereHas('penjualan', fn($pq) => $pq->where('cabang_id', $cabangId)))
+                ->sum('jumlah_return') ?? 0;
+            
+            $total = $totalKotor - $totalReturn;
+            
+            // ✅ PERBAIKAN: Gunakan format yang konsisten untuk JavaScript
+            $grafikPenjualan[] = [
+                'tanggal' => $tanggal->format('Y-m-d'), // Format ISO standar
+                'label' => $tanggal->format('d/m'), // Label untuk display
+                'hari' => $tanggal->isoFormat('dddd'),
+                'total' => $total
+            ];
+        }
 
         // 4. TOP 5 BARANG TERLARIS BULAN INI (EXCLUDE RETURN)
         $topBarang = DB::table('detail_penjualan')
@@ -187,12 +187,17 @@ for ($i = 6; $i >= 0; $i--) {
     }
     
     /**
-     * Menghitung Laba Berdasarkan Period dan Cabang (EXCLUDE RETURN)
+     * ✅ FIXED: Menghitung Laba Berdasarkan Period dan Cabang (EXCLUDE RETURN)
+     * Menggunakan qty_dasar (satuan terkecil) untuk perhitungan HPP yang akurat
      */
     private function hitungLaba($period, $cabangId = null)
     {
         $query = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
             ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
+            ->leftJoin('satuan_konversi', function($join) {
+                $join->on('satuan_konversi.barang_id', '=', 'barang.id')
+                     ->on('satuan_konversi.nama_satuan', '=', 'detail_penjualan.satuan');
+            })
             // ✅ EXCLUDE barang yang sudah di-return
             ->where(function($q) {
                 $q->where('detail_penjualan.is_return', false)
@@ -210,9 +215,18 @@ for ($i = 6; $i >= 0; $i--) {
             $query->where('penjualan.cabang_id', $cabangId);
         }
         
+        // ✅ PERBAIKAN: Hitung HPP berdasarkan qty dalam satuan terkecil
+        // Jika ada konversi (misal: Box = 10 strip), kalikan dengan jumlah_konversi
+        // Jika tidak ada konversi (langsung satuan terkecil), gunakan jumlah biasa
         $hasil = $query->select(
             DB::raw('SUM(detail_penjualan.subtotal) as total_penjualan'),
-            DB::raw('SUM(detail_penjualan.jumlah * barang.harga_beli) as total_hpp')
+            DB::raw('SUM(
+                CASE 
+                    WHEN satuan_konversi.jumlah_konversi IS NOT NULL 
+                    THEN detail_penjualan.jumlah * satuan_konversi.jumlah_konversi * barang.harga_beli
+                    ELSE detail_penjualan.jumlah * barang.harga_beli
+                END
+            ) as total_hpp')
         )->first();
         
         $totalPenjualan = $hasil->total_penjualan ?? 0;

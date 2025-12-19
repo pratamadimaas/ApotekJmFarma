@@ -16,13 +16,11 @@ use Illuminate\Support\Facades\Log;
 
 class PembelianController extends Controller
 {
-    use CabangFilterTrait, RecordsStokHistory; // ✅ GUNAKAN KEDUA TRAIT
+    use CabangFilterTrait, RecordsStokHistory;
 
     public function index(Request $request)
     {
         $query = Pembelian::with(['supplier', 'user', 'detailPembelian.barang', 'cabang']);
-
-        // ✅ APPLY FILTER CABANG
         $query = $this->applyCabangFilter($query);
 
         if ($request->filled('tanggal_dari')) {
@@ -58,7 +56,6 @@ class PembelianController extends Controller
         $query = Pembelian::with(['supplier', 'user', 'detailPembelian.barang', 'cabang'])
                          ->where('status', 'pending');
 
-        // ✅ APPLY FILTER CABANG
         $query = $this->applyCabangFilter($query);
 
         if ($request->filled('tanggal_dari')) {
@@ -89,7 +86,6 @@ class PembelianController extends Controller
         try {
             $pembelian = Pembelian::with('detailPembelian.barang')->findOrFail($id);
 
-            // ✅ CEK AKSES CABANG
             $cabangId = $this->getActiveCabangId();
             if (!$this->isSuperAdmin() && $pembelian->cabang_id != $cabangId) {
                 abort(403, 'Pembelian ini bukan milik cabang Anda.');
@@ -102,7 +98,6 @@ class PembelianController extends Controller
             foreach ($pembelian->detailPembelian as $detail) {
                 $barang = $detail->barang;
                 
-                // ✅ VALIDASI: Barang harus dari cabang yang sama
                 if (!$this->isSuperAdmin() && $barang->cabang_id != $cabangId) {
                     throw new \Exception("Barang {$barang->nama_barang} bukan milik cabang ini.");
                 }
@@ -110,7 +105,6 @@ class PembelianController extends Controller
                 $qtyDasar = $this->convertToStokDasar($detail->jumlah, $detail->satuan, $barang);
                 $barang->increment('stok', $qtyDasar);
 
-                // ✅ CATAT RIWAYAT STOK
                 $this->catatRiwayatStok(
                     barangId: $barang->id,
                     tipeTransaksi: 'pembelian',
@@ -144,8 +138,6 @@ class PembelianController extends Controller
     public function create()
     {
         $suppliers = Supplier::all();
-        
-        // ✅ BARANG DENGAN FILTER CABANG
         $barangQuery = Barang::aktif();
         $barang = $this->applyCabangFilter($barangQuery)->get();
         
@@ -176,7 +168,6 @@ class PembelianController extends Controller
 
         DB::beginTransaction();
         try {
-            // ✅ AMBIL CABANG ID
             $cabangId = $this->getActiveCabangId();
             
             if (!$this->isSuperAdmin() && !$cabangId) {
@@ -200,7 +191,7 @@ class PembelianController extends Controller
                 'pajak' => $request->ppn ?? 0,
                 'grand_total' => $request->total_bayar,
                 'user_id' => Auth::id(),
-                'cabang_id' => $cabangId, // ✅ SIMPAN CABANG ID
+                'cabang_id' => $cabangId,
                 'status' => $status,
                 'keterangan' => $request->keterangan
             ]);
@@ -213,7 +204,6 @@ class PembelianController extends Controller
             foreach ($request->items as $item) {
                 $barang = Barang::findOrFail($item['barang_id']);
 
-                // ✅ VALIDASI CABANG BARANG
                 if (!$this->isSuperAdmin() && $barang->cabang_id != $cabangId) {
                     throw new \Exception("Barang '{$barang->nama_barang}' bukan milik cabang Anda. Akses ditolak.");
                 }
@@ -225,6 +215,15 @@ class PembelianController extends Controller
                     'qty' => $item['qty'],
                     'satuan' => $item['satuan']
                 ]);
+
+                // Update satuan konversi jika ada
+                if (isset($item['satuan_konversi']) && is_array($item['satuan_konversi'])) {
+                    $this->updateSatuanKonversi($barang->id, $item['satuan_konversi']);
+                    Log::info('Satuan Konversi Updated for Barang', [
+                        'barang_id' => $barang->id,
+                        'konversi_count' => count($item['satuan_konversi'])
+                    ]);
+                }
 
                 // Konversi qty ke satuan terkecil
                 $qtyDasar = $this->convertToStokDasar($item['qty'], $item['satuan'], $barang);
@@ -244,7 +243,6 @@ class PembelianController extends Controller
                 if ($status === 'approved') {
                     $barang->increment('stok', $qtyDasar);
 
-                    // ✅ CATAT RIWAYAT STOK
                     $this->catatRiwayatStok(
                         barangId: $barang->id,
                         tipeTransaksi: 'pembelian', 
@@ -255,14 +253,29 @@ class PembelianController extends Controller
                         cabangId: $cabangId
                     );
                                 
-                    // ✅ UPDATE HARGA BELI (satuan dasar)
+                    // ✅ UPDATE HARGA BELI & HARGA JUAL (Satuan Dasar)
                     if ($item['satuan'] === $barang->satuan_terkecil) {
-                        $barang->update(['harga_beli' => $item['harga_beli']]);
-                    }
-                    
-                    // ✅ UPDATE HARGA JUAL dari form (jika ada input harga jual untuk satuan dasar)
-                    if (isset($item['satuan_konversi'][$barang->satuan_terkecil]['harga_jual'])) {
-                        $barang->update(['harga_jual' => $item['satuan_konversi'][$barang->satuan_terkecil]['harga_jual']]);
+                        $barang->update([
+                            'harga_beli' => $item['harga_beli']
+                        ]);
+                        
+                        // Update harga jual satuan dasar jika ada di satuan_konversi
+                        if (isset($item['satuan_konversi'])) {
+                            foreach ($item['satuan_konversi'] as $namaSatuan => $dataKonversi) {
+                                if ($namaSatuan === $barang->satuan_terkecil && isset($dataKonversi['harga_jual'])) {
+                                    $barang->update(['harga_jual' => $dataKonversi['harga_jual']]);
+                                }
+                            }
+                        }
+                    } 
+                    // ✅ UPDATE HARGA JUAL untuk Satuan Konversi (Bukan Satuan Dasar)
+                    else {
+                        // Update harga_jual di tabel satuan_konversi
+                        if (isset($item['satuan_konversi'][$item['satuan']]['harga_jual'])) {
+                            SatuanKonversi::where('barang_id', $barang->id)
+                                ->where('nama_satuan', $item['satuan'])
+                                ->update(['harga_jual' => $item['satuan_konversi'][$item['satuan']]['harga_jual']]);
+                        }
                     }
                 }
             }
@@ -295,7 +308,6 @@ class PembelianController extends Controller
     {
         $pembelian = Pembelian::with(['supplier', 'user', 'detailPembelian.barang', 'cabang'])->findOrFail($id);
         
-        // ✅ CEK AKSES CABANG
         $cabangId = $this->getActiveCabangId();
         if (!$this->isSuperAdmin() && $pembelian->cabang_id != $cabangId) {
             abort(403, 'Pembelian ini bukan milik cabang Anda.');
@@ -308,15 +320,12 @@ class PembelianController extends Controller
     {
         $pembelian = Pembelian::with('detailPembelian')->findOrFail($id);
         
-        // ✅ CEK AKSES CABANG
         $cabangId = $this->getActiveCabangId();
         if (!$this->isSuperAdmin() && $pembelian->cabang_id != $cabangId) {
             abort(403, 'Pembelian ini bukan milik cabang Anda.');
         }
         
         $suppliers = Supplier::all();
-        
-        // ✅ BARANG DENGAN FILTER CABANG
         $barangQuery = Barang::aktif();
         $barang = $this->applyCabangFilter($barangQuery)->get();
 
@@ -343,7 +352,6 @@ class PembelianController extends Controller
         try {
             $pembelian = Pembelian::findOrFail($id);
             
-            // ✅ CEK AKSES CABANG
             $cabangId = $this->getActiveCabangId();
             if (!$this->isSuperAdmin() && $pembelian->cabang_id != $cabangId) {
                 abort(403, 'Pembelian ini bukan milik cabang Anda.');
@@ -357,7 +365,6 @@ class PembelianController extends Controller
                 foreach ($pembelian->detailPembelian as $detail) {
                     $barang = $detail->barang;
                     
-                    // ✅ VALIDASI CABANG
                     if (!$this->isSuperAdmin() && $barang->cabang_id != $cabangId) {
                         throw new \Exception("Barang {$barang->nama_barang} bukan milik cabang ini.");
                     }
@@ -365,7 +372,6 @@ class PembelianController extends Controller
                     $qtyDasar = $this->convertToStokDasar($detail->jumlah, $detail->satuan, $barang);
                     $barang->decrement('stok', $qtyDasar);
 
-                    // ✅ CATAT RIWAYAT (kembalikan stok lama)
                     $this->catatRiwayatStok(
                         barangId: $barang->id,
                         tipeTransaksi: 'penyesuaian',
@@ -392,16 +398,23 @@ class PembelianController extends Controller
                 'grand_total' => $request->total_bayar ?? $request->total_harga,
                 'status' => $statusBaru,
                 'keterangan' => $request->keterangan
-                // cabang_id tidak diubah (tetap cabang awal)
             ]);
 
             // Simpan detail baru
             foreach ($request->items as $item) {
                 $barang = Barang::findOrFail($item['barang_id']);
                 
-                // ✅ VALIDASI CABANG
                 if (!$this->isSuperAdmin() && $barang->cabang_id != $cabangId) {
                     throw new \Exception("Barang '{$barang->nama_barang}' bukan milik cabang Anda.");
+                }
+                
+                // Update satuan konversi
+                if (isset($item['satuan_konversi']) && is_array($item['satuan_konversi'])) {
+                    $this->updateSatuanKonversi($barang->id, $item['satuan_konversi']);
+                    Log::info('Satuan Konversi Updated for Barang', [
+                        'barang_id' => $barang->id,
+                        'konversi_count' => count($item['satuan_konversi'])
+                    ]);
                 }
                 
                 $qtyDasar = $this->convertToStokDasar($item['qty'], $item['satuan'], $barang);
@@ -416,16 +429,10 @@ class PembelianController extends Controller
                     'tanggal_kadaluarsa' => $item['tanggal_kadaluarsa'] ?? null,
                 ]);
 
-                // Update Satuan Konversi
-                if (isset($item['satuan_konversi']) && is_array($item['satuan_konversi'])) {
-                    $this->updateSatuanKonversi($barang->id, $item['satuan_konversi']);
-                }
-
                 // Update stok jika status baru APPROVED
                 if ($statusBaru === 'approved') {
                     $barang->increment('stok', $qtyDasar);
 
-                    // ✅ CATAT RIWAYAT STOK BARU
                     $this->catatRiwayatStok(
                         barangId: $barang->id,
                         tipeTransaksi: 'pembelian',
@@ -436,8 +443,29 @@ class PembelianController extends Controller
                         cabangId: $cabangId
                     );
                     
+                    // ✅ UPDATE HARGA BELI & HARGA JUAL (Satuan Dasar)
                     if ($item['satuan'] === $barang->satuan_terkecil) {
-                        $barang->update(['harga_beli' => $item['harga_beli']]);
+                        $barang->update([
+                            'harga_beli' => $item['harga_beli']
+                        ]);
+                        
+                        // Update harga jual satuan dasar jika ada di satuan_konversi
+                        if (isset($item['satuan_konversi'])) {
+                            foreach ($item['satuan_konversi'] as $namaSatuan => $dataKonversi) {
+                                if ($namaSatuan === $barang->satuan_terkecil && isset($dataKonversi['harga_jual'])) {
+                                    $barang->update(['harga_jual' => $dataKonversi['harga_jual']]);
+                                }
+                            }
+                        }
+                    }
+                    // ✅ UPDATE HARGA JUAL untuk Satuan Konversi (Bukan Satuan Dasar)
+                    else {
+                        // Update harga_jual di tabel satuan_konversi
+                        if (isset($item['satuan_konversi'][$item['satuan']]['harga_jual'])) {
+                            SatuanKonversi::where('barang_id', $barang->id)
+                                ->where('nama_satuan', $item['satuan'])
+                                ->update(['harga_jual' => $item['satuan_konversi'][$item['satuan']]['harga_jual']]);
+                        }
                     }
                 }
             }
@@ -461,7 +489,6 @@ class PembelianController extends Controller
     {
         $pembelian = Pembelian::with(['detailPembelian.barang', 'cabang', 'supplier'])->findOrFail($id);
         
-        // ✅ CEK AKSES CABANG
         $cabangId = $this->getActiveCabangId();
         if (!$this->isSuperAdmin() && $pembelian->cabang_id != $cabangId) {
             abort(403, 'Pembelian ini bukan milik cabang Anda.');
@@ -470,9 +497,6 @@ class PembelianController extends Controller
         return view('pages.pembelian.cetak-barcode', compact('pembelian'));
     }
 
-    /**
-     * Generate barcode untuk item tertentu (AJAX)
-     */
     public function generateBarcode(Request $request)
     {
         $request->validate([
@@ -483,13 +507,11 @@ class PembelianController extends Controller
         $detail = DetailPembelian::with('barang')->findOrFail($request->detail_pembelian_id);
         $barang = $detail->barang;
         
-        // ✅ VALIDASI CABANG
         $cabangId = $this->getActiveCabangId();
         if (!$this->isSuperAdmin() && $barang->cabang_id != $cabangId) {
             return response()->json(['error' => 'Akses ditolak'], 403);
         }
         
-        // Generate barcode data
         $barcodes = [];
         for ($i = 0; $i < $request->jumlah_cetak; $i++) {
             $barcodes[] = [
@@ -506,9 +528,6 @@ class PembelianController extends Controller
         ]);
     }
 
-    /**
-     * Generate barcode untuk semua item dalam pembelian (AJAX)
-     */
     public function generateBarcodeAll(Request $request, $id)
     {
         $request->validate([
@@ -518,7 +537,6 @@ class PembelianController extends Controller
         
         $pembelian = Pembelian::with('detailPembelian.barang')->findOrFail($id);
         
-        // ✅ CEK AKSES CABANG
         $cabangId = $this->getActiveCabangId();
         if (!$this->isSuperAdmin() && $pembelian->cabang_id != $cabangId) {
             return response()->json(['error' => 'Akses ditolak'], 403);
@@ -531,12 +549,10 @@ class PembelianController extends Controller
             
             if (!$barang) continue;
             
-            // Tentukan jumlah cetak
             $jumlahCetak = $request->mode === 'qty' 
                 ? (int) $detail->jumlah 
                 : (int) $request->jumlah_custom;
             
-            // Generate barcode sebanyak jumlah yang diminta
             for ($i = 0; $i < $jumlahCetak; $i++) {
                 $barcodes[] = [
                     'barcode' => $barang->barcode ?? $barang->kode_barang,
@@ -562,7 +578,6 @@ class PembelianController extends Controller
         try {
             $pembelian = Pembelian::findOrFail($id);
             
-            // ✅ CEK AKSES CABANG
             $cabangId = $this->getActiveCabangId();
             if (!$this->isSuperAdmin() && $pembelian->cabang_id != $cabangId) {
                 abort(403, 'Pembelian ini bukan milik cabang Anda.');
@@ -574,7 +589,6 @@ class PembelianController extends Controller
                     $qtyDasar = $this->convertToStokDasar($detail->jumlah, $detail->satuan, $barang);
                     $barang->decrement('stok', $qtyDasar);
 
-                    // ✅ CATAT RIWAYAT STOK
                     $this->catatRiwayatStok(
                         barangId: $barang->id,
                         tipeTransaksi: 'penyesuaian',
@@ -624,9 +638,10 @@ class PembelianController extends Controller
                 'barang_id' => $barang->id,
                 'satuan' => $satuan
             ]);
+            return $qty;
         }
 
-        return $konversi ? ($qty * $konversi->jumlah_konversi) : $qty;
+        return $qty * $konversi->jumlah_konversi;
     }
 
     /**
@@ -659,56 +674,78 @@ class PembelianController extends Controller
      */
     private function updateSatuanKonversi($barangId, $satuanData)
     {
-        foreach ($satuanData as $satuan => $data) {
+        Log::info('updateSatuanKonversi called', [
+            'barang_id' => $barangId,
+            'satuan_data' => $satuanData
+        ]);
+
+        $barang = Barang::findOrFail($barangId);
+
+        foreach ($satuanData as $namaSatuan => $data) {
+            // Skip jika data tidak lengkap
             if (empty($data['nama_satuan']) || empty($data['jumlah_konversi'])) {
+                Log::warning('Skipping incomplete satuan data', ['key' => $namaSatuan, 'data' => $data]);
                 continue;
             }
 
-            $dataToUpdate = [
+            // ✅ Jika ini satuan dasar/terkecil, update di tabel barang
+            if ($data['nama_satuan'] === $barang->satuan_terkecil) {
+                $updateData = [];
+                
+                // Update harga jual jika ada
+                if (isset($data['harga_jual']) && $data['harga_jual'] > 0) {
+                    $updateData['harga_jual'] = $data['harga_jual'];
+                }
+                
+                if (!empty($updateData)) {
+                    $barang->update($updateData);
+                    
+                    Log::info('Harga Barang (Satuan Dasar) UPDATED', [
+                        'barang_id' => $barangId,
+                        'satuan' => $data['nama_satuan'],
+                        'data' => $updateData
+                    ]);
+                }
+                
+                // Skip, tidak perlu insert ke satuan_konversi
+                continue;
+            }
+
+            // ✅ Untuk satuan konversi (bukan satuan dasar)
+            $dataToSave = [
                 'jumlah_konversi' => $data['jumlah_konversi'],
                 'harga_jual' => $data['harga_jual'] ?? 0,
                 'is_default' => isset($data['is_default']) ? 1 : 0,
             ];
 
-            // ✅ PERUBAHAN: Cek apakah ini satuan BARU atau UPDATE
-            if (!empty($data['id'])) {
-                // Update satuan yang sudah ada (berdasarkan ID)
-                SatuanKonversi::where('id', $data['id'])
-                             ->where('barang_id', $barangId)
-                             ->update($dataToUpdate);
+            // Cari satuan yang sudah ada berdasarkan nama
+            $existing = SatuanKonversi::where('barang_id', $barangId)
+                                     ->where('nama_satuan', $data['nama_satuan'])
+                                     ->first();
+            
+            if ($existing) {
+                // ✅ UPDATE satuan yang sudah ada
+                $existing->update($dataToSave);
                 
-                Log::info('Update Satuan Konversi (by ID)', [
-                    'satuan_id' => $data['id'],
+                Log::info('Satuan Konversi UPDATED', [
+                    'id' => $existing->id,
                     'barang_id' => $barangId,
-                    'data' => $dataToUpdate
+                    'nama_satuan' => $data['nama_satuan'],
+                    'data' => $dataToSave
                 ]);
             } else {
-                // Cek apakah satuan dengan nama ini sudah ada
-                $existing = SatuanKonversi::where('barang_id', $barangId)
-                                         ->where('nama_satuan', $data['nama_satuan'])
-                                         ->first();
+                // ✅ INSERT satuan baru
+                $dataToSave['barang_id'] = $barangId;
+                $dataToSave['nama_satuan'] = $data['nama_satuan'];
                 
-                if ($existing) {
-                    // ✅ UPDATE (jangan insert baru)
-                    $existing->update($dataToUpdate);
-                    
-                    Log::info('Update Satuan Konversi (by name)', [
-                        'satuan_id' => $existing->id,
-                        'nama_satuan' => $data['nama_satuan'],
-                        'data' => $dataToUpdate
-                    ]);
-                } else {
-                    // Insert baru HANYA jika satuan benar-benar belum ada
-                    $dataToUpdate['barang_id'] = $barangId;
-                    $dataToUpdate['nama_satuan'] = $data['nama_satuan'];
-                    
-                    SatuanKonversi::create($dataToUpdate);
-                    
-                    Log::info('Insert Satuan Konversi Baru', [
-                        'barang_id' => $barangId,
-                        'nama_satuan' => $data['nama_satuan']
-                    ]);
-                }
+                $newKonversi = SatuanKonversi::create($dataToSave);
+                
+                Log::info('Satuan Konversi CREATED', [
+                    'id' => $newKonversi->id,
+                    'barang_id' => $barangId,
+                    'nama_satuan' => $data['nama_satuan'],
+                    'data' => $dataToSave
+                ]);
             }
         }
     }

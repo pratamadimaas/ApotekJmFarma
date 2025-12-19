@@ -20,8 +20,8 @@ class SatuanKonversi extends Model
     ];
 
     protected $casts = [
-        'jumlah_konversi' => 'decimal:2',
-        'harga_jual' => 'decimal:2',
+        'jumlah_konversi' => 'integer',
+        'harga_jual' => 'integer',
         'is_default' => 'boolean'
     ];
 

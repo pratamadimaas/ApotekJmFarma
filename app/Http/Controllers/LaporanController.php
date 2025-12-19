@@ -68,11 +68,13 @@ class LaporanController extends Controller
 
         $cabangId = $this->getActiveCabangId();
         
-        // 🟢 (PERUBAHAN) LOGIKA HPP dan LABA KOTOR DARI LABA RUGI:
-        
-        // 1. Hitung HPP barang yang terjual (bukan return)
+        // ✅ FIXED: Hitung HPP dengan satuan konversi yang benar
         $hppQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
                             ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
+                            ->leftJoin('satuan_konversi', function($join) {
+                                $join->on('satuan_konversi.barang_id', '=', 'barang.id')
+                                     ->on('satuan_konversi.nama_satuan', '=', 'detail_penjualan.satuan');
+                            })
                             ->whereDate('penjualan.tanggal_penjualan', '>=', $tanggalDari)
                             ->whereDate('penjualan.tanggal_penjualan', '<=', $tanggalSampai)
                             ->where(function($q) {
@@ -84,7 +86,13 @@ class LaporanController extends Controller
             $hppQuery->where('penjualan.cabang_id', $cabangId);
         }
         
-        $totalHPP = $hppQuery->select(DB::raw('SUM(detail_penjualan.jumlah * barang.harga_beli) as total_hpp'))
+        $totalHPP = $hppQuery->select(DB::raw('SUM(
+                CASE 
+                    WHEN satuan_konversi.jumlah_konversi IS NOT NULL 
+                    THEN detail_penjualan.jumlah * satuan_konversi.jumlah_konversi * barang.harga_beli
+                    ELSE detail_penjualan.jumlah * barang.harga_beli
+                END
+            ) as total_hpp'))
                              ->value('total_hpp') ?? 0;
                              
         // 2. Hitung Nilai Return Penjualan (nilai yang dikembalikan ke pelanggan)
@@ -105,9 +113,8 @@ class LaporanController extends Controller
         
         // 4. Hitung Laba Kotor (Pendapatan Bersih - HPP) dengan minimum 0
         $labaKotor = max(0, $pendapatanBersih - $totalHPP);
-        // ----------------------------------------------------------------------
 
-        // 🟢 (MODIFIKASI) Hitung penjualan per hari dengan laba kotor minimum 0
+        // ✅ FIXED: Hitung penjualan per hari dengan HPP yang benar
         $perHari = (clone $query)
                         ->select(
                             DB::raw('DATE(tanggal_penjualan) as tanggal'),
@@ -118,9 +125,13 @@ class LaporanController extends Controller
                         ->orderBy('tanggal', 'asc')
                         ->get()
                         ->map(function($item) use ($cabangId) {
-                            // Hitung HPP untuk tanggal ini
+                            // Hitung HPP untuk tanggal ini dengan konversi satuan
                             $hppQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
                                         ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
+                                        ->leftJoin('satuan_konversi', function($join) {
+                                            $join->on('satuan_konversi.barang_id', '=', 'barang.id')
+                                                 ->on('satuan_konversi.nama_satuan', '=', 'detail_penjualan.satuan');
+                                        })
                                         ->whereDate('penjualan.tanggal_penjualan', $item->tanggal)
                                         ->where(function($q) {
                                             $q->where('detail_penjualan.is_return', false)
@@ -131,7 +142,13 @@ class LaporanController extends Controller
                                 $hppQuery->where('penjualan.cabang_id', $cabangId);
                             }
                             
-                            $hpp = $hppQuery->select(DB::raw('SUM(detail_penjualan.jumlah * barang.harga_beli) as total_hpp'))
+                            $hpp = $hppQuery->select(DB::raw('SUM(
+                                    CASE 
+                                        WHEN satuan_konversi.jumlah_konversi IS NOT NULL 
+                                        THEN detail_penjualan.jumlah * satuan_konversi.jumlah_konversi * barang.harga_beli
+                                        ELSE detail_penjualan.jumlah * barang.harga_beli
+                                    END
+                                ) as total_hpp'))
                                            ->value('total_hpp') ?? 0;
                             
                             // Hitung nilai return untuk tanggal ini
@@ -146,7 +163,7 @@ class LaporanController extends Controller
                             
                             $nilaiReturn = $returnQuery->sum('subtotal') ?? 0;
                             
-                            // 🟢 PERUBAHAN: Laba kotor minimum 0 (tidak boleh minus)
+                            // ✅ PERUBAHAN: Laba kotor minimum 0 (tidak boleh minus)
                             $item->laba_kotor = max(0, ($item->total - $nilaiReturn) - $hpp);
                             
                             return $item;
@@ -253,6 +270,7 @@ class LaporanController extends Controller
             'perHari', 'barangTerbeli', 'perSupplier'
         ));
     }
+    
     public function labaRugi(Request $request)
     {
         $dataPenjualan = $this->applyDateFilter($request, Penjualan::class, 'tanggal_penjualan');
@@ -267,8 +285,13 @@ class LaporanController extends Controller
 
         $cabangId = $this->getActiveCabangId();
         
+        // ✅ FIXED: Hitung HPP dengan satuan konversi yang benar
         $hppQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
                               ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
+                              ->leftJoin('satuan_konversi', function($join) {
+                                  $join->on('satuan_konversi.barang_id', '=', 'barang.id')
+                                       ->on('satuan_konversi.nama_satuan', '=', 'detail_penjualan.satuan');
+                              })
                               ->whereDate('penjualan.tanggal_penjualan', '>=', $tanggalDari)
                               ->whereDate('penjualan.tanggal_penjualan', '<=', $tanggalSampai)
                               ->where(function($q) {
@@ -280,7 +303,13 @@ class LaporanController extends Controller
             $hppQuery->where('penjualan.cabang_id', $cabangId);
         }
         
-        $hpp = $hppQuery->select(DB::raw('SUM(detail_penjualan.jumlah * barang.harga_beli) as total_hpp'))
+        $hpp = $hppQuery->select(DB::raw('SUM(
+                CASE 
+                    WHEN satuan_konversi.jumlah_konversi IS NOT NULL 
+                    THEN detail_penjualan.jumlah * satuan_konversi.jumlah_konversi * barang.harga_beli
+                    ELSE detail_penjualan.jumlah * barang.harga_beli
+                END
+            ) as total_hpp'))
                         ->value('total_hpp') ?? 0;
 
         $totalReturnQuery = DetailPenjualan::where('is_return', true)
@@ -295,8 +324,13 @@ class LaporanController extends Controller
         
         $totalReturn = $totalReturnQuery->sum('jumlah_return') ?? 0;
 
+        // ✅ FIXED: Hitung HPP Return dengan satuan konversi yang benar
         $hppReturnQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
                                     ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
+                                    ->leftJoin('satuan_konversi', function($join) {
+                                        $join->on('satuan_konversi.barang_id', '=', 'barang.id')
+                                             ->on('satuan_konversi.nama_satuan', '=', 'detail_penjualan.satuan');
+                                    })
                                     ->where('detail_penjualan.is_return', true)
                                     ->whereDate('detail_penjualan.return_date', '>=', $tanggalDari)
                                     ->whereDate('detail_penjualan.return_date', '<=', $tanggalSampai);
@@ -305,17 +339,28 @@ class LaporanController extends Controller
             $hppReturnQuery->where('penjualan.cabang_id', $cabangId);
         }
         
-        $hppReturn = $hppReturnQuery->select(DB::raw('SUM(detail_penjualan.jumlah * barang.harga_beli) as total_hpp_return'))
+        $hppReturn = $hppReturnQuery->select(DB::raw('SUM(
+                CASE 
+                    WHEN satuan_konversi.jumlah_konversi IS NOT NULL 
+                    THEN detail_penjualan.jumlah * satuan_konversi.jumlah_konversi * barang.harga_beli
+                    ELSE detail_penjualan.jumlah * barang.harga_beli
+                END
+            ) as total_hpp_return'))
                                     ->value('total_hpp_return') ?? 0;
 
         $pendapatanBersih = $totalPendapatan - $totalReturn;
         $hppBersih = $hpp;
-        // 🟢 PERUBAHAN: Laba kotor minimum 0
+        // ✅ PERUBAHAN: Laba kotor minimum 0
         $labaKotor = max(0, $pendapatanBersih - $hppBersih);
         $marginLaba = $pendapatanBersih > 0 ? ($labaKotor / $pendapatanBersih) * 100 : 0;
 
+        // ✅ FIXED: Detail per item dengan HPP yang benar
         $detailPerItemQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
                                         ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
+                                        ->leftJoin('satuan_konversi', function($join) {
+                                            $join->on('satuan_konversi.barang_id', '=', 'barang.id')
+                                                 ->on('satuan_konversi.nama_satuan', '=', 'detail_penjualan.satuan');
+                                        })
                                         ->whereDate('penjualan.tanggal_penjualan', '>=', $tanggalDari)
                                         ->whereDate('penjualan.tanggal_penjualan', '<=', $tanggalSampai);
         
@@ -328,10 +373,22 @@ class LaporanController extends Controller
                                             'barang.nama_barang',
                                             DB::raw('SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.jumlah ELSE 0 END) as total_qty'),
                                             DB::raw('SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.subtotal ELSE 0 END) as total_penjualan'),
-                                            DB::raw('SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.jumlah * barang.harga_beli ELSE 0 END) as total_hpp'),
+                                            DB::raw('SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN 
+                                                CASE 
+                                                    WHEN satuan_konversi.jumlah_konversi IS NOT NULL 
+                                                    THEN detail_penjualan.jumlah * satuan_konversi.jumlah_konversi * barang.harga_beli
+                                                    ELSE detail_penjualan.jumlah * barang.harga_beli
+                                                END
+                                            ELSE 0 END) as total_hpp'),
                                             DB::raw('SUM(CASE WHEN detail_penjualan.is_return = true THEN detail_penjualan.jumlah_return ELSE 0 END) as total_return'),
-                                            // 🟢 PERUBAHAN: Gunakan GREATEST untuk laba minimum 0
-                                            DB::raw('GREATEST(0, (SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.subtotal ELSE 0 END) - SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.jumlah * barang.harga_beli ELSE 0 END) - SUM(CASE WHEN detail_penjualan.is_return = true THEN detail_penjualan.jumlah_return ELSE 0 END))) as laba')
+                                            // ✅ PERUBAHAN: Gunakan GREATEST untuk laba minimum 0
+                                            DB::raw('GREATEST(0, (SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.subtotal ELSE 0 END) - SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN 
+                                                CASE 
+                                                    WHEN satuan_konversi.jumlah_konversi IS NOT NULL 
+                                                    THEN detail_penjualan.jumlah * satuan_konversi.jumlah_konversi * barang.harga_beli
+                                                    ELSE detail_penjualan.jumlah * barang.harga_beli
+                                                END
+                                            ELSE 0 END) - SUM(CASE WHEN detail_penjualan.is_return = true THEN detail_penjualan.jumlah_return ELSE 0 END))) as laba')
                                         )
                                         ->groupBy('detail_penjualan.barang_id', 'barang.nama_barang')
                                         ->orderBy('laba', 'desc')
@@ -387,171 +444,171 @@ class LaporanController extends Controller
     }
 
     public function kartuStok(Request $request)
-{
-    // Ambil daftar barang sesuai cabang
-    $daftarBarangQuery = Barang::orderBy('nama_barang');
-    $daftarBarang = $this->applyCabangFilter($daftarBarangQuery)->get();
-    
-    $barangId = $request->barang_id;
-    $tanggalDari = $request->tanggal_dari ?? now()->startOfMonth()->format('Y-m-d');
-    $tanggalSampai = $request->tanggal_sampai ?? now()->format('Y-m-d');
-    
-    $barang = null;
-    $kartuStok = collect();
-    $stokAwal = 0;
-    $stokAkhir = 0;
-    
-    if ($barangId) {
-        $barang = Barang::with('satuanKonversi')->findOrFail($barangId);
+    {
+        // Ambil daftar barang sesuai cabang
+        $daftarBarangQuery = Barang::orderBy('nama_barang');
+        $daftarBarang = $this->applyCabangFilter($daftarBarangQuery)->get();
         
-        // Validasi akses cabang
-        $cabangId = $this->getActiveCabangId();
-        if ($cabangId !== null && $barang->cabang_id != $cabangId) {
-            abort(403, 'Barang ini bukan milik cabang yang sedang diakses.');
-        }
+        $barangId = $request->barang_id;
+        $tanggalDari = $request->tanggal_dari ?? now()->startOfMonth()->format('Y-m-d');
+        $tanggalSampai = $request->tanggal_sampai ?? now()->format('Y-m-d');
         
-        // ✅ HITUNG STOK AWAL (dari riwayat_stok sebelum periode)
-        $stokAwal = $this->hitungStokAwalRiwayat($barangId, $tanggalDari);
+        $barang = null;
+        $kartuStok = collect();
+        $stokAwal = 0;
+        $stokAkhir = 0;
         
-        // ✅ TAMBAHKAN BARIS STOK AWAL
-        $stokAwalEntry = [
-            'tanggal' => Carbon::parse($tanggalDari)->subDay()->format('Y-m-d'),
-            'nomor' => '-',
-            'keterangan' => 'Saldo Awal Periode',
-            'masuk' => '-',
-            'keluar' => '-',
-            'sisa' => $stokAwal,
-            'paraf' => '-',
-            'ed' => '-',
-            'sort_date' => Carbon::parse($tanggalDari)->subDay(),
-            'qty_dasar' => $stokAwal,
-            'type' => 'saldo_awal'
-        ];
-        
-        // ✅ AMBIL RIWAYAT STOK (dari tabel riwayat_stok)
-        $riwayatQuery = \App\Models\RiwayatStok::where('barang_id', $barangId)
-            ->whereDate('tanggal', '>=', $tanggalDari)
-            ->whereDate('tanggal', '<=', $tanggalSampai);
-        
-        if ($cabangId !== null) {
-            $riwayatQuery->where('cabang_id', $cabangId);
-        }
-        
-        $riwayat = $riwayatQuery->with('user')
-            ->orderBy('tanggal', 'asc')
-            ->orderBy('id', 'asc')
-            ->get()
-            ->map(function($item) {
-                return [
-                    'tanggal' => $item->tanggal->format('Y-m-d'),
-                    'nomor' => $item->nomor_referensi ?? '-',
-                    'keterangan' => $item->keterangan ?? ucwords(str_replace('_', ' ', $item->tipe_transaksi)),
-                    'masuk' => $item->jumlah_perubahan > 0 ? abs($item->jumlah_perubahan) . ' ' . $item->satuan : '-',
-                    'keluar' => $item->jumlah_perubahan < 0 ? abs($item->jumlah_perubahan) . ' ' . $item->satuan : '-',
-                    'sisa' => 0, // Akan dihitung running balance
-                    'paraf' => $item->user->name ?? '-',
-                    'ed' => '-',
-                    'sort_date' => $item->tanggal,
-                    'qty_dasar' => $item->jumlah_perubahan,
-                    'type' => $item->jumlah_perubahan > 0 ? 'masuk' : 'keluar'
-                ];
-            });
-        
-        // ✅ GABUNGKAN: Stok Awal + Riwayat
-        $kartuStok = collect([$stokAwalEntry])
-            ->concat($riwayat)
-            ->values();
-        
-        // ✅ HITUNG RUNNING BALANCE
-        $sisa = 0;
-        $kartuStok = $kartuStok->map(function($item) use (&$sisa) {
-            if ($item['type'] === 'saldo_awal') {
-                $sisa = $item['qty_dasar'];
-            } else {
-                $sisa += $item['qty_dasar'];
+        if ($barangId) {
+            $barang = Barang::with('satuanKonversi')->findOrFail($barangId);
+            
+            // Validasi akses cabang
+            $cabangId = $this->getActiveCabangId();
+            if ($cabangId !== null && $barang->cabang_id != $cabangId) {
+                abort(403, 'Barang ini bukan milik cabang yang sedang diakses.');
             }
             
-            $item['sisa'] = $sisa;
-            return $item;
-        });
+            // ✅ HITUNG STOK AWAL (dari riwayat_stok sebelum periode)
+            $stokAwal = $this->hitungStokAwalRiwayat($barangId, $tanggalDari);
+            
+            // ✅ TAMBAHKAN BARIS STOK AWAL
+            $stokAwalEntry = [
+                'tanggal' => Carbon::parse($tanggalDari)->subDay()->format('Y-m-d'),
+                'nomor' => '-',
+                'keterangan' => 'Saldo Awal Periode',
+                'masuk' => '-',
+                'keluar' => '-',
+                'sisa' => $stokAwal,
+                'paraf' => '-',
+                'ed' => '-',
+                'sort_date' => Carbon::parse($tanggalDari)->subDay(),
+                'qty_dasar' => $stokAwal,
+                'type' => 'saldo_awal'
+            ];
+            
+            // ✅ AMBIL RIWAYAT STOK (dari tabel riwayat_stok)
+            $riwayatQuery = \App\Models\RiwayatStok::where('barang_id', $barangId)
+                ->whereDate('tanggal', '>=', $tanggalDari)
+                ->whereDate('tanggal', '<=', $tanggalSampai);
+            
+            if ($cabangId !== null) {
+                $riwayatQuery->where('cabang_id', $cabangId);
+            }
+            
+            $riwayat = $riwayatQuery->with('user')
+                ->orderBy('tanggal', 'asc')
+                ->orderBy('id', 'asc')
+                ->get()
+                ->map(function($item) {
+                    return [
+                        'tanggal' => $item->tanggal->format('Y-m-d'),
+                        'nomor' => $item->nomor_referensi ?? '-',
+                        'keterangan' => $item->keterangan ?? ucwords(str_replace('_', ' ', $item->tipe_transaksi)),
+                        'masuk' => $item->jumlah_perubahan > 0 ? abs($item->jumlah_perubahan) . ' ' . $item->satuan : '-',
+                        'keluar' => $item->jumlah_perubahan < 0 ? abs($item->jumlah_perubahan) . ' ' . $item->satuan : '-',
+                        'sisa' => 0, // Akan dihitung running balance
+                        'paraf' => $item->user->name ?? '-',
+                        'ed' => '-',
+                        'sort_date' => $item->tanggal,
+                        'qty_dasar' => $item->jumlah_perubahan,
+                        'type' => $item->jumlah_perubahan > 0 ? 'masuk' : 'keluar'
+                    ];
+                });
+            
+            // ✅ GABUNGKAN: Stok Awal + Riwayat
+            $kartuStok = collect([$stokAwalEntry])
+                ->concat($riwayat)
+                ->values();
+            
+            // ✅ HITUNG RUNNING BALANCE
+            $sisa = 0;
+            $kartuStok = $kartuStok->map(function($item) use (&$sisa) {
+                if ($item['type'] === 'saldo_awal') {
+                    $sisa = $item['qty_dasar'];
+                } else {
+                    $sisa += $item['qty_dasar'];
+                }
+                
+                $item['sisa'] = $sisa;
+                return $item;
+            });
+            
+            $stokAkhir = $sisa;
+            
+            Log::info('Kartu Stok Generated', [
+                'barang_id' => $barangId,
+                'periode' => "$tanggalDari - $tanggalSampai",
+                'stok_awal' => $stokAwal,
+                'stok_akhir' => $stokAkhir,
+                'total_transaksi' => $riwayat->count()
+            ]);
+        }
         
-        $stokAkhir = $sisa;
-        
-        Log::info('Kartu Stok Generated', [
-            'barang_id' => $barangId,
-            'periode' => "$tanggalDari - $tanggalSampai",
-            'stok_awal' => $stokAwal,
-            'stok_akhir' => $stokAkhir,
-            'total_transaksi' => $riwayat->count()
-        ]);
+        return view('pages.laporan.kartu-stok', compact(
+            'daftarBarang',
+            'barang',
+            'kartuStok',
+            'stokAwal',
+            'stokAkhir',
+            'tanggalDari',
+            'tanggalSampai'
+        ));
     }
-    
-    return view('pages.laporan.kartu-stok', compact(
-        'daftarBarang',
-        'barang',
-        'kartuStok',
-        'stokAwal',
-        'stokAkhir',
-        'tanggalDari',
-        'tanggalSampai'
-    ));
-}
 
-/**
- * ✅ Hitung stok awal dari riwayat_stok
- */
+    /**
+     * ✅ Hitung stok awal dari riwayat_stok
+     */
     private function hitungStokAwalRiwayat($barangId, $tanggalDari)
-{
-    $cabangId = $this->getActiveCabangId();
-    
-    // Ambil riwayat terakhir SEBELUM tanggal_dari
-    $riwayatTerakhir = \App\Models\RiwayatStok::where('barang_id', $barangId)
-        ->when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
-        ->where('tanggal', '<', $tanggalDari)
-        ->orderBy('tanggal', 'desc')
-        ->orderBy('id', 'desc')
-        ->first();
-    
-    if ($riwayatTerakhir) {
-        Log::info('Stok Awal dari Riwayat', [
+    {
+        $cabangId = $this->getActiveCabangId();
+        
+        // Ambil riwayat terakhir SEBELUM tanggal_dari
+        $riwayatTerakhir = \App\Models\RiwayatStok::where('barang_id', $barangId)
+            ->when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
+            ->where('tanggal', '<', $tanggalDari)
+            ->orderBy('tanggal', 'desc')
+            ->orderBy('id', 'desc')
+            ->first();
+        
+        if ($riwayatTerakhir) {
+            Log::info('Stok Awal dari Riwayat', [
+                'barang_id' => $barangId,
+                'tanggal_dari' => $tanggalDari,
+                'riwayat_id' => $riwayatTerakhir->id,
+                'stok_sesudah' => $riwayatTerakhir->stok_sesudah
+            ]);
+            
+            return $riwayatTerakhir->stok_sesudah;
+        }
+        
+        // ✅ PERBAIKAN: Jika tidak ada riwayat sebelum periode,
+        // gunakan stok real-time dikurangi transaksi dalam periode
+        Log::warning('Tidak ada riwayat sebelum periode, hitung dari stok sekarang', [
             'barang_id' => $barangId,
-            'tanggal_dari' => $tanggalDari,
-            'riwayat_id' => $riwayatTerakhir->id,
-            'stok_sesudah' => $riwayatTerakhir->stok_sesudah
+            'tanggal_dari' => $tanggalDari
         ]);
         
-        return $riwayatTerakhir->stok_sesudah;
+        $barang = \App\Models\Barang::find($barangId);
+        if (!$barang) {
+            return 0;
+        }
+        
+        // Hitung total perubahan DALAM periode
+        $totalPerubahanDalamPeriode = \App\Models\RiwayatStok::where('barang_id', $barangId)
+            ->when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
+            ->whereDate('tanggal', '>=', $tanggalDari)
+            ->sum('jumlah_perubahan');
+        
+        // Stok Awal = Stok Sekarang - Total Perubahan Dalam Periode
+        $stokAwal = $barang->stok - $totalPerubahanDalamPeriode;
+        
+        Log::info('Stok Awal Dihitung dari Stok Real-time', [
+            'stok_sekarang' => $barang->stok,
+            'total_perubahan_periode' => $totalPerubahanDalamPeriode,
+            'stok_awal' => $stokAwal
+        ]);
+        
+        return $stokAwal;
     }
-    
-    // ✅ PERBAIKAN: Jika tidak ada riwayat sebelum periode,
-    // gunakan stok real-time dikurangi transaksi dalam periode
-    Log::warning('Tidak ada riwayat sebelum periode, hitung dari stok sekarang', [
-        'barang_id' => $barangId,
-        'tanggal_dari' => $tanggalDari
-    ]);
-    
-    $barang = \App\Models\Barang::find($barangId);
-    if (!$barang) {
-        return 0;
-    }
-    
-    // Hitung total perubahan DALAM periode
-    $totalPerubahanDalamPeriode = \App\Models\RiwayatStok::where('barang_id', $barangId)
-        ->when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
-        ->whereDate('tanggal', '>=', $tanggalDari)
-        ->sum('jumlah_perubahan');
-    
-    // Stok Awal = Stok Sekarang - Total Perubahan Dalam Periode
-    $stokAwal = $barang->stok - $totalPerubahanDalamPeriode;
-    
-    Log::info('Stok Awal Dihitung dari Stok Real-time', [
-        'stok_sekarang' => $barang->stok,
-        'total_perubahan_periode' => $totalPerubahanDalamPeriode,
-        'stok_awal' => $stokAwal
-    ]);
-    
-    return $stokAwal;
-}
 
     // =========================================================================
     // EXPORT
