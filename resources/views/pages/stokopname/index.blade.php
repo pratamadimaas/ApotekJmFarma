@@ -29,6 +29,100 @@
         </div>
     @endif
 
+    <!-- Filter Card -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <form method="GET" action="{{ route('stokopname.index') }}" id="filterForm">
+                <div class="row g-3">
+                    <!-- Filter Periode -->
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted">Periode</label>
+                        <select name="periode" class="form-select form-select-sm">
+                            <option value="">Semua Periode</option>
+                            <option value="awal" {{ request('periode') == 'awal' ? 'selected' : '' }}>Awal Bulan</option>
+                            <option value="akhir" {{ request('periode') == 'akhir' ? 'selected' : '' }}>Akhir Bulan</option>
+                        </select>
+                    </div>
+
+                    <!-- Filter Bulan -->
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted">Bulan</label>
+                        <select name="bulan" class="form-select form-select-sm">
+                            <option value="">Semua Bulan</option>
+                            @php
+                                $bulanNama = [
+                                    1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 
+                                    4 => 'April', 5 => 'Mei', 6 => 'Juni',
+                                    7 => 'Juli', 8 => 'Agustus', 9 => 'September', 
+                                    10 => 'Oktober', 11 => 'November', 12 => 'Desember'
+                                ];
+                            @endphp
+                            @foreach($bulanNama as $key => $nama)
+                                <option value="{{ $key }}" {{ request('bulan') == $key ? 'selected' : '' }}>
+                                    {{ $nama }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <!-- Filter Tahun -->
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted">Tahun</label>
+                        <select name="tahun" class="form-select form-select-sm">
+                            <option value="">Semua Tahun</option>
+                            @for($year = date('Y'); $year >= date('Y') - 3; $year--)
+                                <option value="{{ $year }}" {{ request('tahun') == $year ? 'selected' : '' }}>
+                                    {{ $year }}
+                                </option>
+                            @endfor
+                        </select>
+                    </div>
+
+                    <!-- Filter Status -->
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted">Status</label>
+                        <select name="status" class="form-select form-select-sm">
+                            <option value="">Semua Status</option>
+                            <option value="draft" {{ request('status') == 'draft' ? 'selected' : '' }}>Draft</option>
+                            <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Selesai</option>
+                        </select>
+                    </div>
+
+                    <!-- Filter Tanggal Dari -->
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted">Dari Tanggal</label>
+                        <input type="date" name="tanggal_dari" class="form-control form-control-sm" 
+                               value="{{ request('tanggal_dari') }}">
+                    </div>
+
+                    <!-- Filter Tanggal Sampai -->
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted">Sampai Tanggal</label>
+                        <input type="date" name="tanggal_sampai" class="form-control form-control-sm" 
+                               value="{{ request('tanggal_sampai') }}">
+                    </div>
+                </div>
+
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="bi bi-funnel me-1"></i> Terapkan Filter
+                        </button>
+                        <a href="{{ route('stokopname.index') }}" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-x-circle me-1"></i> Reset Filter
+                        </a>
+                        
+                        @if(request()->hasAny(['periode', 'bulan', 'tahun', 'status', 'tanggal_dari', 'tanggal_sampai']))
+                            <span class="badge bg-info ms-2">
+                                <i class="bi bi-filter-circle me-1"></i>Filter Aktif
+                            </span>
+                        @endif
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="card shadow-sm">
         <div class="card-body">
             <div class="table-responsive">
@@ -107,10 +201,18 @@
                             <tr>
                                 <td colspan="8" class="text-center py-4">
                                     <i class="bi bi-inbox fs-1 text-muted"></i>
-                                    <p class="text-muted mt-2">Belum ada riwayat stok opname</p>
-                                    <a href="{{ route('stokopname.create') }}" class="btn btn-primary mt-2">
-                                        <i class="bi bi-plus-circle me-1"></i> Mulai Stok Opname
-                                    </a>
+                                    <p class="text-muted mt-2">
+                                        @if(request()->hasAny(['periode', 'bulan', 'tahun', 'status', 'tanggal_dari', 'tanggal_sampai']))
+                                            Tidak ada data yang sesuai dengan filter
+                                        @else
+                                            Belum ada riwayat stok opname
+                                        @endif
+                                    </p>
+                                    @if(!request()->hasAny(['periode', 'bulan', 'tahun', 'status', 'tanggal_dari', 'tanggal_sampai']))
+                                        <a href="{{ route('stokopname.create') }}" class="btn btn-primary mt-2">
+                                            <i class="bi bi-plus-circle me-1"></i> Mulai Stok Opname
+                                        </a>
+                                    @endif
                                 </td>
                             </tr>
                         @endforelse
@@ -125,7 +227,7 @@
                     dari {{ $sesiSO->total() }} sesi
                 </div>
                 <div>
-                    {{ $sesiSO->links() }}
+                    {{ $sesiSO->appends(request()->query())->links() }}
                 </div>
             </div>
         </div>

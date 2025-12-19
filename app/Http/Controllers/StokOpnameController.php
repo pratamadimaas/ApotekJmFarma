@@ -18,9 +18,9 @@ class StokOpnameController extends Controller
     use RecordsStokHistory;
 
     /**
-     * ✅ FIXED: Menampilkan daftar sesi Stok Opname (Riwayat) - FILTERED BY CABANG
+     * ✅ FIXED: Menampilkan daftar sesi Stok Opname (Riwayat) - FILTERED BY CABANG + FILTER TAMBAHAN
      */
-    public function index()
+    public function index(Request $request)
     {
         $user = Auth::user();
         $cabangId = $this->getActiveCabangId();
@@ -29,36 +29,69 @@ class StokOpnameController extends Controller
             'user_id' => $user->id,
             'user_role' => $user->role,
             'user_cabang_id' => $user->cabang_id,
-            'active_cabang_id' => $cabangId
+            'active_cabang_id' => $cabangId,
+            'filters' => $request->only(['periode', 'bulan', 'tahun', 'status', 'tanggal_dari', 'tanggal_sampai'])
         ]);
 
         $query = StokOpname::with(['user', 'cabang']);
 
+        // ✅ Filter berdasarkan cabang (wajib)
         if ($user->isSuperAdmin()) {
-            // ✅ Super Admin WAJIB filter berdasarkan cabang yang dipilih
+            // Super Admin WAJIB filter berdasarkan cabang yang dipilih
             if ($cabangId) {
                 $query->where('cabang_id', $cabangId);
                 Log::info('StokOpname Index - Super Admin Filter', ['cabang_id' => $cabangId]);
             } else {
-                // ✅ Jika tidak ada cabang dipilih, tampilkan semua (opsional: atau redirect)
+                // Jika tidak ada cabang dipilih, tampilkan semua (opsional)
                 Log::warning('StokOpname Index - Super Admin tanpa cabang dipilih, menampilkan semua');
-                // Alternatif: return redirect()->route('stokopname.index')->with('error', 'Pilih cabang terlebih dahulu');
             }
         } else {
-            // ✅ User biasa: filter berdasarkan cabang user
+            // User biasa: filter berdasarkan cabang user
             if ($cabangId) {
                 $query->where('cabang_id', $cabangId);
                 Log::info('StokOpname Index - User Filter', ['cabang_id' => $cabangId]);
             } else {
-                // ✅ FALLBACK: Jika user tidak punya cabang, tampilkan hanya miliknya sendiri
+                // FALLBACK: Jika user tidak punya cabang, tampilkan hanya miliknya sendiri
                 $query->where('user_id', $user->id);
                 Log::warning('StokOpname Index - User tanpa cabang, filter by user_id');
             }
         }
 
+        // ✅ Filter Periode (awal/akhir)
+        if ($request->filled('periode')) {
+            $query->where('periode', $request->periode);
+        }
+
+        // ✅ Filter Bulan
+        if ($request->filled('bulan')) {
+            $query->where('bulan', $request->bulan);
+        }
+
+        // ✅ Filter Tahun
+        if ($request->filled('tahun')) {
+            $query->where('tahun', $request->tahun);
+        }
+
+        // ✅ Filter Status
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        // ✅ Filter Rentang Tanggal
+        if ($request->filled('tanggal_dari')) {
+            $query->whereDate('tanggal', '>=', $request->tanggal_dari);
+        }
+
+        if ($request->filled('tanggal_sampai')) {
+            $query->whereDate('tanggal', '<=', $request->tanggal_sampai);
+        }
+
         $sesiSO = $query->orderBy('created_at', 'desc')->paginate(15);
         
-        Log::info('StokOpname Index - Result Count', ['total' => $sesiSO->total()]);
+        Log::info('StokOpname Index - Result Count', [
+            'total' => $sesiSO->total(),
+            'filters_applied' => $request->hasAny(['periode', 'bulan', 'tahun', 'status', 'tanggal_dari', 'tanggal_sampai'])
+        ]);
         
         return view('pages.stokopname.index', compact('sesiSO'));
     }
@@ -489,9 +522,6 @@ class StokOpnameController extends Controller
                     'sesi_cabang_id' => $sesi->cabang_id,
                     'selected_cabang_id' => $cabangId
                 ]);
-                
-                // Opsional: izinkan Super Admin melihat semua cabang
-                // Atau: abort(403, 'Sesi ini dari cabang berbeda dengan yang dipilih.');
             }
         }
 
