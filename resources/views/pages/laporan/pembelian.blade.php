@@ -16,7 +16,6 @@
         </div>
     </div>
 
-    {{-- ✅ Filter Component --}}
     @include('pages.laporan.laporan-filter', [
         'action' => route('laporan.pembelian'),
         'tanggalDari' => $tanggalDari,
@@ -82,12 +81,14 @@
                 <div class="card-header">
                     <i class="bi bi-calendar3 me-2"></i>
                     <strong>Total Pembelian Harian</strong>
+                    <span class="badge bg-secondary ms-2">{{ $perHari->total() }} hari</span>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-striped table-hover">
                             <thead>
                                 <tr>
+                                    <th>No</th>
                                     <th>Tanggal</th>
                                     <th class="text-end">Jumlah Transaksi</th>
                                     <th class="text-end">Total (Rp)</th>
@@ -96,35 +97,38 @@
                             <tbody>
                                 @forelse ($perHari as $hari)
                                 <tr>
+                                    <td>{{ ($perHari->currentPage() - 1) * $perHari->perPage() + $loop->iteration }}</td>
                                     <td>{{ \Carbon\Carbon::parse($hari->tanggal)->format('d M Y') }}</td>
                                     <td class="text-end">{{ number_format($hari->jumlah_transaksi, 0, ',', '.') }}</td>
                                     <td class="text-end">Rp {{ number_format($hari->total, 0, ',', '.') }}</td>
                                 </tr>
                                 @empty
-                                <tr><td colspan="3" class="text-center py-3">Tidak ada data pembelian pada periode ini.</td></tr>
+                                <tr><td colspan="4" class="text-center py-3">Tidak ada data pembelian pada periode ini.</td></tr>
                                 @endforelse
                             </tbody>
-                            @if($perHari->isNotEmpty())
-                            <tfoot class="bg-light">
-                                <tr>
-                                    <th>TOTAL</th>
-                                    <th class="text-end">{{ number_format($jumlahTransaksi, 0, ',', '.') }}</th>
-                                    <th class="text-end">Rp {{ number_format($totalPembelian, 0, ',', '.') }}</th>
-                                </tr>
-                            </tfoot>
-                            @endif
                         </table>
                     </div>
+
+                    {{-- ✅ Pagination --}}
+                    @if($perHari->hasPages())
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <div class="small text-muted">
+                            Menampilkan {{ $perHari->firstItem() }} - {{ $perHari->lastItem() }} dari {{ $perHari->total() }}
+                        </div>
+                        {{ $perHari->appends(request()->query())->links('pagination::bootstrap-5') }}
+                    </div>
+                    @endif
                 </div>
             </div>
         </div>
 
-        {{-- 10 Barang Paling Banyak Dibeli --}}
+        {{-- Barang Paling Banyak Dibeli --}}
         <div class="col-lg-6">
             <div class="card-custom">
                 <div class="card-header">
                     <i class="bi bi-box-seam me-2"></i>
-                    <strong>10 Barang Paling Banyak Dibeli</strong>
+                    <strong>Barang Paling Banyak Dibeli</strong>
+                    <span class="badge bg-secondary ms-2">{{ $barangTerbeli->total() }} item</span>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -133,14 +137,14 @@
                                 <tr>
                                     <th>No.</th>
                                     <th>Barang</th>
-                                    <th class="text-end">Qty (Unit Terkecil)</th>
+                                    <th class="text-end">Qty</th>
                                     <th class="text-end">Total Harga Beli (Rp)</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @forelse ($barangTerbeli as $item)
                                 <tr>
-                                    <td>{{ $loop->iteration }}.</td>
+                                    <td>{{ ($barangTerbeli->currentPage() - 1) * $barangTerbeli->perPage() + $loop->iteration }}.</td>
                                     <td>
                                         <strong>{{ $item->barang->nama_barang ?? 'Barang Dihapus' }}</strong>
                                         @if($item->barang)
@@ -154,17 +158,18 @@
                                 <tr><td colspan="4" class="text-center py-3">Tidak ada data barang dibeli pada periode ini.</td></tr>
                                 @endforelse
                             </tbody>
-                            @if($barangTerbeli->isNotEmpty())
-                            <tfoot class="bg-light">
-                                <tr>
-                                    <th colspan="2">TOTAL</th>
-                                    <th class="text-end">{{ number_format($barangTerbeli->sum('total_qty'), 0, ',', '.') }}</th>
-                                    <th class="text-end">Rp {{ number_format($barangTerbeli->sum('total_nilai'), 0, ',', '.') }}</th>
-                                </tr>
-                            </tfoot>
-                            @endif
                         </table>
                     </div>
+
+                    {{-- ✅ Pagination --}}
+                    @if($barangTerbeli->hasPages())
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <div class="small text-muted">
+                            Menampilkan {{ $barangTerbeli->firstItem() }} - {{ $barangTerbeli->lastItem() }} dari {{ $barangTerbeli->total() }}
+                        </div>
+                        {{ $barangTerbeli->appends(request()->query())->links('pagination::bootstrap-5') }}
+                    </div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -175,6 +180,7 @@
                 <div class="card-header">
                     <i class="bi bi-people-fill me-2"></i>
                     <strong>Pembelian Berdasarkan Supplier</strong>
+                    <span class="badge bg-secondary ms-2">{{ $perSupplier->total() }} supplier</span>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -192,7 +198,7 @@
                             <tbody>
                                 @forelse ($perSupplier as $supplier)
                                 <tr>
-                                    <td>{{ $loop->iteration }}.</td>
+                                    <td>{{ ($perSupplier->currentPage() - 1) * $perSupplier->perPage() + $loop->iteration }}.</td>
                                     <td>
                                         <strong>{{ $supplier->nama_supplier }}</strong>
                                     </td>
@@ -209,19 +215,18 @@
                                 <tr><td colspan="6" class="text-center py-3">Tidak ada data pembelian per supplier pada periode ini.</td></tr>
                                 @endforelse
                             </tbody>
-                            @if($perSupplier->isNotEmpty())
-                            <tfoot class="bg-light">
-                                <tr>
-                                    <th colspan="2">TOTAL KESELURUHAN</th>
-                                    <th class="text-end">{{ number_format($perSupplier->sum('jumlah'), 0, ',', '.') }}</th>
-                                    <th class="text-end">Rp {{ number_format($perSupplier->sum('total'), 0, ',', '.') }}</th>
-                                    <th class="text-end">-</th>
-                                    <th class="text-end"><span class="badge bg-success">100%</span></th>
-                                </tr>
-                            </tfoot>
-                            @endif
                         </table>
                     </div>
+
+                    {{-- ✅ Pagination --}}
+                    @if($perSupplier->hasPages())
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <div class="small text-muted">
+                            Menampilkan {{ $perSupplier->firstItem() }} - {{ $perSupplier->lastItem() }} dari {{ $perSupplier->total() }}
+                        </div>
+                        {{ $perSupplier->appends(request()->query())->links('pagination::bootstrap-5') }}
+                    </div>
+                    @endif
                 </div>
             </div>
         </div>

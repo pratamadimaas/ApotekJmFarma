@@ -1,5 +1,4 @@
-@extends('layouts.app') 
-{{-- Ganti 'layouts.app' dengan nama layout Anda yang sebenarnya --}}
+@extends('layouts.app')
 
 @section('title', 'Laporan Stok Barang')
 
@@ -22,13 +21,11 @@
                         </div>
                     </div>
                     <div class="card-body">
-                        {{-- FORM FILTER --}}
                         <form action="{{ route('laporan.stok') }}" method="GET" class="row align-items-end">
                             <div class="col-md-4 mb-3">
                                 <label for="kategori">Filter Kategori</label>
                                 <select name="kategori" id="kategori" class="form-control">
                                     <option value="">Semua Kategori</option>
-                                    {{-- Menggunakan data kategoriList dari controller --}}
                                     @foreach ($kategoriList as $kategori)
                                         <option value="{{ $kategori }}" 
                                             {{ request('kategori') == $kategori ? 'selected' : '' }}>
@@ -56,7 +53,6 @@
         </div>
 
         <div class="row">
-            {{-- RINGKASAN STOK --}}
             <div class="col-xl-4 col-md-6 mb-4">
                 <div class="card border-left-primary shadow h-100 py-2">
                     <div class="card-body">
@@ -106,13 +102,18 @@
 
         <div class="card shadow mb-4">
             <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Daftar Barang dalam Stok (Total: {{ $barang->count() }} Item)</h6>
+                <h6 class="m-0 font-weight-bold text-primary">
+                    Daftar Barang dalam Stok 
+                    <span class="badge bg-primary">Total: {{ $barang->total() }} Item</span>
+                    <span class="badge bg-secondary">Halaman {{ $barang->currentPage() }} dari {{ $barang->lastPage() }}</span>
+                </h6>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table table-bordered table-striped" id="dataTable" width="100%" cellspacing="0">
+                    <table class="table table-bordered table-striped" width="100%" cellspacing="0">
                         <thead>
                             <tr>
+                                <th>No</th>
                                 <th>Nama Barang</th>
                                 <th>Kategori</th>
                                 <th class="text-end">Stok Sekarang</th>
@@ -125,34 +126,45 @@
                         <tbody>
                             @forelse ($barang as $item)
                             <tr>
+                                <td>{{ ($barang->currentPage() - 1) * $barang->perPage() + $loop->iteration }}</td>
                                 <td>{{ $item->nama_barang }}</td>
                                 <td>{{ $item->kategori }}</td>
                                 <td class="text-end">
                                     {{ $item->stok }}
-                                    @if ($item->stok <= $item->stok_minimum)
+                                    @if ($item->stok <= $item->stok_minimal)
                                         <i class="fas fa-exclamation-triangle text-warning ml-2" title="Mendekati Minimum"></i>
                                     @elseif ($item->stok == 0)
                                         <i class="fas fa-times-circle text-danger ml-2" title="Stok Habis"></i>
                                     @endif
                                 </td>
-                                <td class="text-end">{{ $item->stok_minimum }}</td>
+                                <td class="text-end">{{ $item->stok_minimal }}</td>
                                 <td class="text-end">{{ number_format($item->harga_beli, 0, ',', '.') }}</td>
                                 <td class="text-end">{{ number_format($item->harga_jual, 0, ',', '.') }}</td>
                                 <td class="text-end">{{ number_format($item->stok * $item->harga_beli, 0, ',', '.') }}</td>
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="7" class="text-center">Tidak ada data stok barang yang ditemukan.</td>
+                                <td colspan="8" class="text-center">Tidak ada data stok barang yang ditemukan.</td>
                             </tr>
                             @endforelse
                         </tbody>
                         <tfoot>
                             <tr>
-                                <th colspan="6" class="text-end">TOTAL NILAI STOK</th>
+                                <th colspan="7" class="text-end">TOTAL NILAI STOK</th>
                                 <th class="text-end">Rp{{ number_format($totalNilaiStok, 0, ',', '.') }}</th>
                             </tr>
                         </tfoot>
                     </table>
+                </div>
+
+                {{-- ✅ Pagination --}}
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                    <div>
+                        Menampilkan {{ $barang->firstItem() ?? 0 }} - {{ $barang->lastItem() ?? 0 }} dari {{ $barang->total() }} item
+                    </div>
+                    <div>
+                        {{ $barang->appends(request()->query())->links('pagination::bootstrap-5') }}
+                    </div>
                 </div>
             </div>
         </div>

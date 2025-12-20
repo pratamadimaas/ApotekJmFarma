@@ -16,7 +16,6 @@
         </div>
     </div>
 
-    {{-- ✅ Filter Component --}}
     @include('pages.laporan.laporan-filter', [
         'action' => route('laporan.penjualan'),
         'tanggalDari' => $tanggalDari,
@@ -84,12 +83,14 @@
                 <div class="card-header">
                     <i class="bi bi-calendar-check me-2"></i>
                     <strong>Penjualan Per Hari</strong>
+                    <span class="badge bg-secondary ms-2">{{ $perHari->total() }} hari</span>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-striped table-hover">
                             <thead>
                                 <tr>
+                                    <th>No</th>
                                     <th>Tanggal</th>
                                     <th class="text-end">Jumlah Transaksi</th>
                                     <th class="text-end">Total Laba</th>
@@ -97,14 +98,9 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @php
-                                    $totalLabaKeseluruhan = 0;
-                                @endphp
                                 @forelse($perHari as $item)
-                                @php
-                                    $totalLabaKeseluruhan += $item->laba_kotor;
-                                @endphp
                                 <tr>
+                                    <td>{{ ($perHari->currentPage() - 1) * $perHari->perPage() + $loop->iteration }}</td>
                                     <td>{{ \Carbon\Carbon::parse($item->tanggal)->format('d M Y') }}</td>
                                     <td class="text-end">{{ $item->jumlah_transaksi }}</td>
                                     <td class="text-end">
@@ -116,25 +112,22 @@
                                 </tr>
                                 @empty
                                 <tr>
-                                    <td colspan="4" class="text-center">Tidak ada transaksi pada periode ini.</td>
+                                    <td colspan="5" class="text-center">Tidak ada transaksi pada periode ini.</td>
                                 </tr>
                                 @endforelse
                             </tbody>
-                            @if($perHari->isNotEmpty())
-                            <tfoot class="bg-light">
-                                <tr>
-                                    <th colspan="2">TOTAL KESELURUHAN</th>
-                                    <th class="text-end">
-                                        <span class="badge {{ $totalLabaKeseluruhan >= 0 ? 'bg-success' : 'bg-danger' }}">
-                                            Rp {{ number_format($totalLabaKeseluruhan, 0, ',', '.') }}
-                                        </span>
-                                    </th>
-                                    <th class="text-end">Rp {{ number_format($totalPenjualan, 0, ',', '.') }}</th>
-                                </tr>
-                            </tfoot>
-                            @endif
                         </table>
                     </div>
+
+                    {{-- ✅ Pagination --}}
+                    @if($perHari->hasPages())
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <div class="small text-muted">
+                            Menampilkan {{ $perHari->firstItem() }} - {{ $perHari->lastItem() }} dari {{ $perHari->total() }}
+                        </div>
+                        {{ $perHari->appends(request()->query())->links('pagination::bootstrap-5') }}
+                    </div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -144,7 +137,8 @@
             <div class="card-custom">
                 <div class="card-header">
                     <i class="bi bi-star-fill me-2"></i>
-                    <strong>Top 10 Barang Terlaris</strong>
+                    <strong>Barang Terlaris</strong>
+                    <span class="badge bg-secondary ms-2">{{ $barangTerlaris->total() }} item</span>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -160,7 +154,7 @@
                             <tbody>
                                 @forelse($barangTerlaris as $item)
                                 <tr>
-                                    <td>{{ $loop->iteration }}</td>
+                                    <td>{{ ($barangTerlaris->currentPage() - 1) * $barangTerlaris->perPage() + $loop->iteration }}</td>
                                     <td>{{ $item->barang->nama_barang }}</td>
                                     <td class="text-end">{{ number_format($item->total_qty, 0, ',', '.') }}</td>
                                     <td class="text-end">Rp {{ number_format($item->total_omzet, 0, ',', '.') }}</td>
@@ -173,6 +167,16 @@
                             </tbody>
                         </table>
                     </div>
+
+                    {{-- ✅ Pagination --}}
+                    @if($barangTerlaris->hasPages())
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <div class="small text-muted">
+                            Menampilkan {{ $barangTerlaris->firstItem() }} - {{ $barangTerlaris->lastItem() }} dari {{ $barangTerlaris->total() }}
+                        </div>
+                        {{ $barangTerlaris->appends(request()->query())->links('pagination::bootstrap-5') }}
+                    </div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -192,6 +196,7 @@
                                     <th>Metode</th>
                                     <th class="text-end">Jumlah Transaksi</th>
                                     <th class="text-end">Total Nilai</th>
+                                    <th class="text-end">Persentase</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -200,13 +205,28 @@
                                     <td><span class="badge bg-secondary">{{ strtoupper($item->metode_pembayaran) }}</span></td>
                                     <td class="text-end">{{ number_format($item->jumlah, 0, ',', '.') }}</td>
                                     <td class="text-end">Rp {{ number_format($item->total, 0, ',', '.') }}</td>
+                                    <td class="text-end">
+                                        <span class="badge bg-info">
+                                            {{ $totalPenjualan > 0 ? number_format(($item->total / $totalPenjualan) * 100, 1) : 0 }}%
+                                        </span>
+                                    </td>
                                 </tr>
                                 @empty
                                 <tr>
-                                    <td colspan="3" class="text-center">Data metode pembayaran tidak tersedia.</td>
+                                    <td colspan="4" class="text-center">Data metode pembayaran tidak tersedia.</td>
                                 </tr>
                                 @endforelse
                             </tbody>
+                            @if($perMetode->isNotEmpty())
+                            <tfoot class="bg-light">
+                                <tr>
+                                    <th>TOTAL</th>
+                                    <th class="text-end">{{ number_format($perMetode->sum('jumlah'), 0, ',', '.') }}</th>
+                                    <th class="text-end">Rp {{ number_format($perMetode->sum('total'), 0, ',', '.') }}</th>
+                                    <th class="text-end"><span class="badge bg-success">100%</span></th>
+                                </tr>
+                            </tfoot>
+                            @endif
                         </table>
                     </div>
                 </div>
