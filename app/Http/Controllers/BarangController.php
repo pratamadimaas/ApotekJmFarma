@@ -16,137 +16,156 @@ class BarangController extends Controller
     use CabangFilterTrait;
 
     public function index(Request $request)
-    {
-        // ✅ FORCE CLEAR CACHE BEFORE QUERY
-        $cabangId = $this->getActiveCabangId();
-        
-        Cache::forget('barang_list_' . $cabangId);
-        Cache::forget('barang_kategori_' . $cabangId);
-        
-        // === 🔍 DEBUG START ===
-        Log::info('=== BARANG INDEX DEBUG START ===', [
-            'user' => [
-                'id' => auth()->id(),
-                'name' => auth()->user()->name,
-                'role' => auth()->user()->role,
-                'cabang_id' => auth()->user()->cabang_id,
-            ],
-            'active_cabang_id' => $cabangId,
-            'session_cabang' => session('selected_cabang_id'),
-            'request_params' => $request->except('_token')
-        ]);
-        
-        // ✅ QUERY BASE - Force table name dan explicit select
-        $query = Barang::from('barang')->select('barang.*');
-        
-        // ✅ FILTER CABANG - WAJIB dan PERTAMA (sebelum filter lain)
-        if ($cabangId) {
-            $query->where('barang.cabang_id', '=', $cabangId);
-        }
-        
-        Log::info('Base Query (after cabang filter):', [
-            'sql' => $query->toSql(),
-            'bindings' => $query->getBindings()
-        ]);
-        
-        // ✅ FILTER 1: PENCARIAN (dengan AND condition untuk cabang)
-        if ($request->filled('search')) {
-            $search = $request->search;
-            
-            // PENTING: Gunakan whereRaw atau where dengan parenthesis
-            // untuk memastikan filter cabang tidak di-override
-            $query->where(function($q) use ($search) {
-                $q->where('barang.nama_barang', 'LIKE', "%{$search}%")
-                  ->orWhere('barang.kode_barang', 'LIKE', "%{$search}%")
-                  ->orWhere('barang.barcode', 'LIKE', "%{$search}%");
-            });
-            
-            Log::info('Search filter applied', ['search' => $search]);
-        }
-        
-        // ✅ FILTER 2: KATEGORI
-        if ($request->filled('kategori')) {
-            $query->where('barang.kategori', $request->kategori);
-            Log::info('Kategori filter applied', ['kategori' => $request->kategori]);
-        }
-
-        // ✅ FILTER 3: STOK
-        if ($request->filled('stok_filter')) {
-            $filterValue = $request->stok_filter;
-            
-            if ($filterValue === 'rendah') {
-                $query->whereRaw('barang.stok <= barang.stok_minimal');
-            } elseif (is_numeric($filterValue) && $filterValue > 0) {
-                $query->where('barang.stok', '<', (float) $filterValue);
-            }
-            
-            Log::info('Stok filter applied', ['stok_filter' => $filterValue]);
-        }
-
-        // === 🔍 DEBUG: Final SQL Query ===
-        $finalSql = $query->toSql();
-        $finalBindings = $query->getBindings();
-        
-        Log::info('Final Query Before Execute:', [
-            'sql' => $finalSql,
-            'bindings' => $finalBindings,
-            'readable_query' => vsprintf(
-                str_replace('?', '%s', $finalSql), 
-                collect($finalBindings)->map(fn($b) => is_numeric($b) ? $b : "'{$b}'")->toArray()
-            )
-        ]);
-        
-        // ✅ EXECUTE QUERY
-        $barang = $query->orderBy('barang.nama_barang', 'asc')->paginate(20);
-
-        Log::info('Query Results:', [
-            'total' => $barang->total(),
-            'count' => $barang->count(),
-            'per_page' => $barang->perPage(),
-            'current_page' => $barang->currentPage()
-        ]);
-
-        if ($barang->count() > 0) {
-            Log::info('Sample Data (first 3):', 
-                $barang->take(3)->map(fn($b) => [
-                    'id' => $b->id,
-                    'kode' => $b->kode_barang,
-                    'nama' => $b->nama_barang,
-                    'cabang_id' => $b->cabang_id
-                ])->toArray()
-            );
-        } else {
-            Log::warning('⚠️ NO DATA FOUND!');
-            
-            // Double check langsung ke database
-            $rawCount = DB::table('barang')
-                ->where('cabang_id', $cabangId)
-                ->count();
-                
-            Log::info('Direct DB Check:', [
-                'cabang_id' => $cabangId,
-                'raw_count' => $rawCount
-            ]);
-        }
-
-        Log::info('=== BARANG INDEX DEBUG END ===');
-        
-        // ✅ Kategori List (FRESH dari DB)
-        $kategoriList = DB::table('barang')
-            ->select('kategori')
-            ->where('cabang_id', $cabangId)
-            ->whereNotNull('kategori')
-            ->distinct()
-            ->pluck('kategori');
-        
-        $stokFilterOptions = [
-            10 => '< 10 Unit',
-            20 => '< 20 Unit',
-            50 => '< 50 Unit',
-        ];
-        
-        return view('pages.barang.index', compact('barang', 'kategoriList', 'stokFilterOptions'));
+{
+    // ✅ FORCE CLEAR CACHE BEFORE QUERY
+    $cabangId = $this->getActiveCabangId();
+    
+    Cache::forget('barang_list_' . $cabangId);
+    Cache::forget('barang_kategori_' . $cabangId);
+    
+    Log::info('=== BARANG INDEX DEBUG START ===', [
+        'user' => [
+            'id' => auth()->id(),
+            'name' => auth()->user()->name,
+            'role' => auth()->user()->role,
+            'cabang_id' => auth()->user()->cabang_id,
+        ],
+        'active_cabang_id' => $cabangId,
+        'session_cabang' => session('selected_cabang_id'),
+        'request_params' => $request->except('_token')
+    ]);
+    
+    // ✅ QUERY BASE dengan JOIN untuk mendapatkan supplier terakhir
+    $query = Barang::from('barang')
+        ->select(
+            'barang.*',
+            DB::raw('(SELECT suppliers.nama_supplier 
+                     FROM detail_pembelian 
+                     INNER JOIN pembelian ON detail_pembelian.pembelian_id = pembelian.id
+                     INNER JOIN suppliers ON pembelian.supplier_id = suppliers.id
+                     WHERE detail_pembelian.barang_id = barang.id 
+                     AND pembelian.status = "approved"
+                     ORDER BY pembelian.tanggal_pembelian DESC 
+                     LIMIT 1) as supplier_terakhir'),
+            DB::raw('(SELECT pembelian.tanggal_pembelian 
+                     FROM detail_pembelian 
+                     INNER JOIN pembelian ON detail_pembelian.pembelian_id = pembelian.id
+                     WHERE detail_pembelian.barang_id = barang.id 
+                     AND pembelian.status = "approved"
+                     ORDER BY pembelian.tanggal_pembelian DESC 
+                     LIMIT 1) as tanggal_pembelian_terakhir')
+        );
+    
+    // ✅ FILTER CABANG - WAJIB dan PERTAMA (sebelum filter lain)
+    if ($cabangId) {
+        $query->where('barang.cabang_id', '=', $cabangId);
     }
+    
+    Log::info('Base Query (after cabang filter):', [
+        'sql' => $query->toSql(),
+        'bindings' => $query->getBindings()
+    ]);
+    
+    // ✅ FILTER 1: PENCARIAN
+    if ($request->filled('search')) {
+        $search = $request->search;
+        
+        $query->where(function($q) use ($search) {
+            $q->where('barang.nama_barang', 'LIKE', "%{$search}%")
+              ->orWhere('barang.kode_barang', 'LIKE', "%{$search}%")
+              ->orWhere('barang.barcode', 'LIKE', "%{$search}%");
+        });
+        
+        Log::info('Search filter applied', ['search' => $search]);
+    }
+    
+    // ✅ FILTER 2: KATEGORI
+    if ($request->filled('kategori')) {
+        $query->where('barang.kategori', $request->kategori);
+        Log::info('Kategori filter applied', ['kategori' => $request->kategori]);
+    }
+
+    // ✅ FILTER 3: STOK
+    if ($request->filled('stok_filter')) {
+        $filterValue = $request->stok_filter;
+        
+        if ($filterValue === 'rendah') {
+            $query->whereRaw('barang.stok <= barang.stok_minimal');
+        } elseif (is_numeric($filterValue) && $filterValue > 0) {
+            $query->where('barang.stok', '<', (float) $filterValue);
+        }
+        
+        Log::info('Stok filter applied', ['stok_filter' => $filterValue]);
+    }
+
+    // ✅ FILTER 4: SUPPLIER (BARU)
+    if ($request->filled('supplier_id')) {
+        $query->whereExists(function($q) use ($request) {
+            $q->select(DB::raw(1))
+              ->from('detail_pembelian')
+              ->join('pembelian', 'detail_pembelian.pembelian_id', '=', 'pembelian.id')
+              ->whereColumn('detail_pembelian.barang_id', 'barang.id')
+              ->where('pembelian.supplier_id', $request->supplier_id)
+              ->where('pembelian.status', 'approved');
+        });
+        
+        Log::info('Supplier filter applied', ['supplier_id' => $request->supplier_id]);
+    }
+
+    // === 🔍 DEBUG: Final SQL Query ===
+    $finalSql = $query->toSql();
+    $finalBindings = $query->getBindings();
+    
+    Log::info('Final Query Before Execute:', [
+        'sql' => $finalSql,
+        'bindings' => $finalBindings
+    ]);
+    
+    // ✅ EXECUTE QUERY
+    $barang = $query->orderBy('barang.nama_barang', 'asc')->paginate(20);
+
+    Log::info('Query Results:', [
+        'total' => $barang->total(),
+        'count' => $barang->count(),
+        'per_page' => $barang->perPage(),
+        'current_page' => $barang->currentPage()
+    ]);
+
+    if ($barang->count() > 0) {
+        Log::info('Sample Data (first 3):', 
+            $barang->take(3)->map(fn($b) => [
+                'id' => $b->id,
+                'kode' => $b->kode_barang,
+                'nama' => $b->nama_barang,
+                'cabang_id' => $b->cabang_id,
+                'supplier_terakhir' => $b->supplier_terakhir ?? 'Tidak ada'
+            ])->toArray()
+        );
+    }
+
+    Log::info('=== BARANG INDEX DEBUG END ===');
+    
+    // ✅ Kategori List (FRESH dari DB)
+    $kategoriList = DB::table('barang')
+        ->select('kategori')
+        ->where('cabang_id', $cabangId)
+        ->whereNotNull('kategori')
+        ->distinct()
+        ->pluck('kategori');
+    
+    // ✅ Supplier List untuk Filter (BARU)
+    $supplierList = DB::table('suppliers')
+        ->orderBy('nama_supplier')
+        ->get();
+    
+    $stokFilterOptions = [
+        10 => '< 10 Unit',
+        20 => '< 20 Unit',
+        50 => '< 50 Unit',
+    ];
+    
+    return view('pages.barang.index', compact('barang', 'kategoriList', 'stokFilterOptions', 'supplierList'));
+}
 
     public function getSatuan($id)
 {
@@ -290,15 +309,52 @@ class BarangController extends Controller
     }
 
     public function show($id)
-    {
-        $cabangId = $this->getActiveCabangId();
+{
+    $cabangId = $this->getActiveCabangId();
+    
+    $barang = Barang::with('satuanKonversi')
+        ->when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
+        ->findOrFail($id);
+    
+    // ✅ Ambil info supplier terakhir
+    $supplierTerakhir = DB::table('detail_pembelian')
+        ->join('pembelian', 'detail_pembelian.pembelian_id', '=', 'pembelian.id')
+        ->join('suppliers', 'pembelian.supplier_id', '=', 'suppliers.id')
+        ->where('detail_pembelian.barang_id', $id)
+        ->where('pembelian.status', 'approved')
+        ->select(
+            'suppliers.nama_supplier',
+            'suppliers.telepon',
+            'suppliers.alamat',
+            'pembelian.tanggal_pembelian',
+            'pembelian.nomor_pembelian',
+            'detail_pembelian.harga_beli',
+            'detail_pembelian.jumlah',
+            'detail_pembelian.satuan'
+        )
+        ->orderBy('pembelian.tanggal_pembelian', 'DESC')
+        ->first();
+    
+    // ✅ Riwayat pembelian (5 terakhir)
+    $riwayatPembelian = DB::table('detail_pembelian')
+        ->join('pembelian', 'detail_pembelian.pembelian_id', '=', 'pembelian.id')
+        ->join('suppliers', 'pembelian.supplier_id', '=', 'suppliers.id')
+        ->where('detail_pembelian.barang_id', $id)
+        ->where('pembelian.status', 'approved')
+        ->select(
+            'suppliers.nama_supplier',
+            'pembelian.tanggal_pembelian',
+            'pembelian.nomor_pembelian',
+            'detail_pembelian.harga_beli',
+            'detail_pembelian.jumlah',
+            'detail_pembelian.satuan'
+        )
+        ->orderBy('pembelian.tanggal_pembelian', 'DESC')
+        ->limit(5)
+        ->get();
         
-        $barang = Barang::with('satuanKonversi')
-            ->when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
-            ->findOrFail($id);
-            
-        return view('pages.barang.show', compact('barang'));
-    }
+    return view('pages.barang.show', compact('barang', 'supplierTerakhir', 'riwayatPembelian'));
+}
 
     public function edit($id)
     {

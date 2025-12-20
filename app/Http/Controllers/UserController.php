@@ -25,21 +25,28 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
+        // Validasi dinamis berdasarkan role
+        $rules = [
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
-            'password' => 'required|min:6',
+            'password' => 'nullable|min:4', 
             'role' => 'required|in:super_admin,admin_cabang,kasir',
-            'cabang_id' => 'required_if:role,admin_cabang,kasir|exists:cabang,id',
             'aktif' => 'boolean'
-        ], [
+        ];
+        
+        // Tambah validasi cabang_id hanya untuk admin_cabang dan kasir
+        if (in_array($request->role, ['admin_cabang', 'kasir'])) {
+            $rules['cabang_id'] = 'required|exists:cabang,id';
+        }
+
+        $validator = Validator::make($request->all(), $rules, [
             'name.required' => 'Nama wajib diisi',
             'email.required' => 'Email wajib diisi',
             'email.unique' => 'Email sudah terdaftar',
-            'password.required' => 'Password wajib diisi',
-            'password.min' => 'Password minimal 6 karakter',
+            'password.min' => 'Password minimal 4 karakter', // ✅ Diperbaiki dari 'max' ke 'min'
             'role.required' => 'Role wajib dipilih',
-            'cabang_id.required_if' => 'Cabang wajib dipilih untuk Admin Cabang dan Kasir'
+            'cabang_id.required' => 'Cabang wajib dipilih untuk Admin Cabang dan Kasir',
+            'cabang_id.exists' => 'Cabang tidak valid'
         ]);
 
         if ($validator->fails()) {
@@ -48,18 +55,42 @@ class UserController extends Controller
                 ->withInput();
         }
 
-        $data = $request->all();
-        $data['password'] = Hash::make($request->password);
-        
-        // Super admin tidak perlu cabang
-        if ($request->role === 'super_admin') {
-            $data['cabang_id'] = null;
+        try {
+            $data = $request->except('password');
+            
+            if ($request->filled('password')) {
+                $data['password'] = Hash::make($request->password);
+                $generatedPassword = null;
+            } else {
+                // Generate password random 5 karakter
+                $generatedPassword = \Illuminate\Support\Str::random(5);
+                $data['password'] = Hash::make($generatedPassword);
+            }
+            
+            // ✅ Super admin tidak perlu cabang
+            if ($request->role === 'super_admin') {
+                $data['cabang_id'] = null;
+            }
+            
+            // ✅ Set default aktif jika tidak ada
+            $data['aktif'] = $request->has('aktif') ? (bool) $request->aktif : true;
+
+            $user = User::create($data);
+
+            // ✅ Tampilkan password yang di-generate
+            $successMessage = 'User berhasil ditambahkan!';
+            if ($generatedPassword) {
+                $successMessage .= " Password: {$generatedPassword} (Catat password ini!)";
+            }
+
+            return redirect()->route('users.index')
+                ->with('success', $successMessage);
+                
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', 'Gagal menambah user: ' . $e->getMessage())
+                ->withInput();
         }
-
-        User::create($data);
-
-        return redirect()->route('users.index')
-            ->with('success', 'User berhasil ditambahkan!');
     }
 
     public function edit(User $user)
@@ -75,10 +106,11 @@ class UserController extends Controller
             'email' => 'required|email|unique:users,email,' . $user->id,
             'role' => 'required|in:super_admin,admin_cabang,kasir',
             'cabang_id' => 'required_if:role,admin_cabang,kasir|exists:cabang,id',
-            'password' => 'nullable|min:6',
+            'password' => 'nullable|min:4',
             'aktif' => 'boolean'
         ], [
-            'cabang_id.required_if' => 'Cabang wajib dipilih untuk Admin Cabang dan Kasir'
+            'cabang_id.required_if' => 'Cabang wajib dipilih untuk Admin Cabang dan Kasir',
+            'password.min' => 'Password minimal 4 karakter' // ✅ Tambahkan ini juga untuk konsistensi
         ]);
 
         if ($validator->fails()) {
@@ -104,10 +136,6 @@ class UserController extends Controller
             ->with('success', 'User berhasil diperbarui!');
     }
 
-    /**
-     * ✅ FIXED: Soft delete (nonaktifkan) jika ada data terkait
-     * Hapus permanen hanya jika tidak ada data terkait
-     */
     public function destroy(User $user)
     {
         // Prevent self-deletion
@@ -160,11 +188,11 @@ class UserController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'current_password' => 'required',
-            'new_password' => 'required|min:6|confirmed',
+            'new_password' => 'required|min:4|confirmed',
         ], [
             'current_password.required' => 'Password lama wajib diisi',
             'new_password.required' => 'Password baru wajib diisi',
-            'new_password.min' => 'Password baru minimal 6 karakter',
+            'new_password.min' => 'Password baru minimal 4 karakter',
             'new_password.confirmed' => 'Konfirmasi password tidak cocok'
         ]);
 
