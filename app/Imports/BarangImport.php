@@ -3,6 +3,7 @@
 namespace App\Imports;
 
 use App\Models\Barang;
+use App\Models\SatuanKonversi;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithValidation;
@@ -10,7 +11,8 @@ use Maatwebsite\Excel\Concerns\SkipsOnError;
 use Maatwebsite\Excel\Concerns\SkipsErrors;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Session; // ✅ Diperlukan untuk Super Admin filter
+use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\DB;
 
 class BarangImport implements ToModel, WithHeadingRow, WithValidation, SkipsOnError
 {
@@ -19,7 +21,7 @@ class BarangImport implements ToModel, WithHeadingRow, WithValidation, SkipsOnEr
     private $importedCount = 0;
     private $skippedCount = 0;
     private $importErrors = [];
-    private $activeCabangId; // Properti untuk menyimpan ID Cabang yang ditargetkan
+    private $activeCabangId;
 
     public function __construct()
     {
@@ -31,15 +33,12 @@ class BarangImport implements ToModel, WithHeadingRow, WithValidation, SkipsOnEr
             return;
         }
 
-        // Tentukan ID Cabang yang akan digunakan untuk SEMUA baris import
         if (method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) {
-            // Jika Super Admin: Prioritaskan filter dari Session (dari Navbar)
             $sessionCabangId = Session::get('selected_cabang_id'); 
             
             if (!empty($sessionCabangId)) {
                 $this->activeCabangId = (int) $sessionCabangId;
             } else {
-                // Jika Super Admin tidak memilih filter, biarkan null agar terjadi error validasi di model()
                 $this->activeCabangId = null; 
             }
             
@@ -48,7 +47,6 @@ class BarangImport implements ToModel, WithHeadingRow, WithValidation, SkipsOnEr
             ]);
 
         } else {
-            // Admin Cabang / Kasir: Gunakan cabang_id dari profil user
             $this->activeCabangId = $user->cabang_id;
             
             Log::info('Import Init: Regular user mode', [
@@ -56,7 +54,6 @@ class BarangImport implements ToModel, WithHeadingRow, WithValidation, SkipsOnEr
             ]);
         }
     }
-
 
     /**
      * @param array $row
@@ -69,24 +66,22 @@ class BarangImport implements ToModel, WithHeadingRow, WithValidation, SkipsOnEr
 
             Log::info('Import Row - Target Cabang ID:', ['cabang_id' => $cabangId, 'row_data' => $row]);
 
-            // ✅ VALIDASI KRITIS: Hentikan jika ID Cabang tidak teridentifikasi
+            // Validasi cabang ID
             if (empty($cabangId)) {
-                 // Throw exception agar proses import dihentikan total pada baris pertama
                 if ($this->importedCount + $this->skippedCount === 0) {
-                     $this->importErrors[] = "Import DIBATALKAN: Super Admin harus memilih cabang yang aktif di Navbar filter atau Anda belum ditugaskan ke cabang.";
-                     Log::error('Import Stopped: Cabang ID is NULL.');
-                     throw new \Exception("Cabang ID tidak teridentifikasi untuk proses import. Pastikan filter cabang sudah diatur."); 
+                    $this->importErrors[] = "Import DIBATALKAN: Super Admin harus memilih cabang yang aktif di Navbar filter atau Anda belum ditugaskan ke cabang.";
+                    Log::error('Import Stopped: Cabang ID is NULL.');
+                    throw new \Exception("Cabang ID tidak teridentifikasi untuk proses import. Pastikan filter cabang sudah diatur."); 
                 }
                 $this->skippedCount++;
                 return null;
             }
 
-            // ✅ Convert barcode dari scientific notation ke string normal
+            // Convert barcode dari scientific notation
             $barcode = null;
             if (!empty($row['barcode'])) {
                 $barcode = $this->convertScientificToString($row['barcode']);
                 
-                // Cek barcode duplikat di CABANG YANG DITARGETKAN
                 $barcodeExists = Barang::where('barcode', $barcode)
                                        ->where('cabang_id', $cabangId)
                                        ->exists();
@@ -98,7 +93,7 @@ class BarangImport implements ToModel, WithHeadingRow, WithValidation, SkipsOnEr
                 }
             }
 
-            // Cek kode_barang duplikat di CABANG YANG DITARGETKAN
+            // Cek duplikasi kode barang
             $exists = Barang::where('kode_barang', $row['kode_barang'])
                             ->where('cabang_id', $cabangId)
                             ->exists();
@@ -109,25 +104,39 @@ class BarangImport implements ToModel, WithHeadingRow, WithValidation, SkipsOnEr
                 return null;
             }
 
-            $this->importedCount++;
+            // ✅ Gunakan DB Transaction untuk konsistensi data
+            DB::beginTransaction();
+            
+            try {
+                // Buat data barang
+                $barang = Barang::create([
+                    'kode_barang'       => $row['kode_barang'],
+                    'barcode'           => $barcode,
+                    'nama_barang'       => $row['nama_barang'],
+                    'kategori'          => $row['kategori'],
+                    'satuan_terkecil'   => $row['satuan_terkecil'],
+                    'harga_beli'        => $row['harga_beli'] ?? 0,
+                    'harga_jual'        => $row['harga_jual'] ?? 0,
+                    'stok'              => $row['stok'] ?? 0,
+                    'stok_minimal'      => $row['stok_minimal'] ?? 5,
+                    'lokasi_rak'        => $row['lokasi_rak'] ?? null,
+                    'deskripsi'         => $row['deskripsi'] ?? null,
+                    'aktif'             => true,
+                    'cabang_id'         => $cabangId,
+                ]);
 
-            $barangData = [
-                'kode_barang'       => $row['kode_barang'],
-                'barcode'           => $barcode,
-                'nama_barang'       => $row['nama_barang'],
-                'kategori'          => $row['kategori'],
-                'satuan_terkecil'   => $row['satuan_terkecil'],
-                'harga_beli'        => $row['harga_beli'] ?? 0,
-                'harga_jual'        => $row['harga_jual'] ?? 0,
-                'stok'              => $row['stok'] ?? 0,
-                'stok_minimal'      => $row['stok_minimal'] ?? 5,
-                'lokasi_rak'        => $row['lokasi_rak'] ?? null,
-                'deskripsi'         => $row['deskripsi'] ?? null,
-                'aktif'             => true,
-                'cabang_id'         => $cabangId, // ✅ Gunakan ID Cabang yang sudah ditentukan di constructor
-            ];
+                // ✅ Import Satuan Konversi (Maksimal 5)
+                $this->importSatuanKonversi($barang, $row);
 
-            return new Barang($barangData);
+                DB::commit();
+                $this->importedCount++;
+                
+                return $barang;
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
+            }
 
         } catch (\Exception $e) {
             $this->skippedCount++;
@@ -138,11 +147,63 @@ class BarangImport implements ToModel, WithHeadingRow, WithValidation, SkipsOnEr
     }
 
     /**
+     * ✅ Import Satuan Konversi dari Excel (Maksimal 5)
+     */
+    private function importSatuanKonversi(Barang $barang, array $row)
+    {
+        // Loop untuk 5 satuan konversi
+        for ($i = 1; $i <= 5; $i++) {
+            $namaSatuan = $row["konversi_{$i}_nama"] ?? null;
+            $jumlahKonversi = $row["konversi_{$i}_jumlah"] ?? null;
+            $hargaJual = $row["konversi_{$i}_harga"] ?? null;
+            $isDefault = $row["konversi_{$i}_default"] ?? null;
+
+            // Skip jika nama satuan atau jumlah konversi kosong
+            if (empty($namaSatuan) || empty($jumlahKonversi)) {
+                continue;
+            }
+
+            // Validasi jumlah konversi harus angka positif
+            if (!is_numeric($jumlahKonversi) || $jumlahKonversi <= 0) {
+                Log::warning("Konversi {$i} untuk {$barang->kode_barang} diabaikan: jumlah konversi tidak valid");
+                continue;
+            }
+
+            // Buat satuan konversi
+            SatuanKonversi::create([
+                'barang_id' => $barang->id,
+                'nama_satuan' => trim($namaSatuan),
+                'jumlah_konversi' => (int) $jumlahKonversi,
+                'harga_jual' => !empty($hargaJual) ? (int) $hargaJual : 0,
+                'is_default' => $this->parseBoolean($isDefault)
+            ]);
+
+            Log::info("Konversi {$i} untuk {$barang->kode_barang} berhasil ditambahkan", [
+                'nama_satuan' => $namaSatuan,
+                'jumlah' => $jumlahKonversi
+            ]);
+        }
+    }
+
+    /**
+     * Helper untuk parse boolean dari Excel (Ya/Tidak, 1/0, TRUE/FALSE)
+     */
+    private function parseBoolean($value)
+    {
+        if (empty($value)) {
+            return false;
+        }
+
+        $value = strtolower(trim($value));
+        
+        return in_array($value, ['ya', 'yes', 'true', '1', 1], true);
+    }
+
+    /**
      * Validasi per baris
      */
     public function rules(): array
     {
-        // Note: Duplikasi unique check dilakukan di model() karena kita perlu filter cabang_id
         return [
             'kode_barang'       => 'required|string|max:50',
             'nama_barang'       => 'required|string|max:255',
@@ -186,20 +247,13 @@ class BarangImport implements ToModel, WithHeadingRow, WithValidation, SkipsOnEr
         return $this->importErrors;
     }
     
-    /**
-     * Helper method untuk mendapatkan Cabang ID yang aktif (untuk Controller)
-     */
     public function getActiveCabangId()
     {
         return $this->activeCabangId;
     }
 
-
     /**
      * Convert scientific notation string ke normal string
-     * Contoh: "8.99277E+12" atau "8,99277E+12" jadi "8992770000000"
-     * * @param mixed $value
-     * @return string|null
      */
     private function convertScientificToString($value)
     {
@@ -207,21 +261,15 @@ class BarangImport implements ToModel, WithHeadingRow, WithValidation, SkipsOnEr
             return null;
         }
 
-        // Convert ke string dulu
         $value = (string) $value;
 
-        // Jika sudah berupa string normal (tidak ada E atau e), return langsung
         if (!preg_match('/[eE]/', $value)) {
-            // Trim whitespace dan return
             return trim($value);
         }
 
-        // Replace koma dengan titik untuk handle format Excel non-US
         $value = str_replace(',', '.', $value);
 
-        // Convert scientific notation ke number, lalu ke string tanpa decimal
         if (is_numeric($value)) {
-            // sprintf dengan %.0f untuk convert tanpa desimal
             $converted = sprintf('%.0f', (float) $value);
             
             Log::info('Barcode Conversion', [
@@ -232,7 +280,6 @@ class BarangImport implements ToModel, WithHeadingRow, WithValidation, SkipsOnEr
             return $converted;
         }
 
-        // Fallback: return original value
         return trim($value);
     }
 }

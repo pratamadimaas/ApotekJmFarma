@@ -4,102 +4,94 @@
 
 @section('content')
 <div class="container-fluid">
-    <h2 class="mb-4">Laporan Penjualan</h2>
-
-    <div class="card mb-4">
-        <div class="card-body">
-            <form method="GET" class="row g-2 align-items-end">
-                {{-- Filter Tanggal --}}
-                <div class="col-md-3">
-                    <label for="tanggal_dari">Tanggal Dari</label>
-                    <input type="date" name="tanggal_dari" id="tanggal_dari" class="form-control" value="{{ $tanggalDari }}">
-                </div>
-                <div class="col-md-3">
-                    <label for="tanggal_sampai">Tanggal Sampai</label>
-                    <input type="date" name="tanggal_sampai" id="tanggal_sampai" class="form-control" value="{{ $tanggalSampai }}">
-                </div>
-                
-                {{-- Tombol Aksi --}}
-                <div class="col-md-auto d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary me-2">
-                        <i class="bi bi-filter me-1"></i> Filter
-                    </button>
-                    <a href="{{ route('laporan.index') }}" class="btn btn-light me-4">Reset</a>
-                </div>
-                
-                {{-- Tombol Export --}}
-                <div class="col-md-auto d-flex align-items-end ms-auto">
-                    {{-- Export Excel --}}
-                    <a href="{{ route('laporan.export-excel', array_merge(request()->query(), ['type' => 'penjualan'])) }}" class="btn btn-success me-2" title="Export ke Excel">
-                        <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
-                    </a>
-
-                    {{-- Export PDF --}}
-                    <a href="{{ route('laporan.export-pdf', array_merge(request()->query(), ['type' => 'penjualan'])) }}" class="btn btn-danger" title="Export ke PDF">
-                        <i class="bi bi-file-pdf me-1"></i> Export PDF
-                    </a>
-                </div>
-            </form>
+    <div class="page-header mb-4">
+        <div class="d-flex align-items-center">
+            <div class="icon-wrapper me-3">
+                <i class="bi bi-graph-up"></i>
+            </div>
+            <div>
+                <h2 class="page-title mb-1">Laporan Penjualan</h2>
+                <p class="page-subtitle mb-0">Analisis penjualan dan laba kotor.</p>
+            </div>
         </div>
     </div>
 
-    <div class="row mb-4">
-        {{-- Ubah col-md-4 menjadi col-md-3 untuk menampung 4 kolom --}}
-        <div class="col-md-3"> 
-            <div class="card bg-primary text-white shadow">
-                <div class="card-body">
-                    <i class="bi bi-cash-stack float-end fa-2x"></i>
-                    <h6>Total Penjualan</h6>
-                    <h3 class="fw-bold">Rp {{ number_format($totalPenjualan, 0, ',', '.') }}</h3>
-                </div>
-            </div>
-        </div>
-        
-        {{-- 🟢 (BARU) Kartu Total Laba Kotor --}}
+    {{-- ✅ Filter Component --}}
+    @include('pages.laporan.laporan-filter', [
+        'action' => route('laporan.penjualan'),
+        'tanggalDari' => $tanggalDari,
+        'tanggalSampai' => $tanggalSampai,
+        'showExport' => true,
+        'showPdfExport' => true,
+        'jenisLaporan' => 'penjualan'
+    ])
+
+    {{-- Summary Cards --}}
+    <div class="row g-4 mb-4">
         <div class="col-md-3">
-            <div class="card bg-warning text-white shadow">
-                <div class="card-body">
-                    <i class="bi bi-graph-up-arrow float-end fa-2x"></i>
-                    <h6>Total Laba Kotor</h6>
-                    <h3 class="fw-bold">Rp {{ number_format($labaKotor, 0, ',', '.') }}</h3>
+            <div class="card-custom p-3 bg-primary-subtle text-primary">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-cash-stack me-3 fs-3"></i>
+                    <div>
+                        <div class="text-uppercase small">Total Penjualan</div>
+                        <h4 class="mb-0">Rp {{ number_format($totalPenjualan, 0, ',', '.') }}</h4>
+                    </div>
                 </div>
             </div>
         </div>
         
         <div class="col-md-3">
-            <div class="card bg-success text-white shadow">
-                <div class="card-body">
-                    <i class="bi bi-receipt-cutoff float-end fa-2x"></i>
-                    <h6>Jumlah Transaksi</h6>
-                    <h3 class="fw-bold">{{ $jumlahTransaksi }}</h3>
+            <div class="card-custom p-3 bg-warning-subtle text-warning">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-graph-up-arrow me-3 fs-3"></i>
+                    <div>
+                        <div class="text-uppercase small">Total Laba Kotor</div>
+                        <h4 class="mb-0">Rp {{ number_format($labaKotor, 0, ',', '.') }}</h4>
+                    </div>
                 </div>
             </div>
         </div>
+        
         <div class="col-md-3">
-            <div class="card bg-info text-white shadow">
-                <div class="card-body">
-                    <i class="bi bi-currency-dollar float-end fa-2x"></i>
-                    <h6>Rata-rata per Transaksi</h6>
-                    <h3 class="fw-bold">Rp {{ number_format($jumlahTransaksi > 0 ? $totalPenjualan / $jumlahTransaksi : 0, 0, ',', '.') }}</h3>
+            <div class="card-custom p-3 bg-success-subtle text-success">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-receipt-cutoff me-3 fs-3"></i>
+                    <div>
+                        <div class="text-uppercase small">Jumlah Transaksi</div>
+                        <h4 class="mb-0">{{ number_format($jumlahTransaksi, 0, ',', '.') }}</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card-custom p-3 bg-info-subtle text-info">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-currency-dollar me-3 fs-3"></i>
+                    <div>
+                        <div class="text-uppercase small">Rata-rata per Transaksi</div>
+                        <h4 class="mb-0">Rp {{ number_format($jumlahTransaksi > 0 ? $totalPenjualan / $jumlahTransaksi : 0, 0, ',', '.') }}</h4>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-    <div class="row">
+
+    <div class="row g-4">
+        {{-- Penjualan Per Hari --}}
         <div class="col-lg-6">
-            <div class="card mb-4 shadow">
-                <div class="card-header bg-light">
-                    <i class="bi bi-calendar-check me-1"></i> <strong>Penjualan Per Hari</strong>
+            <div class="card-custom">
+                <div class="card-header">
+                    <i class="bi bi-calendar-check me-2"></i>
+                    <strong>Penjualan Per Hari</strong>
                 </div>
                 <div class="card-body">
-                    @if($perHari->isEmpty())
-                        <p class="text-center text-muted">Tidak ada transaksi pada periode ini.</p>
-                    @else
-                        <table class="table table-striped table-hover table-sm">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
                             <thead>
                                 <tr>
                                     <th>Tanggal</th>
-                                    <th>Jumlah Transaksi</th>
+                                    <th class="text-end">Jumlah Transaksi</th>
                                     <th class="text-end">Total Laba</th>
                                     <th class="text-end">Total Penjualan</th>
                                 </tr>
@@ -108,13 +100,13 @@
                                 @php
                                     $totalLabaKeseluruhan = 0;
                                 @endphp
-                                @foreach($perHari as $item)
+                                @forelse($perHari as $item)
                                 @php
                                     $totalLabaKeseluruhan += $item->laba_kotor;
                                 @endphp
                                 <tr>
-                                    <td>{{ \Carbon\Carbon::parse($item->tanggal)->format('d F Y') }}</td>
-                                    <td>{{ $item->jumlah_transaksi }}</td>
+                                    <td>{{ \Carbon\Carbon::parse($item->tanggal)->format('d M Y') }}</td>
+                                    <td class="text-end">{{ $item->jumlah_transaksi }}</td>
                                     <td class="text-end">
                                         <span class="badge {{ $item->laba_kotor >= 0 ? 'bg-success' : 'bg-danger' }}">
                                             Rp {{ number_format($item->laba_kotor, 0, ',', '.') }}
@@ -122,9 +114,14 @@
                                     </td>
                                     <td class="text-end">Rp {{ number_format($item->total, 0, ',', '.') }}</td>
                                 </tr>
-                                @endforeach
+                                @empty
+                                <tr>
+                                    <td colspan="4" class="text-center">Tidak ada transaksi pada periode ini.</td>
+                                </tr>
+                                @endforelse
                             </tbody>
-                            <tfoot>
+                            @if($perHari->isNotEmpty())
+                            <tfoot class="bg-light">
                                 <tr>
                                     <th colspan="2">TOTAL KESELURUHAN</th>
                                     <th class="text-end">
@@ -135,72 +132,83 @@
                                     <th class="text-end">Rp {{ number_format($totalPenjualan, 0, ',', '.') }}</th>
                                 </tr>
                             </tfoot>
+                            @endif
                         </table>
-                    @endif
+                    </div>
                 </div>
             </div>
         </div>
 
+        {{-- Top 10 Barang Terlaris --}}
         <div class="col-lg-6">
-            <div class="card mb-4 shadow">
-                <div class="card-header bg-light">
-                    <i class="bi bi-star-fill me-1"></i> <strong>Top 10 Barang Terlaris</strong>
+            <div class="card-custom">
+                <div class="card-header">
+                    <i class="bi bi-star-fill me-2"></i>
+                    <strong>Top 10 Barang Terlaris</strong>
                 </div>
                 <div class="card-body">
-                    @if($barangTerlaris->isEmpty())
-                        <p class="text-center text-muted">Tidak ada barang yang terjual pada periode ini.</p>
-                    @else
-                        <table class="table table-striped table-hover table-sm">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
                             <thead>
                                 <tr>
                                     <th>#</th>
                                     <th>Nama Barang</th>
-                                    <th>Jumlah Terjual</th>
+                                    <th class="text-end">Jumlah Terjual</th>
                                     <th class="text-end">Total Omzet</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach($barangTerlaris as $item)
+                                @forelse($barangTerlaris as $item)
                                 <tr>
                                     <td>{{ $loop->iteration }}</td>
                                     <td>{{ $item->barang->nama_barang }}</td>
-                                    <td>{{ $item->total_qty }}</td>
+                                    <td class="text-end">{{ number_format($item->total_qty, 0, ',', '.') }}</td>
                                     <td class="text-end">Rp {{ number_format($item->total_omzet, 0, ',', '.') }}</td>
                                 </tr>
-                                @endforeach
+                                @empty
+                                <tr>
+                                    <td colspan="4" class="text-center">Tidak ada barang yang terjual pada periode ini.</td>
+                                </tr>
+                                @endforelse
                             </tbody>
                         </table>
-                    @endif
+                    </div>
                 </div>
             </div>
-            
-            <div class="card mb-4 shadow">
-                <div class="card-header bg-light">
-                    <i class="bi bi-credit-card me-1"></i> <strong>Penjualan per Metode Bayar</strong>
+        </div>
+        
+        {{-- Penjualan per Metode Bayar --}}
+        <div class="col-lg-6">
+            <div class="card-custom">
+                <div class="card-header">
+                    <i class="bi bi-credit-card me-2"></i>
+                    <strong>Penjualan per Metode Bayar</strong>
                 </div>
                 <div class="card-body">
-                    @if($perMetode->isEmpty())
-                        <p class="text-center text-muted">Data metode pembayaran tidak tersedia.</p>
-                    @else
-                        <table class="table table-sm">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
                             <thead>
                                 <tr>
                                     <th>Metode</th>
-                                    <th>Jumlah Transaksi</th>
+                                    <th class="text-end">Jumlah Transaksi</th>
                                     <th class="text-end">Total Nilai</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach($perMetode as $item)
+                                @forelse($perMetode as $item)
                                 <tr>
                                     <td><span class="badge bg-secondary">{{ strtoupper($item->metode_pembayaran) }}</span></td>
-                                    <td>{{ $item->jumlah }}</td>
+                                    <td class="text-end">{{ number_format($item->jumlah, 0, ',', '.') }}</td>
                                     <td class="text-end">Rp {{ number_format($item->total, 0, ',', '.') }}</td>
                                 </tr>
-                                @endforeach
+                                @empty
+                                <tr>
+                                    <td colspan="3" class="text-center">Data metode pembayaran tidak tersedia.</td>
+                                </tr>
+                                @endforelse
                             </tbody>
                         </table>
-                    @endif
+                    </div>
                 </div>
             </div>
         </div>

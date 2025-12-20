@@ -16,35 +16,17 @@
         </div>
     </div>
 
-    <div class="card-custom mb-4">
-        <div class="card-body">
-            <form method="GET" action="{{ route('laporan.pembelian') }}" class="row g-3 align-items-end">
-                <div class="col-md-4">
-                    <label for="tanggal_dari" class="form-label">Tanggal Dari</label>
-                    <input type="date" class="form-control" id="tanggal_dari" name="tanggal_dari" 
-                           value="{{ $tanggalDari }}">
-                </div>
-                <div class="col-md-4">
-                    <label for="tanggal_sampai" class="form-label">Tanggal Sampai</label>
-                    <input type="date" class="form-control" id="tanggal_sampai" name="tanggal_sampai" 
-                           value="{{ $tanggalSampai }}">
-                </div>
-                <div class="col-md-4">
-                    <button type="submit" class="btn btn-primary" style="width: 100%;">
-                        <i class="bi bi-filter me-2"></i>Tampilkan Laporan
-                    </button>
-                </div>
-            </form>
-            <div class="mt-3">
-                {{-- ✅ UPDATE: Gunakan parameter 'jenis' bukan 'type' --}}
-                <a href="{{ route('laporan.export-excel', ['jenis' => 'pembelian', 'tanggal_dari' => $tanggalDari, 'tanggal_sampai' => $tanggalSampai]) }}" 
-                   class="btn btn-sm btn-success">
-                    <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
-                </a>
-            </div>
-        </div>
-    </div>
+    {{-- ✅ Filter Component --}}
+    @include('pages.laporan.laporan-filter', [
+        'action' => route('laporan.pembelian'),
+        'tanggalDari' => $tanggalDari,
+        'tanggalSampai' => $tanggalSampai,
+        'showExport' => true,
+        'showPdfExport' => false,
+        'jenisLaporan' => 'pembelian'
+    ])
     
+    {{-- Summary Cards --}}
     <div class="row g-4 mb-4">
         <div class="col-md-6 col-lg-3">
             <div class="card-custom p-3 bg-primary-subtle text-primary">
@@ -68,20 +50,42 @@
                 </div>
             </div>
         </div>
+        <div class="col-md-6 col-lg-3">
+            <div class="card-custom p-3 bg-success-subtle text-success">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-calculator me-3 fs-3"></i>
+                    <div>
+                        <div class="text-uppercase small">Rata-rata per Transaksi</div>
+                        <h4 class="mb-0">Rp {{ number_format($jumlahTransaksi > 0 ? $totalPembelian / $jumlahTransaksi : 0, 0, ',', '.') }}</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <div class="card-custom p-3 bg-warning-subtle text-warning">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-box-seam me-3 fs-3"></i>
+                    <div>
+                        <div class="text-uppercase small">Total Item Dibeli</div>
+                        <h4 class="mb-0">{{ number_format($barangTerbeli->sum('total_qty'), 0, ',', '.') }}</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="row g-4">
         
+        {{-- Total Pembelian Harian --}}
         <div class="col-lg-6">
             <div class="card-custom">
                 <div class="card-header">
-                    <i class="bi bi-bar-chart me-2"></i>
+                    <i class="bi bi-calendar3 me-2"></i>
                     <strong>Total Pembelian Harian</strong>
                 </div>
                 <div class="card-body">
-                    <canvas id="pembelianPerHariChart"></canvas>
-                    <div class="table-responsive mt-3" style="max-height: 250px;">
-                        <table class="table table-sm table-striped">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
                             <thead>
                                 <tr>
                                     <th>Tanggal</th>
@@ -93,19 +97,29 @@
                                 @forelse ($perHari as $hari)
                                 <tr>
                                     <td>{{ \Carbon\Carbon::parse($hari->tanggal)->format('d M Y') }}</td>
-                                    <td class="text-end">{{ $hari->jumlah_transaksi }}</td>
-                                    <td class="text-end">{{ number_format($hari->total, 0, ',', '.') }}</td>
+                                    <td class="text-end">{{ number_format($hari->jumlah_transaksi, 0, ',', '.') }}</td>
+                                    <td class="text-end">Rp {{ number_format($hari->total, 0, ',', '.') }}</td>
                                 </tr>
                                 @empty
-                                <tr><td colspan="3" class="text-center">Tidak ada data pembelian.</td></tr>
+                                <tr><td colspan="3" class="text-center py-3">Tidak ada data pembelian pada periode ini.</td></tr>
                                 @endforelse
                             </tbody>
+                            @if($perHari->isNotEmpty())
+                            <tfoot class="bg-light">
+                                <tr>
+                                    <th>TOTAL</th>
+                                    <th class="text-end">{{ number_format($jumlahTransaksi, 0, ',', '.') }}</th>
+                                    <th class="text-end">Rp {{ number_format($totalPembelian, 0, ',', '.') }}</th>
+                                </tr>
+                            </tfoot>
+                            @endif
                         </table>
                     </div>
                 </div>
             </div>
         </div>
 
+        {{-- 10 Barang Paling Banyak Dibeli --}}
         <div class="col-lg-6">
             <div class="card-custom">
                 <div class="card-header">
@@ -113,9 +127,8 @@
                     <strong>10 Barang Paling Banyak Dibeli</strong>
                 </div>
                 <div class="card-body">
-                    <canvas id="barangTerbanyakChart"></canvas>
-                    <div class="table-responsive mt-3" style="max-height: 250px;">
-                        <table class="table table-sm table-striped">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
                             <thead>
                                 <tr>
                                     <th>No.</th>
@@ -128,48 +141,85 @@
                                 @forelse ($barangTerbeli as $item)
                                 <tr>
                                     <td>{{ $loop->iteration }}.</td>
-                                    <td>{{ $item->barang->nama_barang ?? 'Barang Dihapus' }}</td>
+                                    <td>
+                                        <strong>{{ $item->barang->nama_barang ?? 'Barang Dihapus' }}</strong>
+                                        @if($item->barang)
+                                        <br><small class="text-muted">{{ $item->barang->kode_barang }}</small>
+                                        @endif
+                                    </td>
                                     <td class="text-end">{{ number_format($item->total_qty, 0, ',', '.') }}</td>
-                                    <td class="text-end">{{ number_format($item->total_nilai, 0, ',', '.') }}</td>
+                                    <td class="text-end">Rp {{ number_format($item->total_nilai, 0, ',', '.') }}</td>
                                 </tr>
                                 @empty
-                                <tr><td colspan="4" class="text-center">Tidak ada data barang dibeli.</td></tr>
+                                <tr><td colspan="4" class="text-center py-3">Tidak ada data barang dibeli pada periode ini.</td></tr>
                                 @endforelse
                             </tbody>
+                            @if($barangTerbeli->isNotEmpty())
+                            <tfoot class="bg-light">
+                                <tr>
+                                    <th colspan="2">TOTAL</th>
+                                    <th class="text-end">{{ number_format($barangTerbeli->sum('total_qty'), 0, ',', '.') }}</th>
+                                    <th class="text-end">Rp {{ number_format($barangTerbeli->sum('total_nilai'), 0, ',', '.') }}</th>
+                                </tr>
+                            </tfoot>
+                            @endif
                         </table>
                     </div>
                 </div>
             </div>
         </div>
         
-        <div class="col-lg-6">
+        {{-- Pembelian Berdasarkan Supplier --}}
+        <div class="col-lg-12">
             <div class="card-custom">
                 <div class="card-header">
                     <i class="bi bi-people-fill me-2"></i>
                     <strong>Pembelian Berdasarkan Supplier</strong>
                 </div>
                 <div class="card-body">
-                    <canvas id="perSupplierChart"></canvas>
-                    <div class="table-responsive mt-3" style="max-height: 250px;">
-                        <table class="table table-sm table-striped">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
                             <thead>
                                 <tr>
+                                    <th>No.</th>
                                     <th>Supplier</th>
                                     <th class="text-end">Jumlah Transaksi</th>
                                     <th class="text-end">Total Pembelian (Rp)</th>
+                                    <th class="text-end">Rata-rata per Transaksi</th>
+                                    <th class="text-end">Persentase</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @forelse ($perSupplier as $supplier)
                                 <tr>
-                                    <td>{{ $supplier->nama_supplier }}</td>
-                                    <td class="text-end">{{ $supplier->jumlah }}</td>
-                                    <td class="text-end">{{ number_format($supplier->total, 0, ',', '.') }}</td>
+                                    <td>{{ $loop->iteration }}.</td>
+                                    <td>
+                                        <strong>{{ $supplier->nama_supplier }}</strong>
+                                    </td>
+                                    <td class="text-end">{{ number_format($supplier->jumlah, 0, ',', '.') }}</td>
+                                    <td class="text-end">Rp {{ number_format($supplier->total, 0, ',', '.') }}</td>
+                                    <td class="text-end">Rp {{ number_format($supplier->jumlah > 0 ? $supplier->total / $supplier->jumlah : 0, 0, ',', '.') }}</td>
+                                    <td class="text-end">
+                                        <span class="badge bg-info">
+                                            {{ $totalPembelian > 0 ? number_format(($supplier->total / $totalPembelian) * 100, 1) : 0 }}%
+                                        </span>
+                                    </td>
                                 </tr>
                                 @empty
-                                <tr><td colspan="3" class="text-center">Tidak ada data pembelian per supplier.</td></tr>
+                                <tr><td colspan="6" class="text-center py-3">Tidak ada data pembelian per supplier pada periode ini.</td></tr>
                                 @endforelse
                             </tbody>
+                            @if($perSupplier->isNotEmpty())
+                            <tfoot class="bg-light">
+                                <tr>
+                                    <th colspan="2">TOTAL KESELURUHAN</th>
+                                    <th class="text-end">{{ number_format($perSupplier->sum('jumlah'), 0, ',', '.') }}</th>
+                                    <th class="text-end">Rp {{ number_format($perSupplier->sum('total'), 0, ',', '.') }}</th>
+                                    <th class="text-end">-</th>
+                                    <th class="text-end"><span class="badge bg-success">100%</span></th>
+                                </tr>
+                            </tfoot>
+                            @endif
                         </table>
                     </div>
                 </div>
@@ -179,126 +229,3 @@
     </div>
 </div>
 @endsection
-
-@push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    
-    // Data dari PHP
-    const perHariData = @json($perHari);
-    const barangTerbanyakData = @json($barangTerbeli);
-    const perSupplierData = @json($perSupplier);
-
-    // Helper untuk format rupiah
-    const formatRupiah = (number) => {
-        return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(number);
-    };
-
-    // --- Chart 1: Pembelian Per Hari ---
-    new Chart(document.getElementById('pembelianPerHariChart'), {
-        type: 'bar',
-        data: {
-            labels: perHariData.map(row => row.tanggal),
-            datasets: [{
-                label: 'Total Pembelian Harian (Rp)',
-                data: perHariData.map(row => row.total),
-                backgroundColor: 'rgba(102, 126, 234, 0.7)',
-                borderColor: 'rgba(102, 126, 234, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return formatRupiah(value);
-                        }
-                    }
-                }
-            },
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            let label = context.dataset.label || '';
-                            if (label) {
-                                label += ': ';
-                            }
-                            if (context.parsed.y !== null) {
-                                label += formatRupiah(context.parsed.y);
-                            }
-                            return label;
-                        }
-                    }
-                }
-            }
-        }
-    });
-
-    // --- Chart 2: Barang Paling Banyak Dibeli ---
-    new Chart(document.getElementById('barangTerbanyakChart'), {
-        type: 'doughnut',
-        data: {
-            labels: barangTerbanyakData.map(row => row.barang ? row.barang.nama_barang : 'Barang Dihapus'),
-            datasets: [{
-                label: 'Qty Dibeli',
-                data: barangTerbanyakData.map(row => row.total_qty),
-                backgroundColor: [
-                    '#667eea', '#764ba2', '#a8e063', '#4bc0c0', '#f3a683', 
-                    '#ffc048', '#eb3b5a', '#3867d6', '#45aaf2', '#2d98da'
-                ],
-                hoverOffset: 4
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: { position: 'right' }
-            }
-        }
-    });
-    
-    // --- Chart 3: Pembelian Per Supplier ---
-    new Chart(document.getElementById('perSupplierChart'), {
-        type: 'pie',
-        data: {
-            labels: perSupplierData.map(row => row.supplier ? row.supplier.nama_supplier : 'Supplier Dihapus'),
-            datasets: [{
-                label: 'Total Pembelian',
-                data: perSupplierData.map(row => row.total),
-                backgroundColor: [
-                    '#ff6384', '#36a2eb', '#cc65fe', '#ffce56', '#4bc0c0',
-                    '#f3a683', '#ffc048', '#eb3b5a', '#3867d6', '#45aaf2'
-                ],
-                hoverOffset: 4
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: { position: 'right' },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            let label = context.label || '';
-                            if (label) {
-                                label += ': ';
-                            }
-                            if (context.parsed !== null) {
-                                label += formatRupiah(context.parsed);
-                            }
-                            return label;
-                        }
-                    }
-                }
-            }
-        }
-    });
-});
-</script>
-@endpush

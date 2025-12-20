@@ -5,38 +5,41 @@
 @section('content')
 <div class="container-fluid">
     <div class="page-header mb-4">
-        <div class="d-flex align-items-center">
-            <div class="icon-wrapper me-3">
-                <i class="bi bi-graph-up-arrow"></i>
+        <div class="d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center">
+                <div class="icon-wrapper me-3">
+                    <i class="bi bi-graph-up-arrow"></i>
+                </div>
+                <div>
+                    <h2 class="page-title mb-1">Laporan Laba Rugi</h2>
+                    <p class="page-subtitle mb-0">Perhitungan laba kotor berdasarkan penjualan, return, dan HPP.</p>
+                </div>
             </div>
+            
+            {{-- ✅ Tombol Export Excel --}}
             <div>
-                <h2 class="page-title mb-1">Laporan Laba Rugi</h2>
-                <p class="page-subtitle mb-0">Perhitungan laba kotor berdasarkan penjualan, return, dan HPP.</p>
+                <form action="{{ route('laporan.export-excel') }}" method="GET" class="d-inline">
+                    <input type="hidden" name="jenis" value="laba-rugi">
+                    <input type="hidden" name="tanggal_dari" value="{{ $tanggalDari }}">
+                    <input type="hidden" name="tanggal_sampai" value="{{ $tanggalSampai }}">
+                    
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-file-earmark-excel me-1"></i>
+                        Export Excel
+                    </button>
+                </form>
             </div>
         </div>
     </div>
 
-    <div class="card-custom mb-4">
-        <div class="card-body">
-            <form method="GET" action="{{ route('laporan.labaRugi') }}" class="row g-3 align-items-end">
-                <div class="col-md-4">
-                    <label for="tanggal_dari" class="form-label">Tanggal Dari</label>
-                    <input type="date" class="form-control" id="tanggal_dari" name="tanggal_dari" 
-                           value="{{ $tanggalDari }}">
-                </div>
-                <div class="col-md-4">
-                    <label for="tanggal_sampai" class="form-label">Tanggal Sampai</label>
-                    <input type="date" class="form-control" id="tanggal_sampai" name="tanggal_sampai" 
-                           value="{{ $tanggalSampai }}">
-                </div>
-                <div class="col-md-4">
-                    <button type="submit" class="btn btn-primary" style="width: 100%;">
-                        <i class="bi bi-filter me-2"></i>Tampilkan Laporan
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
+    {{-- ✅ Filter Component --}}
+    @include('pages.laporan.laporan-filter', [
+        'action' => route('laporan.labaRugi'),
+        'tanggalDari' => $tanggalDari,
+        'tanggalSampai' => $tanggalSampai,
+        'showExport' => false,
+        'jenisLaporan' => 'laba-rugi'
+    ])
 
     <div class="card-custom mb-4">
         <div class="card-header bg-gradient-primary text-white">
@@ -51,7 +54,6 @@
                             <span>Total Pendapatan (Penjualan)</span>
                             <strong class="text-success">Rp {{ number_format($totalPendapatan, 0, ',', '.') }}</strong>
                         </li>
-                        {{-- ✅ Tampilkan Return --}}
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             <span class="text-muted">(-) Total Return Barang</span>
                             <strong class="text-warning">Rp {{ number_format($totalReturn ?? 0, 0, ',', '.') }}</strong>
@@ -64,7 +66,6 @@
                             <span>Harga Pokok Penjualan (HPP)</span>
                             <strong class="text-info">Rp {{ number_format($hpp, 0, ',', '.') }}</strong>
                         </li>
-                        {{-- ✅ Tampilkan HPP Return --}}
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             <span class="text-muted">(-) HPP Return (Barang Kembali)</span>
                             <strong class="text-info">Rp {{ number_format($hppReturn ?? 0, 0, ',', '.') }}</strong>

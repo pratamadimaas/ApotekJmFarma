@@ -139,6 +139,7 @@ Route::middleware('auth')->group(function () {
         Route::prefix('barang')->name('barang.')->group(function () {
             // Non-resource routes
             Route::get('/search', [BarangController::class, 'search'])->name('search');
+            Route::get('/harga-satuan', [BarangController::class, 'hargaSatuanIndex'])->name('harga-satuan'); // ✅ TAMBAHKAN INI
             Route::get('/import', [BarangController::class, 'importForm'])->name('import-form');
             Route::post('/import-excel', [BarangController::class, 'importExcel'])->name('import-excel');
             Route::get('/download-template', [BarangController::class, 'downloadTemplate'])->name('download-template');

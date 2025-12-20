@@ -14,6 +14,7 @@ use illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use App\Exports\PenjualanExport;
 use App\Exports\PembelianExport;
+use App\Exports\LabaRugiExport;
 use Maatwebsite\Excel\Facades\Excel; 
 use PDF; 
 
@@ -31,26 +32,104 @@ class LaporanController extends Controller
     // =========================================================================
 
     private function applyDateFilter(Request $request, $model, $dateColumn, $status = null)
-    {
-        $tanggalDari = $request->get('tanggal_dari', Carbon::now()->subYear()->format('Y-m-d'));
+{
+    // ✅ Handle Preset Filter
+    $presetFilter = $request->get('preset_filter');
+    
+    if ($presetFilter && $presetFilter !== 'custom') {
+        $dates = $this->getPresetDates($presetFilter);
+        $tanggalDari = $dates['dari'];
+        $tanggalSampai = $dates['sampai'];
+    } else {
+        // Custom range atau default
+        $tanggalDari = $request->get('tanggal_dari', Carbon::now()->startOfMonth()->format('Y-m-d'));
         $tanggalSampai = $request->get('tanggal_sampai', Carbon::now()->format('Y-m-d'));
-
-        $query = $model::query();
-        $query = $this->applyCabangFilter($query);
-
-        if ($status) {
-            $query->where('status', $status);
-        }
-
-        $query->whereDate($dateColumn, '>=', $tanggalDari)
-              ->whereDate($dateColumn, '<=', $tanggalSampai);
-
-        return [
-            'query' => $query,
-            'tanggalDari' => $tanggalDari,
-            'tanggalSampai' => $tanggalSampai,
-        ];
     }
+
+    $query = $model::query();
+    $query = $this->applyCabangFilter($query);
+
+    if ($status) {
+        $query->where('status', $status);
+    }
+
+    $query->whereDate($dateColumn, '>=', $tanggalDari)
+          ->whereDate($dateColumn, '<=', $tanggalSampai);
+
+    return [
+        'query' => $query,
+        'tanggalDari' => $tanggalDari,
+        'tanggalSampai' => $tanggalSampai,
+    ];
+}
+
+/**
+ * ✅ Get tanggal berdasarkan preset filter
+ */
+private function getPresetDates($preset)
+{
+    $now = Carbon::now();
+    
+    switch ($preset) {
+        case 'today':
+            return [
+                'dari' => $now->format('Y-m-d'),
+                'sampai' => $now->format('Y-m-d'),
+            ];
+            
+        case 'yesterday':
+            $yesterday = $now->subDay();
+            return [
+                'dari' => $yesterday->format('Y-m-d'),
+                'sampai' => $yesterday->format('Y-m-d'),
+            ];
+            
+        case 'this_week':
+            return [
+                'dari' => $now->startOfWeek()->format('Y-m-d'),
+                'sampai' => $now->endOfWeek()->format('Y-m-d'),
+            ];
+            
+        case 'last_week':
+            $lastWeek = $now->subWeek();
+            return [
+                'dari' => $lastWeek->startOfWeek()->format('Y-m-d'),
+                'sampai' => $lastWeek->endOfWeek()->format('Y-m-d'),
+            ];
+            
+        case 'this_month':
+            return [
+                'dari' => $now->startOfMonth()->format('Y-m-d'),
+                'sampai' => $now->endOfMonth()->format('Y-m-d'),
+            ];
+            
+        case 'last_month':
+            $lastMonth = $now->subMonth();
+            return [
+                'dari' => $lastMonth->startOfMonth()->format('Y-m-d'),
+                'sampai' => $lastMonth->endOfMonth()->format('Y-m-d'),
+            ];
+            
+        case 'this_year':
+            return [
+                'dari' => $now->startOfYear()->format('Y-m-d'),
+                'sampai' => $now->endOfYear()->format('Y-m-d'),
+            ];
+            
+        case 'last_year':
+            $lastYear = $now->subYear();
+            return [
+                'dari' => $lastYear->startOfYear()->format('Y-m-d'),
+                'sampai' => $lastYear->endOfYear()->format('Y-m-d'),
+            ];
+            
+        default:
+            return [
+                'dari' => $now->startOfMonth()->format('Y-m-d'),
+                'sampai' => $now->format('Y-m-d'),
+            ];
+    }
+}
 
     // =========================================================================
     // LAPORAN TRANSAKSI & KEUANGAN
@@ -614,55 +693,196 @@ class LaporanController extends Controller
     // EXPORT
     // =========================================================================
 
-    public function exportExcel(Request $request)
-    {
-        $jenis = $request->get('jenis', 'penjualan');
-        $cabangId = $this->getActiveCabangId();
-        
-        switch ($jenis) {
-            case 'penjualan':
-                $data = $this->applyDateFilter($request, Penjualan::class, 'tanggal_penjualan');
-                
-                $detailPenjualanQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
-                                                 ->whereDate('penjualan.tanggal_penjualan', '>=', $data['tanggalDari'])
-                                                 ->whereDate('penjualan.tanggal_penjualan', '<=', $data['tanggalSampai']);
-                
-                if ($cabangId !== null) {
-                    $detailPenjualanQuery->where('penjualan.cabang_id', $cabangId);
-                }
-                
-                $detailPenjualan = $detailPenjualanQuery->with(['penjualan.user', 'barang'])
-                                                 ->select('detail_penjualan.*')
-                                                 ->orderBy('penjualan.tanggal_penjualan', 'asc')
-                                                 ->get();
-                
-                $fileName = "Laporan_Penjualan_{$data['tanggalDari']}_to_{$data['tanggalSampai']}.xlsx";
-                return Excel::download(new PenjualanExport($detailPenjualan), $fileName);
+    // =========================================================================
+// EXPORT - Method exportExcel yang sudah diperbarui
+// =========================================================================
 
-            case 'pembelian':
-                $data = $this->applyDateFilter($request, Pembelian::class, 'tanggal_pembelian', 'approved');
-                
-                $detailPembelianQuery = DetailPembelian::join('pembelian', 'detail_pembelian.pembelian_id', '=', 'pembelian.id')
-                                                 ->whereDate('pembelian.tanggal_pembelian', '>=', $data['tanggalDari'])
-                                                 ->whereDate('pembelian.tanggal_pembelian', '<=', $data['tanggalSampai'])
-                                                 ->where('pembelian.status', 'approved');
-                
-                if ($cabangId !== null) {
-                    $detailPembelianQuery->where('pembelian.cabang_id', $cabangId);
-                }
-                
-                $detailPembelian = $detailPembelianQuery->with(['pembelian.supplier', 'pembelian.user', 'pembelian.cabang', 'barang'])
-                                                 ->select('detail_pembelian.*')
-                                                 ->orderBy('pembelian.tanggal_pembelian', 'asc')
-                                                 ->get();
-                
-                $fileName = "Laporan_Pembelian_{$data['tanggalDari']}_to_{$data['tanggalSampai']}.xlsx";
-                return Excel::download(new PembelianExport($detailPembelian), $fileName);
+public function exportExcel(Request $request)
+{
+    $jenis = $request->get('jenis', 'penjualan');
+    $cabangId = $this->getActiveCabangId();
+    
+    switch ($jenis) {
+        case 'penjualan':
+            $data = $this->applyDateFilter($request, Penjualan::class, 'tanggal_penjualan');
+            
+            $detailPenjualanQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
+                                             ->whereDate('penjualan.tanggal_penjualan', '>=', $data['tanggalDari'])
+                                             ->whereDate('penjualan.tanggal_penjualan', '<=', $data['tanggalSampai']);
+            
+            if ($cabangId !== null) {
+                $detailPenjualanQuery->where('penjualan.cabang_id', $cabangId);
+            }
+            
+            $detailPenjualan = $detailPenjualanQuery->with(['penjualan.user', 'barang.satuanKonversi'])
+                                             ->select('detail_penjualan.*')
+                                             ->orderBy('penjualan.tanggal_penjualan', 'asc')
+                                             ->get();
+            
+            $fileName = "Laporan_Penjualan_{$data['tanggalDari']}_to_{$data['tanggalSampai']}.xlsx";
+            return Excel::download(new PenjualanExport($detailPenjualan), $fileName);
 
-            default:
-                return back()->with('error', 'Jenis laporan tidak valid.');
-        }
+        case 'pembelian':
+            $data = $this->applyDateFilter($request, Pembelian::class, 'tanggal_pembelian', 'approved');
+            
+            $detailPembelianQuery = DetailPembelian::join('pembelian', 'detail_pembelian.pembelian_id', '=', 'pembelian.id')
+                                             ->whereDate('pembelian.tanggal_pembelian', '>=', $data['tanggalDari'])
+                                             ->whereDate('pembelian.tanggal_pembelian', '<=', $data['tanggalSampai'])
+                                             ->where('pembelian.status', 'approved');
+            
+            if ($cabangId !== null) {
+                $detailPembelianQuery->where('pembelian.cabang_id', $cabangId);
+            }
+            
+            $detailPembelian = $detailPembelianQuery->with(['pembelian.supplier', 'pembelian.user', 'pembelian.cabang', 'barang'])
+                                             ->select('detail_pembelian.*')
+                                             ->orderBy('pembelian.tanggal_pembelian', 'asc')
+                                             ->get();
+            
+            $fileName = "Laporan_Pembelian_{$data['tanggalDari']}_to_{$data['tanggalSampai']}.xlsx";
+            return Excel::download(new PembelianExport($detailPembelian), $fileName);
+
+        case 'laba-rugi':
+            // ✅ EXPORT LABA RUGI
+            $dataPenjualan = $this->applyDateFilter($request, Penjualan::class, 'tanggal_penjualan');
+            $tanggalDari = $dataPenjualan['tanggalDari']; 
+            $tanggalSampai = $dataPenjualan['tanggalSampai'];
+            
+            $queryPenjualan = $dataPenjualan['query'];
+            $totalPendapatan = (clone $queryPenjualan)->sum('grand_total');
+            
+            // Hitung HPP dengan satuan konversi
+            $hppQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
+                                  ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
+                                  ->leftJoin('satuan_konversi', function($join) {
+                                      $join->on('satuan_konversi.barang_id', '=', 'barang.id')
+                                           ->on('satuan_konversi.nama_satuan', '=', 'detail_penjualan.satuan');
+                                  })
+                                  ->whereDate('penjualan.tanggal_penjualan', '>=', $tanggalDari)
+                                  ->whereDate('penjualan.tanggal_penjualan', '<=', $tanggalSampai)
+                                  ->where(function($q) {
+                                      $q->where('detail_penjualan.is_return', false)
+                                        ->orWhereNull('detail_penjualan.is_return');
+                                  });
+            
+            if ($cabangId !== null) {
+                $hppQuery->where('penjualan.cabang_id', $cabangId);
+            }
+            
+            $hpp = $hppQuery->select(DB::raw('SUM(
+                    CASE 
+                        WHEN satuan_konversi.jumlah_konversi IS NOT NULL 
+                        THEN detail_penjualan.jumlah * satuan_konversi.jumlah_konversi * barang.harga_beli
+                        ELSE detail_penjualan.jumlah * barang.harga_beli
+                    END
+                ) as total_hpp'))
+                            ->value('total_hpp') ?? 0;
+            
+            // Hitung Return
+            $totalReturnQuery = DetailPenjualan::where('is_return', true)
+                                        ->whereDate('return_date', '>=', $tanggalDari)
+                                        ->whereDate('return_date', '<=', $tanggalSampai);
+            
+            if ($cabangId !== null) {
+                $totalReturnQuery->whereHas('penjualan', function($q) use ($cabangId) {
+                    $q->where('cabang_id', $cabangId);
+                });
+            }
+            
+            $totalReturn = $totalReturnQuery->sum('subtotal') ?? 0;
+            
+            // Hitung HPP Return
+            $hppReturnQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
+                                        ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
+                                        ->leftJoin('satuan_konversi', function($join) {
+                                            $join->on('satuan_konversi.barang_id', '=', 'barang.id')
+                                                 ->on('satuan_konversi.nama_satuan', '=', 'detail_penjualan.satuan');
+                                        })
+                                        ->where('detail_penjualan.is_return', true)
+                                        ->whereDate('detail_penjualan.return_date', '>=', $tanggalDari)
+                                        ->whereDate('detail_penjualan.return_date', '<=', $tanggalSampai);
+            
+            if ($cabangId !== null) {
+                $hppReturnQuery->where('penjualan.cabang_id', $cabangId);
+            }
+            
+            $hppReturn = $hppReturnQuery->select(DB::raw('SUM(
+                    CASE 
+                        WHEN satuan_konversi.jumlah_konversi IS NOT NULL 
+                        THEN detail_penjualan.jumlah * satuan_konversi.jumlah_konversi * barang.harga_beli
+                        ELSE detail_penjualan.jumlah * barang.harga_beli
+                    END
+                ) as total_hpp_return'))
+                                        ->value('total_hpp_return') ?? 0;
+            
+            $pendapatanBersih = $totalPendapatan - $totalReturn;
+            $hppBersih = $hpp;
+            $labaKotor = max(0, $pendapatanBersih - $hppBersih);
+            $marginLaba = $pendapatanBersih > 0 ? ($labaKotor / $pendapatanBersih) * 100 : 0;
+            
+            // Detail per item
+            $detailPerItemQuery = DetailPenjualan::join('penjualan', 'detail_penjualan.penjualan_id', '=', 'penjualan.id')
+                                            ->join('barang', 'detail_penjualan.barang_id', '=', 'barang.id')
+                                            ->leftJoin('satuan_konversi', function($join) {
+                                                $join->on('satuan_konversi.barang_id', '=', 'barang.id')
+                                                     ->on('satuan_konversi.nama_satuan', '=', 'detail_penjualan.satuan');
+                                            })
+                                            ->whereDate('penjualan.tanggal_penjualan', '>=', $tanggalDari)
+                                            ->whereDate('penjualan.tanggal_penjualan', '<=', $tanggalSampai);
+            
+            if ($cabangId !== null) {
+                $detailPerItemQuery->where('penjualan.cabang_id', $cabangId);
+            }
+            
+            $detailPerItem = $detailPerItemQuery->select(
+                                                'detail_penjualan.barang_id',
+                                                'barang.nama_barang',
+                                                DB::raw('SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.jumlah ELSE 0 END) as total_qty'),
+                                                DB::raw('SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.subtotal ELSE 0 END) as total_penjualan'),
+                                                DB::raw('SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN 
+                                                    CASE 
+                                                        WHEN satuan_konversi.jumlah_konversi IS NOT NULL 
+                                                        THEN detail_penjualan.jumlah * satuan_konversi.jumlah_konversi * barang.harga_beli
+                                                        ELSE detail_penjualan.jumlah * barang.harga_beli
+                                                    END
+                                                ELSE 0 END) as total_hpp'),
+                                                DB::raw('SUM(CASE WHEN detail_penjualan.is_return = true THEN detail_penjualan.subtotal ELSE 0 END) as total_return'),
+                                                DB::raw('GREATEST(0, (SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN detail_penjualan.subtotal ELSE 0 END) - SUM(CASE WHEN (detail_penjualan.is_return = false OR detail_penjualan.is_return IS NULL) THEN 
+                                                    CASE 
+                                                        WHEN satuan_konversi.jumlah_konversi IS NOT NULL 
+                                                        THEN detail_penjualan.jumlah * satuan_konversi.jumlah_konversi * barang.harga_beli
+                                                        ELSE detail_penjualan.jumlah * barang.harga_beli
+                                                    END
+                                                ELSE 0 END) - SUM(CASE WHEN detail_penjualan.is_return = true THEN detail_penjualan.subtotal ELSE 0 END))) as laba')
+                                            )
+                                            ->groupBy('detail_penjualan.barang_id', 'barang.nama_barang')
+                                            ->orderBy('laba', 'desc')
+                                            ->get();
+            
+            // Data ringkasan untuk export
+            $ringkasan = [
+                'totalPendapatan' => $totalPendapatan,
+                'totalReturn' => $totalReturn,
+                'pendapatanBersih' => $pendapatanBersih,
+                'hpp' => $hpp,
+                'hppReturn' => $hppReturn,
+                'hppBersih' => $hppBersih,
+                'labaKotor' => $labaKotor,
+                'marginLaba' => $marginLaba,
+            ];
+            
+            $periode = [
+                'dari' => Carbon::parse($tanggalDari)->format('d/m/Y'),
+                'sampai' => Carbon::parse($tanggalSampai)->format('d/m/Y'),
+            ];
+            
+            $fileName = "Laporan_Laba_Rugi_{$tanggalDari}_to_{$tanggalSampai}.xlsx";
+            return Excel::download(new LabaRugiExport($detailPerItem, $ringkasan, $periode), $fileName);
+
+        default:
+            return back()->with('error', 'Jenis laporan tidak valid.');
     }
+}
 
     public function exportPdf(Request $request)
     {

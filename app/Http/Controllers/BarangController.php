@@ -551,43 +551,83 @@ class BarangController extends Controller
         }
     }
     
-    public function downloadTemplate()
-    {
-        $headers = [
-            'kode_barang',
-            'barcode',
-            'nama_barang',
-            'kategori',
-            'satuan_terkecil',
-            'harga_beli',
-            'harga_jual',
-            'stok',
-            'stok_minimal',
-            'lokasi_rak',
-            'deskripsi'
-        ];
-        
-        $exampleData = [
-            [
-                'BRG001',
-                '8992761123456',
-                'Paracetamol 500mg',
-                'Obat',
-                'Strip',
-                5000,
-                7000,
-                100,
-                20,
-                'A1',
-                'Obat demam'
-            ]
-        ];
-        
-        return \Maatwebsite\Excel\Facades\Excel::download(
-            new \App\Exports\BarangTemplateExport($headers, $exampleData),
-            'template_barang.xlsx'
-        );
-    }
+ public function downloadTemplate()
+{
+    $headers = [
+        'kode_barang',
+        'barcode',
+        'nama_barang',
+        'kategori',
+        'satuan_terkecil',
+        'harga_beli',
+        'harga_jual',
+        'stok',
+        'stok_minimal',
+        'lokasi_rak',
+        'deskripsi',
+        // ✅ Kolom Satuan Konversi 1
+        'konversi_1_nama',
+        'konversi_1_jumlah',
+        'konversi_1_harga',
+        'konversi_1_default',
+        // ✅ Kolom Satuan Konversi 2
+        'konversi_2_nama',
+        'konversi_2_jumlah',
+        'konversi_2_harga',
+        'konversi_2_default',
+        // ✅ Kolom Satuan Konversi 3
+        'konversi_3_nama',
+        'konversi_3_jumlah',
+        'konversi_3_harga',
+        'konversi_3_default',
+        // ✅ Kolom Satuan Konversi 4
+        'konversi_4_nama',
+        'konversi_4_jumlah',
+        'konversi_4_harga',
+        'konversi_4_default',
+        // ✅ Kolom Satuan Konversi 5
+        'konversi_5_nama',
+        'konversi_5_jumlah',
+        'konversi_5_harga',
+        'konversi_5_default',
+    ];
+    
+    $exampleData = [
+        [
+            // Data Barang Utama
+            'BRG001',
+            '8992761123456',
+            'Paracetamol 500mg',
+            'Obat',
+            'Strip',
+            5000,
+            7000,
+            100,
+            20,
+            'A1',
+            'Obat demam',
+            // Konversi 1: Box
+            'Box',
+            10,
+            65000,
+            'Ya',
+            // Konversi 2: Karton
+            'Karton',
+            100,
+            600000,
+            'Tidak',
+            // Konversi 3-5: Kosong
+            '', '', '', '',
+            '', '', '', '',
+            '', '', '', '',
+        ]
+    ];
+    
+    return \Maatwebsite\Excel\Facades\Excel::download(
+        new \App\Exports\BarangTemplateExport($headers, $exampleData),
+        'template_barang_lengkap.xlsx'
+    );
+}
     
     public function exportExcel()
     {
@@ -636,46 +676,109 @@ class BarangController extends Controller
         ]);
     }
     
-    public function hargaSatuan(Request $request)
-    {
-        $barangId = $request->get('barang_id');
-        $satuan = $request->get('satuan');
+    public function hargaSatuanIndex(Request $request)
+{
+    $cabangId = $this->getActiveCabangId();
+    
+    Log::info('Harga Satuan Index called', [
+        'cabang_id' => $cabangId,
+        'filters' => $request->except('_token')
+    ]);
+    
+    // Query base
+    $query = Barang::with('satuanKonversi')
+        ->when($cabangId, fn($q) => $q->where('cabang_id', $cabangId));
+    
+    // Filter Pencarian
+    if ($request->filled('search')) {
+        $search = $request->search;
+        $query->where(function($q) use ($search) {
+            $q->where('nama_barang', 'LIKE', "%{$search}%")
+              ->orWhere('kode_barang', 'LIKE', "%{$search}%")
+              ->orWhere('barcode', 'LIKE', "%{$search}%");
+        });
+    }
+    
+    // Filter Kategori
+    if ($request->filled('kategori')) {
+        $query->where('kategori', $request->kategori);
+    }
+    
+    // Filter Stok
+    if ($request->filled('stok_filter')) {
+        $filterValue = $request->stok_filter;
         
-        if (!$barangId || !$satuan) {
-            return response()->json(['error' => 'Parameter tidak lengkap'], 400);
+        if ($filterValue === 'rendah') {
+            $query->whereRaw('stok <= stok_minimal');
+        } elseif (is_numeric($filterValue) && $filterValue > 0) {
+            $query->where('stok', '<', (float) $filterValue);
         }
+    }
+    
+    // Ambil data dengan paginasi
+    $barang = $query->orderBy('nama_barang', 'asc')->paginate(20);
+    
+    // Kategori List untuk dropdown
+    $kategoriList = DB::table('barang')
+        ->select('kategori')
+        ->where('cabang_id', $cabangId)
+        ->whereNotNull('kategori')
+        ->distinct()
+        ->pluck('kategori');
+    
+    // Opsi filter stok
+    $stokFilterOptions = [
+        10 => '< 10 Unit',
+        20 => '< 20 Unit',
+        50 => '< 50 Unit',
+    ];
+    
+    return view('pages.barang.harga-satuan', compact('barang', 'kategoriList', 'stokFilterOptions'));
+}
 
-        $cabangId = $this->getActiveCabangId();
+/**
+ * ✅ Method AJAX untuk mendapatkan harga satuan (tetap dipertahankan)
+ */
+public function hargaSatuan(Request $request)
+{
+    $barangId = $request->get('barang_id');
+    $satuan = $request->get('satuan');
+    
+    if (!$barangId || !$satuan) {
+        return response()->json(['error' => 'Parameter tidak lengkap'], 400);
+    }
 
-        $barang = Barang::with('satuanKonversi')
-            ->when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
-            ->find($barangId);
+    $cabangId = $this->getActiveCabangId();
 
-        if (!$barang) {
-            return response()->json(['error' => 'Barang tidak ditemukan'], 404);
-        }
+    $barang = Barang::with('satuanKonversi')
+        ->when($cabangId, fn($q) => $q->where('cabang_id', $cabangId))
+        ->find($barangId);
 
-        // Jika satuan sama dengan satuan dasar
-        if ($satuan === $barang->satuan_terkecil) {
-            return response()->json([
-                'harga' => $barang->harga_jual,
-                'satuan' => $satuan
-            ]);
-        }
+    if (!$barang) {
+        return response()->json(['error' => 'Barang tidak ditemukan'], 404);
+    }
 
-        // Cari di konversi
-        $konversi = $barang->satuanKonversi()
-            ->where('nama_satuan', $satuan)
-            ->first();
-
-        if (!$konversi) {
-            return response()->json(['error' => 'Satuan tidak ditemukan'], 404);
-        }
-
+    // Jika satuan sama dengan satuan dasar
+    if ($satuan === $barang->satuan_terkecil) {
         return response()->json([
-            'harga' => $konversi->harga_jual,
-            'satuan' => $konversi->nama_satuan,
-            'konversi' => $konversi->jumlah_konversi
+            'harga' => $barang->harga_jual,
+            'satuan' => $satuan
         ]);
     }
+
+    // Cari di konversi
+    $konversi = $barang->satuanKonversi()
+        ->where('nama_satuan', $satuan)
+        ->first();
+
+    if (!$konversi) {
+        return response()->json(['error' => 'Satuan tidak ditemukan'], 404);
+    }
+
+    return response()->json([
+        'harga' => $konversi->harga_jual,
+        'satuan' => $konversi->nama_satuan,
+        'konversi' => $konversi->jumlah_konversi
+    ]);
+}
 }
