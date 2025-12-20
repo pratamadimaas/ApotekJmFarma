@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use App\Models\User;
 
 class AuthController extends Controller
 {
@@ -16,26 +17,38 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'email' => 'required|email',
+            'username' => 'required|string',
             'password' => 'required'
+        ], [
+            'username.required' => 'Nama wajib diisi',
+            'password.required' => 'Password wajib diisi'
         ]);
 
-        $credentials = $request->only('email', 'password');
+       
+        $user = User::whereRaw('LOWER(name) = ?', [strtolower($request->username)])
+                    ->first();
 
-        if (Auth::attempt($credentials, $request->filled('remember'))) {
-            $request->session()->regenerate();
-
-            // Check if user is active
-            if (!Auth::user()->aktif) {
-                Auth::logout();
-                return back()->with('error', 'Akun Anda tidak aktif. Hubungi administrator.');
+        if ($user && Hash::check($request->password, $user->password)) {
+            
+            // Cek apakah user aktif
+            if (!$user->aktif) {
+                return back()
+                    ->with('error', 'Akun Anda tidak aktif. Hubungi administrator.')
+                    ->onlyInput('username');
             }
 
+            // Login manual
+            Auth::login($user, $request->filled('remember'));
+            $request->session()->regenerate();
+
             return redirect()->intended(route('dashboard'))
-                ->with('success', 'Selamat datang, ' . Auth::user()->name);
+                ->with('success', 'Selamat datang, ' . $user->name . '!');
         }
 
-        return back()->with('error', 'Email atau password salah!')->onlyInput('email');
+        // Jika gagal login
+        return back()
+            ->with('error', 'Nama atau password salah!')
+            ->onlyInput('username');
     }
 
     public function logout(Request $request)
@@ -44,31 +57,24 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login')->with('success', 'Anda berhasil logout.');
+        return redirect()->route('login')
+            ->with('success', 'Anda berhasil logout.');
     }
 
-    /**
-     * Menampilkan halaman profil.
-     * Mengubah view dari 'auth.profile' menjadi 'pages.profile.index'.
-     */
     public function profile()
     {
-        return view('pages.profile.index', [ // ✅ Mengubah view path
+        return view('pages.profile.index', [
             'user' => Auth::user()
         ]);
     }
 
-    /**
-     * Memperbarui data profil (Nama & Email).
-     */
     public function updateProfile(Request $request)
     {
         $user = Auth::user();
 
-        // Validasi HANYA untuk nama dan email
         $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $user->id,
+            'name' => 'required|string|max:255|unique:users,name,' . $user->id,
+            'email' => 'nullable|email|unique:users,email,' . $user->id,
         ]);
 
         $user->name = $request->name;
@@ -77,10 +83,4 @@ class AuthController extends Controller
 
         return back()->with('success', 'Profil berhasil diupdate!');
     }
-    
-    /**
-     * Catatan: Metode changePassword untuk Self-Service Password
-     * harus didefinisikan di UserController (seperti yang telah kita buat sebelumnya)
-     * atau di sini, sesuai preferensi Anda.
-     */
 }
