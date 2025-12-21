@@ -523,6 +523,7 @@ let currentBarangData = null;
 let pendingList = [];
 let modalPilihObat, modalPilihSatuan, modalReturn, modalPending;
 let isProcessing = false;
+let selectedRowIndex = -1; // untuk navigasi keyboard
 
 $(document).ready(function() {
     modalPilihObat = new bootstrap.Modal(document.getElementById('modalPilihObat'));
@@ -563,8 +564,41 @@ $(document).ready(function() {
         $('#inputKodeBarang').focus();
     });
     
-    $(document).on('keyup input', '#searchObat', function() {
+    // FITUR BARU: Navigasi keyboard di modal pilih obat
+    $(document).on('keydown', '#searchObat', function(e) {
+        const visibleRows = $('.obat-row:visible');
+        
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            selectedRowIndex++;
+            if (selectedRowIndex >= visibleRows.length) {
+                selectedRowIndex = 0;
+            }
+            highlightRow(visibleRows);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            selectedRowIndex--;
+            if (selectedRowIndex < 0) {
+                selectedRowIndex = visibleRows.length - 1;
+            }
+            highlightRow(visibleRows);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (selectedRowIndex >= 0 && selectedRowIndex < visibleRows.length) {
+                const barangId = $(visibleRows[selectedRowIndex]).data('id');
+                pilihBarang(barangId);
+            }
+        }
+    });
+    
+    $(document).on('keyup input', '#searchObat', function(e) {
+        // Skip navigation keys
+        if (['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) {
+            return;
+        }
+        
         let keyword = $(this).val().toLowerCase().trim();
+        selectedRowIndex = -1; // reset selection
         
         $('.obat-row').each(function() {
             let nama = ($(this).data('nama') || '').toString().toLowerCase();
@@ -577,6 +611,9 @@ $(document).ready(function() {
                 $(this).hide();
             }
         });
+        
+        // Remove highlight when searching
+        $('.obat-row').removeClass('table-primary');
     });
     
     $('#checkAllReturn').on('change', function() {
@@ -595,7 +632,14 @@ $(document).ready(function() {
     });
     
     $('#modalPilihObat, #modalPilihSatuan').on('hidden.bs.modal', function() {
+        selectedRowIndex = -1;
+        $('.obat-row').removeClass('table-primary');
         $('#inputKodeBarang').focus();
+    });
+    
+    $('#modalPilihObat').on('shown.bs.modal', function() {
+        selectedRowIndex = -1;
+        $('#searchObat').focus();
     });
     
     $('#inputKodeBarang').on('keypress', function(e) {
@@ -627,6 +671,29 @@ $(document).ready(function() {
         }
     });
 });
+
+// FITUR BARU: Highlight row yang dipilih dengan keyboard
+function highlightRow(visibleRows) {
+    $('.obat-row').removeClass('table-primary');
+    
+    if (selectedRowIndex >= 0 && selectedRowIndex < visibleRows.length) {
+        $(visibleRows[selectedRowIndex]).addClass('table-primary');
+        
+        // Scroll to selected row
+        const container = $('.table-responsive');
+        const row = $(visibleRows[selectedRowIndex]);
+        const containerTop = container.scrollTop();
+        const containerBottom = containerTop + container.height();
+        const rowTop = row.position().top + containerTop;
+        const rowBottom = rowTop + row.height();
+        
+        if (rowBottom > containerBottom) {
+            container.scrollTop(rowTop - container.height() + row.height() + 50);
+        } else if (rowTop < containerTop) {
+            container.scrollTop(rowTop - 50);
+        }
+    }
+}
 
 function setupKeyboardShortcuts() {
     $(document).on('keydown', function(e) {
@@ -812,7 +879,8 @@ function tambahBarangOtomatis(barangId) {
             }
         } else {
             if (qty <= stokDalamSatuan) {
-                keranjang.push({
+                // FITUR: Tambahkan di awal array (unshift) agar terbaru di atas
+                keranjang.unshift({
                     barang_id: data.id,
                     kode_barang: data.kode_barang,
                     nama_barang: data.nama_barang,
@@ -835,6 +903,7 @@ function tambahBarangOtomatis(barangId) {
         
         renderKeranjang();
         $('#inputJumlah').val(1);
+        // FITUR: Auto clear input setelah scan
         $('#inputKodeBarang').val('').prop('disabled', false).focus();
         showSuccessToast(`✓ ${data.nama_barang} ditambahkan (${qty} ${satuanTerpilih})`);
         
@@ -866,7 +935,8 @@ function tambahKeKeranjang(satuan, harga, konversi) {
             return;
         }
     } else {
-        keranjang.push({
+        // FITUR: Tambahkan di awal array (unshift) agar terbaru di atas
+        keranjang.unshift({
             barang_id: data.id,
             kode_barang: data.kode_barang,  
             nama_barang: data.nama_barang,
@@ -885,6 +955,8 @@ function tambahKeKeranjang(satuan, harga, konversi) {
     modalPilihSatuan.hide();
     renderKeranjang();
     $('#inputJumlah').val(1);
+    // FITUR: Auto clear input setelah pilih satuan
+    $('#inputKodeBarang').val('').focus();
     showSuccessToast(`✓ ${data.nama_barang} ditambahkan (${qty} ${satuan})`);
 }
 
@@ -951,6 +1023,7 @@ function renderKeranjang() {
             </tr>
         `;
     } else {
+        // FITUR: Urutan terbaru di atas (sudah otomatis karena pakai unshift)
         keranjang.forEach((item, index) => {
             let total = item.qty * item.harga;
             let diskon = (total * item.diskon) / 100;
@@ -1158,7 +1231,7 @@ function tampilkanPending() {
                             <i class="bi bi-arrow-clockwise me-1"></i>Muat
                         </button>
                         <button class="btn btn-sm btn-danger" onclick="hapusPending(${index})">
-                            <i class="bi bi-trash"></i>
+                             <i class="bi bi-trash"></i>
                         </button>
                     </td>
                 </tr>
