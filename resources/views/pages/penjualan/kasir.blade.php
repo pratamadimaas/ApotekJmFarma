@@ -210,7 +210,7 @@
 </div>
 
 <!-- Toast Notification Container -->
-<div id="toastContainer" style="position: fixed; top: 80px; right: 20px; z-index: 9999;"></div>
+<div id="toastContainer" style="position: fixed; top: 5%; left: 50%; transform: translateX(-50%); z-index: 9999;"></div>
 
 <!-- Modal Pilih Obat/Barang -->
 <div class="modal fade" id="modalPilihObat" tabindex="-1" data-bs-backdrop="static">
@@ -1449,7 +1449,7 @@ function showSuccessToast(message) {
 function showSuccessToastLarge(message) {
     const toast = $(`
         <div class="alert alert-success alert-dismissible fade show shadow toast-notification" role="alert" 
-             style="min-width: 400px; max-width: 500px; font-size: 1.1rem; padding: 1.5rem;">
+             style="min-width: 600px; max-width: 700px; font-size: 1.5rem; padding: 1.5rem;">
             <i class="bi bi-check-circle-fill me-2 fs-3"></i>${message}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
@@ -1459,7 +1459,7 @@ function showSuccessToastLarge(message) {
     
     setTimeout(() => {
         toast.fadeOut(300, function() { $(this).remove(); });
-    }, 5000);
+    }, 12000);
 }
 
 function showErrorToast(message) {

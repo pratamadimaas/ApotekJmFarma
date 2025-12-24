@@ -22,7 +22,19 @@
                     </div>
                     <div class="card-body">
                         <form action="{{ route('laporan.stok') }}" method="GET" class="row align-items-end">
-                            <div class="col-md-4 mb-3">
+                            {{-- Search Box --}}
+                            <div class="col-md-5 mb-3">
+                                <label for="search">Cari Barang</label>
+                                <input type="text" 
+                                       name="search" 
+                                       id="search" 
+                                       class="form-control" 
+                                       placeholder="Ketik nama barang atau kategori..."
+                                       value="{{ request('search') }}">
+                                <small class="text-muted">Contoh: ketik "amoxi" atau "antibiotik"</small>
+                            </div>
+                            
+                            <div class="col-md-3 mb-3">
                                 <label for="kategori">Filter Kategori</label>
                                 <select name="kategori" id="kategori" class="form-control">
                                     <option value="">Semua Kategori</option>
@@ -34,19 +46,37 @@
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="col-md-4 mb-3">
+                            
+                            <div class="col-md-2 mb-3">
                                 <label for="filter">Status Stok</label>
                                 <select name="filter" id="filter" class="form-control">
                                     <option value="">Semua Status</option>
-                                    <option value="minimal" {{ request('filter') == 'minimal' ? 'selected' : '' }}>Stok Mendekati Minimum</option>
-                                    <option value="habis" {{ request('filter') == 'habis' ? 'selected' : '' }}>Stok Habis (0)</option>
+                                    <option value="minimal" {{ request('filter') == 'minimal' ? 'selected' : '' }}>Stok Minimal</option>
+                                    <option value="habis" {{ request('filter') == 'habis' ? 'selected' : '' }}>Stok Habis</option>
                                 </select>
                             </div>
-                            <div class="col-md-4 mb-3">
-                                <button type="submit" class="btn btn-primary">Tampilkan</button>
-                                <a href="{{ route('laporan.stok') }}" class="btn btn-secondary">Reset</a>
+                            
+                            <div class="col-md-2 mb-3">
+                                <button type="submit" class="btn btn-primary btn-block">
+                                    <i class="fas fa-search"></i> Cari
+                                </button>
+                                <a href="{{ route('laporan.stok') }}" class="btn btn-secondary btn-block mt-2">Reset</a>
                             </div>
                         </form>
+                        
+                        {{-- Info pencarian --}}
+                        @if(request('search'))
+                            <div class="alert alert-info mt-3 mb-0">
+                                <i class="fas fa-info-circle"></i> 
+                                Menampilkan hasil pencarian untuk: <strong>"{{ request('search') }}"</strong>
+                                @if(request('kategori'))
+                                    dalam kategori <strong>{{ request('kategori') }}</strong>
+                                @endif
+                                @if(request('filter'))
+                                    dengan status <strong>{{ request('filter') == 'minimal' ? 'Stok Minimal' : 'Stok Habis' }}</strong>
+                                @endif
+                            </div>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -114,6 +144,7 @@
                         <thead>
                             <tr>
                                 <th>No</th>
+                                <th>Kode Barang</th>
                                 <th>Nama Barang</th>
                                 <th>Kategori</th>
                                 <th class="text-end">Stok Sekarang</th>
@@ -127,33 +158,61 @@
                             @forelse ($barang as $item)
                             <tr>
                                 <td>{{ ($barang->currentPage() - 1) * $barang->perPage() + $loop->iteration }}</td>
-                                <td>{{ $item->nama_barang }}</td>
-                                <td>{{ $item->kategori }}</td>
+                                <td>
+                                    <strong class="text-dark">{{ $item->kode_barang }}</strong>
+                                </td>
+                                <td>
+                                    <strong>{{ $item->nama_barang }}</strong>
+                                    <br>
+                                    <small class="text-muted">{{ $item->satuan_terkecil }}</small>
+                                </td>
+                                <td>
+                                    <span class="text-dark">{{ $item->kategori }}</span>
+                                </td>
                                 <td class="text-end">
-                                    {{ $item->stok }}
-                                    @if ($item->stok <= $item->stok_minimal)
-                                        <i class="fas fa-exclamation-triangle text-warning ml-2" title="Mendekati Minimum"></i>
-                                    @elseif ($item->stok == 0)
+                                    <strong>{{ $item->stok }}</strong>
+                                    @if ($item->stok == 0)
                                         <i class="fas fa-times-circle text-danger ml-2" title="Stok Habis"></i>
+                                    @elseif ($item->stok <= $item->stok_minimal)
+                                        <i class="fas fa-exclamation-triangle text-warning ml-2" title="Mendekati Minimum"></i>
                                     @endif
                                 </td>
                                 <td class="text-end">{{ $item->stok_minimal }}</td>
                                 <td class="text-end">{{ number_format($item->harga_beli, 0, ',', '.') }}</td>
                                 <td class="text-end">{{ number_format($item->harga_jual, 0, ',', '.') }}</td>
-                                <td class="text-end">{{ number_format($item->stok * $item->harga_beli, 0, ',', '.') }}</td>
+                                <td class="text-end">
+                                    <strong>{{ number_format($item->stok * $item->harga_beli, 0, ',', '.') }}</strong>
+                                </td>
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="8" class="text-center">Tidak ada data stok barang yang ditemukan.</td>
+                                <td colspan="9" class="text-center py-4">
+                                    <i class="fas fa-search fa-3x text-muted mb-3 d-block"></i>
+                                    <p class="text-muted">
+                                        @if(request('search'))
+                                            Tidak ada barang yang ditemukan dengan kata kunci <strong>"{{ request('search') }}"</strong>
+                                        @else
+                                            Tidak ada data stok barang yang ditemukan.
+                                        @endif
+                                    </p>
+                                </td>
                             </tr>
                             @endforelse
                         </tbody>
+                        @if($barang->isNotEmpty())
                         <tfoot>
-                            <tr>
-                                <th colspan="7" class="text-end">TOTAL NILAI STOK</th>
+                            <tr class="bg-light">
+                                <th colspan="8" class="text-end">TOTAL NILAI STOK (Halaman Ini)</th>
+                                <th class="text-end">
+                                    Rp{{ number_format($barang->sum(fn($item) => $item->stok * $item->harga_beli), 0, ',', '.') }}
+                                </th>
+                            </tr>
+                            <tr class="bg-primary text-white">
+                                <th colspan="8" class="text-end">TOTAL KESELURUHAN</th>
                                 <th class="text-end">Rp{{ number_format($totalNilaiStok, 0, ',', '.') }}</th>
                             </tr>
                         </tfoot>
+                        @endif
                     </table>
                 </div>
 
@@ -169,4 +228,22 @@
             </div>
         </div>
     </div>
+
+    <style>
+        @media print {
+            .btn, form, .alert-info {
+                display: none !important;
+            }
+        }
+        
+        /* Highlight search results */
+        .badge {
+            font-size: 0.875rem;
+            padding: 0.25rem 0.5rem;
+        }
+        
+        .table td {
+            vertical-align: middle;
+        }
+    </style>
 @endsection

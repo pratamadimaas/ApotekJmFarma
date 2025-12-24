@@ -21,19 +21,23 @@
                 
                 <div class="card-body">
                     {{-- Form Filter --}}
-                    <form method="GET" action="{{ route('laporan.kartuStok') }}" class="mb-4">
+                    <form method="GET" action="{{ route('laporan.kartuStok') }}" class="mb-4" id="filterForm">
                         <div class="row g-3">
                             <div class="col-md-4">
-                                <label class="form-label fw-bold">Pilih Barang</label>
-                                <select name="barang_id" class="form-select" required>
-                                    <option value="">-- Pilih Barang --</option>
-                                    @foreach($daftarBarang as $item)
-                                        <option value="{{ $item->id }}" 
-                                            {{ request('barang_id') == $item->id ? 'selected' : '' }}>
-                                            {{ $item->kode_barang }} - {{ $item->nama_barang }}
-                                        </option>
-                                    @endforeach
-                                </select>
+                                <label class="form-label fw-bold">Cari Barang</label>
+                                <div class="position-relative">
+                                    <input type="text" 
+                                           id="searchBarang" 
+                                           class="form-control" 
+                                           placeholder="Ketik nama atau kode barang..."
+                                           autocomplete="off"
+                                           value="{{ $barang ? $barang->kode_barang . ' - ' . $barang->nama_barang : '' }}">
+                                    <input type="hidden" name="barang_id" id="barang_id" value="{{ request('barang_id') }}">
+                                    
+                                    {{-- Dropdown hasil pencarian --}}
+                                    <div id="searchResults" class="list-group position-absolute w-100" style="z-index: 1000; max-height: 300px; overflow-y: auto; display: none;"></div>
+                                </div>
+                                <small class="text-muted">Contoh: ketik "amoxi" untuk mencari Amoxicillin</small>
                             </div>
                             
                             <div class="col-md-3">
@@ -228,7 +232,7 @@
                     @else
                         <div class="text-center py-5">
                             <i class="fas fa-box-open fa-4x text-muted mb-3"></i>
-                            <p class="text-muted fs-5">Pilih barang untuk melihat kartu stok</p>
+                            <p class="text-muted fs-5">Cari dan pilih barang untuk melihat kartu stok</p>
                         </div>
                     @endif
                 </div>
@@ -260,5 +264,141 @@
         print-color-adjust: exact;
     }
 }
+
+/* Style untuk search results */
+#searchResults {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border: 1px solid #ddd;
+    border-radius: 0.375rem;
+    margin-top: 2px;
+}
+
+#searchResults .list-group-item {
+    cursor: pointer;
+    border: none;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+#searchResults .list-group-item:hover {
+    background-color: #f8f9fa;
+}
+
+#searchResults .list-group-item:last-child {
+    border-bottom: none;
+}
+
+.search-highlight {
+    background-color: #fff3cd;
+    font-weight: 600;
+}
 </style>
+
+{{-- JavaScript untuk Search Autocomplete --}}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchBarang');
+    const searchResults = document.getElementById('searchResults');
+    const barangIdInput = document.getElementById('barang_id');
+    
+    // Data barang dari server
+    const daftarBarang = @json($daftarBarang);
+    
+    let debounceTimer;
+    
+    // Event listener untuk input search
+    searchInput.addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        const query = this.value.trim().toLowerCase();
+        
+        if (query.length < 2) {
+            searchResults.style.display = 'none';
+            barangIdInput.value = '';
+            return;
+        }
+        
+        debounceTimer = setTimeout(() => {
+            searchBarang(query);
+        }, 300);
+    });
+    
+    // Function untuk search barang
+    function searchBarang(query) {
+        const filtered = daftarBarang.filter(item => {
+            const nama = item.nama_barang.toLowerCase();
+            const kode = item.kode_barang.toLowerCase();
+            return nama.includes(query) || kode.includes(query);
+        });
+        
+        displayResults(filtered, query);
+    }
+    
+    // Function untuk display hasil search
+    function displayResults(items, query) {
+        if (items.length === 0) {
+            searchResults.innerHTML = '<div class="list-group-item text-muted">Tidak ada barang ditemukan</div>';
+            searchResults.style.display = 'block';
+            return;
+        }
+        
+        let html = '';
+        items.slice(0, 10).forEach(item => { // Batasi 10 hasil
+            const namaHighlight = highlightText(item.nama_barang, query);
+            const kodeHighlight = highlightText(item.kode_barang, query);
+            
+            html += `
+                <a href="#" class="list-group-item list-group-item-action" data-id="${item.id}" data-text="${item.kode_barang} - ${item.nama_barang}">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>${namaHighlight}</strong>
+                            <br>
+                            <small class="text-muted">${kodeHighlight}</small>
+                        </div>
+                        <span class="badge bg-info">${item.stok} ${item.satuan_terkecil}</span>
+                    </div>
+                </a>
+            `;
+        });
+        
+        searchResults.innerHTML = html;
+        searchResults.style.display = 'block';
+        
+        // Event listener untuk klik hasil
+        searchResults.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                selectBarang(this.dataset.id, this.dataset.text);
+            });
+        });
+    }
+    
+    // Function untuk highlight text
+    function highlightText(text, query) {
+        const regex = new RegExp(`(${query})`, 'gi');
+        return text.replace(regex, '<span class="search-highlight">$1</span>');
+    }
+    
+    // Function untuk select barang
+    function selectBarang(id, text) {
+        barangIdInput.value = id;
+        searchInput.value = text;
+        searchResults.style.display = 'none';
+    }
+    
+    // Close dropdown ketika klik di luar
+    document.addEventListener('click', function(e) {
+        if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+            searchResults.style.display = 'none';
+        }
+    });
+    
+    // Clear search saat focus jika sudah ada nilai
+    searchInput.addEventListener('focus', function() {
+        if (this.value && barangIdInput.value) {
+            // Tampilkan hasil untuk barang yang dipilih
+            const query = this.value.toLowerCase();
+            searchBarang(query);
+        }
+    });
+});
+</script>
 @endsection

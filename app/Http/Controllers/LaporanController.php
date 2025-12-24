@@ -468,15 +468,31 @@ class LaporanController extends Controller
     // LAPORAN STOK
     // =========================================================================
 
+    // =========================================================================
+    // LAPORAN STOK
+    // =========================================================================
+
     public function stok(Request $request)
     {
         $query = Barang::query();
         $query = $this->applyCabangFilter($query);
 
+        // ✅ SEARCH: Cari berdasarkan nama barang, kode barang, atau kategori
+        if ($request->filled('search')) {
+            $searchTerm = $request->search;
+            $query->where(function($q) use ($searchTerm) {
+                $q->where('nama_barang', 'LIKE', "%{$searchTerm}%")
+                  ->orWhere('kode_barang', 'LIKE', "%{$searchTerm}%")
+                  ->orWhere('kategori', 'LIKE', "%{$searchTerm}%");
+            });
+        }
+
+        // ✅ FILTER: Kategori spesifik
         if ($request->filled('kategori')) {
             $query->where('kategori', $request->kategori);
         }
 
+        // ✅ FILTER: Status stok
         if ($request->filled('filter')) {
             if ($request->filter === 'habis') {
                 $query->where('stok', 0);
@@ -488,12 +504,13 @@ class LaporanController extends Controller
         // ✅ PAGINATION: Barang stok
         $barang = $query->orderBy('nama_barang', 'asc')->paginate(20);
 
-        // Hitung total dari semua data (bukan hanya halaman saat ini)
+        // ✅ HITUNG TOTAL: Dari semua data (bukan hanya halaman saat ini)
         $allBarang = (clone $query)->get();
         $totalNilaiStok = $allBarang->sum(fn($item) => $item->stok * $item->harga_beli);
         $totalNilaiJual = $allBarang->sum(fn($item) => $item->stok * $item->harga_jual);
         $potensialLaba = $totalNilaiJual - $totalNilaiStok;
 
+        // ✅ DAFTAR KATEGORI: Untuk dropdown filter
         $cabangId = $this->getActiveCabangId();
         $kategoriListQuery = Barang::select('kategori')
                               ->distinct()
