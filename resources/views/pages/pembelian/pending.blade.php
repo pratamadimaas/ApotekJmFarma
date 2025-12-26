@@ -1,10 +1,9 @@
 @extends('layouts.app')
 
-@section('title', 'Riwayat Pembelian')
+@section('title', 'Pembelian Pending')
 
 @push('styles')
 <style>
-    /* ✅ FIX: Badge Status dengan warna yang jelas */
     .badge-status {
         padding: 6px 12px;
         font-size: 11px;
@@ -16,28 +15,10 @@
         white-space: nowrap;
     }
     
-    .badge-status.success {
-        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-        color: #ffffff;
-        box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
-    }
-    
     .badge-status.warning {
         background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
         color: #000000;
         box-shadow: 0 2px 4px rgba(255, 193, 7, 0.3);
-    }
-    
-    .badge-status.danger {
-        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-        color: #ffffff;
-        box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
-    }
-    
-    .badge-status.primary {
-        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-        color: #ffffff;
-        box-shadow: 0 2px 4px rgba(0, 123, 255, 0.3);
     }
 
     .badge-status:hover {
@@ -51,7 +32,7 @@
     }
     
     .table tbody tr:hover {
-        background-color: #f8f9fa !important;
+        background-color: #fff3cd !important;
         transform: scale(1.002);
     }
     
@@ -89,13 +70,13 @@
 
             <div class="card shadow-lg mb-4">
                 <div class="card-header pb-0">
-                    {{-- ✅ Header dengan Tabs dan Tombol --}}
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5 class="mb-0">Riwayat Pembelian</h5>
+                        <h5 class="mb-0">
+                            <i class="bi bi-clock-history text-warning me-2"></i> Pembelian Pending
+                        </h5>
                         <div>
-                            {{-- ✅ Tombol ke Pembelian Pending --}}
-                            <a href="{{ route('pembelian.pending') }}" class="btn btn-warning btn-sm me-2">
-                                <i class="bi bi-clock-history me-1"></i> Lihat Pending
+                            <a href="{{ route('pembelian.index') }}" class="btn btn-secondary btn-sm me-2">
+                                <i class="bi bi-arrow-left me-1"></i> Kembali ke Riwayat
                             </a>
                             <a href="{{ route('pembelian.create') }}" class="btn btn-primary btn-sm">
                                 <i class="bi bi-plus-circle me-1"></i> Tambah Pembelian
@@ -103,15 +84,15 @@
                         </div>
                     </div>
 
-                    {{-- ✅ Tab Navigation (Opsional - untuk membedakan view) --}}
+                    {{-- Tab Navigation --}}
                     <ul class="nav nav-tabs" role="tablist">
                         <li class="nav-item" role="presentation">
-                            <a class="nav-link active" href="{{ route('pembelian.index') }}">
+                            <a class="nav-link" href="{{ route('pembelian.index') }}">
                                 <i class="bi bi-check-circle me-1"></i> Approved & Cancelled
                             </a>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <a class="nav-link" href="{{ route('pembelian.pending') }}">
+                            <a class="nav-link active" href="{{ route('pembelian.pending') }}">
                                 <i class="bi bi-clock-history me-1"></i> Pending
                             </a>
                         </li>
@@ -120,8 +101,15 @@
                 
                 <div class="card-body pt-0 pb-2">
 
+                    {{-- Alert Info --}}
+                    <div class="alert alert-warning alert-dismissible fade show mt-3" role="alert">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Info:</strong> Pembelian dengan status <strong>PENDING</strong> belum menambahkan stok barang. Klik tombol <strong>Detail</strong> lalu <strong>Approve</strong> untuk memproses pembelian.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+
                     {{-- Form Filter dan Pencarian --}}
-                    <form method="GET" action="{{ route('pembelian.index') }}" class="p-4 border-bottom">
+                    <form method="GET" action="{{ route('pembelian.pending') }}" class="p-4 border-bottom">
                         <div class="row g-3 align-items-end">
                             <div class="col-md-3">
                                 <label for="tanggal_dari" class="form-label text-sm">Tanggal Dari</label>
@@ -146,72 +134,15 @@
                                     @endforeach
                                 </select>
                             </div>
-                            
-                            {{-- ✅ FITUR BARU: Filter Barang --}}
-                            <div class="col-md-3">
-                                <label for="barang" class="form-label text-sm">
-                                    <i class="bi bi-box-seam me-1"></i> Nama / Kode Barang
-                                </label>
-                                <input type="text" 
-                                       class="form-control form-control-sm" 
-                                       id="barang" 
-                                       name="barang" 
-                                       placeholder="Cari nama atau kode barang..." 
-                                       value="{{ request('barang') }}">
-                                <small class="text-muted">Cari pembelian yang mengandung barang tertentu</small>
-                            </div>
-
-                            {{-- Filter Status --}}
-                            <div class="col-md-3">
-                                <label for="status" class="form-label text-sm">Status</label>
-                                <select class="form-select form-select-sm" id="status" name="status">
-                                    <option value="">-- Semua Status (Kecuali Pending) --</option>
-                                    <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Approved</option>
-                                    <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
-                                </select>
-                            </div>
 
                             <div class="col-12 d-flex justify-content-end">
-                                <a href="{{ route('pembelian.index') }}" class="btn btn-secondary btn-sm me-2">
-                                    <i class="bi bi-arrow-clockwise me-1"></i> Reset Filter
-                                </a>
+                                <a href="{{ route('pembelian.pending') }}" class="btn btn-secondary btn-sm me-2">Reset Filter</a>
                                 <button type="submit" class="btn btn-info btn-sm">
                                     <i class="bi bi-search me-1"></i> Filter & Cari
                                 </button>
                             </div>
                         </div>
                     </form>
-
-                    {{-- ✅ Tampilkan info filter aktif --}}
-                    @if(request()->hasAny(['tanggal_dari', 'tanggal_sampai', 'no_faktur', 'supplier_id', 'barang', 'status']))
-                    <div class="px-4 pt-3">
-                        <div class="alert alert-info alert-dismissible fade show mb-0" role="alert">
-                            <i class="bi bi-funnel-fill me-2"></i>
-                            <strong>Filter Aktif:</strong>
-                            @if(request('tanggal_dari'))
-                                <span class="badge bg-primary me-1">Dari: {{ request('tanggal_dari') }}</span>
-                            @endif
-                            @if(request('tanggal_sampai'))
-                                <span class="badge bg-primary me-1">Sampai: {{ request('tanggal_sampai') }}</span>
-                            @endif
-                            @if(request('no_faktur'))
-                                <span class="badge bg-primary me-1">Faktur: {{ request('no_faktur') }}</span>
-                            @endif
-                            @if(request('supplier_id'))
-                                <span class="badge bg-primary me-1">Supplier: {{ $suppliers->find(request('supplier_id'))->nama_supplier ?? 'Unknown' }}</span>
-                            @endif
-                            @if(request('barang'))
-                                <span class="badge bg-success me-1">
-                                    <i class="bi bi-box-seam"></i> Barang: "{{ request('barang') }}"
-                                </span>
-                            @endif
-                            @if(request('status'))
-                                <span class="badge bg-primary me-1">Status: {{ ucfirst(request('status')) }}</span>
-                            @endif
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                        </div>
-                    </div>
-                    @endif
 
                     <div class="table-responsive px-0">
                         <table class="table align-items-center mb-0">
@@ -250,17 +181,7 @@
                                             <ul class="item-summary">
                                             @foreach($item->detailPembelian->take(3) as $detail)
                                                 <li>
-                                                    {{-- ✅ Highlight barang yang dicari --}}
-                                                    @if(request('barang') && 
-                                                        (stripos($detail->barang->nama_barang ?? '', request('barang')) !== false || 
-                                                         stripos($detail->barang->kode_barang ?? '', request('barang')) !== false))
-                                                        <span class="badge bg-warning text-dark">
-                                                            <i class="bi bi-search"></i> {{ $detail->barang->nama_barang ?? 'Barang Dihapus' }}
-                                                        </span>
-                                                    @else
-                                                        {{ $detail->barang->nama_barang ?? 'Barang Dihapus' }}
-                                                    @endif
-                                                    ({{ $detail->jumlah ?? $detail->qty }} {{ $detail->satuan }})
+                                                    {{ $detail->barang->nama_barang ?? 'Barang Dihapus' }} ({{ $detail->jumlah ?? $detail->qty }} {{ $detail->satuan }})
                                                 </li>
                                             @endforeach
                                             @if($item->detailPembelian->count() > 3)
@@ -284,45 +205,20 @@
                                     
                                     {{-- Status --}}
                                     <td class="align-middle text-center text-sm">
-                                        @php
-                                            $statusClass = 'primary';
-                                            $statusText = ucfirst($item->status);
-                                            
-                                            if ($item->status == 'approved') {
-                                                $statusClass = 'success';
-                                                $statusText = '✓ Approved';
-                                            } elseif ($item->status == 'pending') {
-                                                $statusClass = 'warning';
-                                                $statusText = '⏳ Pending';
-                                            } elseif ($item->status == 'cancelled') {
-                                                $statusClass = 'danger';
-                                                $statusText = '✕ Cancelled';
-                                            }
-                                        @endphp
-                                        <span class="badge-status {{ $statusClass }}">{{ $statusText }}</span>
+                                        <span class="badge-status warning">⏳ Pending</span>
                                     </td>
                                     
                                     {{-- Kolom Aksi --}}
                                     <td class="align-middle text-center text-nowrap">
-                                        {{-- 1. Tombol Detail --}}
+                                        {{-- Tombol Detail (untuk approve) --}}
                                         <a href="{{ route('pembelian.show', $item->id) }}" 
-                                            class="btn btn-sm btn-link text-info mb-0 p-1" 
-                                            title="Detail"
+                                            class="btn btn-sm btn-link text-success mb-0 p-1" 
+                                            title="Detail & Approve"
                                             style="font-size: 1.1rem;">
                                             <i class="bi bi-eye-fill"></i>
                                         </a>
-                                        
-                                        {{-- 2. Tombol Cetak Barcode (Hanya jika Approved) --}}
-                                        @if($item->status === 'approved')
-                                        <a href="{{ route('pembelian.cetak-barcode', $item->id) }}" 
-                                            class="btn btn-sm btn-link text-primary mb-0 p-1"
-                                            title="Cetak Barcode"
-                                            style="font-size: 1.1rem;">
-                                            <i class="bi bi-upc-scan"></i>
-                                        </a>
-                                        @endif
 
-                                        {{-- 3. Edit dan Hapus (Hanya Admin dan Super Admin) --}}
+                                        {{-- Edit dan Hapus (Hanya Admin dan Super Admin) --}}
                                         @if(Auth::check() && (Auth::user()->role === 'admin' || Auth::user()->role === 'super_admin'))
                                             
                                             <a href="{{ route('pembelian.edit', $item->id) }}" 
@@ -335,7 +231,7 @@
                                             <form action="{{ route('pembelian.destroy', $item->id) }}" 
                                                     method="POST" 
                                                     class="d-inline" 
-                                                    onsubmit="return confirm('Apakah Anda yakin ingin menghapus pembelian {{ $item->nomor_pembelian }}? Stok barang akan dikurangi/dikembalikan.');">
+                                                    onsubmit="return confirm('Apakah Anda yakin ingin menghapus pembelian {{ $item->nomor_pembelian }}?');">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" 
@@ -352,15 +248,8 @@
                                 @empty
                                 <tr>
                                     <td colspan="9" class="text-center text-muted py-4">
-                                        @if(request()->hasAny(['tanggal_dari', 'tanggal_sampai', 'no_faktur', 'supplier_id', 'barang', 'status']))
-                                            <i class="bi bi-inbox display-4 d-block mb-3 text-secondary"></i>
-                                            <p class="mb-0">Tidak ada data pembelian yang sesuai dengan filter.</p>
-                                            <a href="{{ route('pembelian.index') }}" class="btn btn-sm btn-outline-primary mt-2">
-                                                <i class="bi bi-arrow-clockwise me-1"></i> Reset Filter
-                                            </a>
-                                        @else
-                                            Tidak ada data pembelian yang ditemukan.
-                                        @endif
+                                        <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                                        <p class="mt-2 mb-0">Tidak ada pembelian pending.</p>
                                     </td>
                                 </tr>
                                 @endforelse
@@ -369,13 +258,8 @@
                     </div>
 
                     {{-- Pagination Links --}}
-                    <div class="p-3 d-flex justify-content-between align-items-center">
-                        <div class="text-muted small">
-                            Menampilkan {{ $pembelian->firstItem() ?? 0 }} - {{ $pembelian->lastItem() ?? 0 }} dari {{ $pembelian->total() }} data
-                        </div>
-                        <div>
-                            {{ $pembelian->links('pagination::bootstrap-5') }}
-                        </div>
+                    <div class="p-3 d-flex justify-content-center">
+                        {{ $pembelian->links('pagination::bootstrap-5') }}
                     </div>
 
                 </div>

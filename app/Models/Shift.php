@@ -13,14 +13,15 @@ class Shift extends Model
 
     protected $fillable = [
         'user_id',
+        'cabang_id',        // ✅ TAMBAHKAN INI
         'kode_shift',
         'waktu_buka',
         'waktu_tutup',
         'saldo_awal',
+        'saldo_akhir',
         'total_penjualan',
         'total_cash',
         'total_non_cash',
-        'saldo_akhir',
         'selisih',
         'keterangan',
         'status'
@@ -30,66 +31,157 @@ class Shift extends Model
         'waktu_buka' => 'datetime',
         'waktu_tutup' => 'datetime',
         'saldo_awal' => 'decimal:2',
+        'saldo_akhir' => 'decimal:2',
         'total_penjualan' => 'decimal:2',
         'total_cash' => 'decimal:2',
         'total_non_cash' => 'decimal:2',
-        'saldo_akhir' => 'decimal:2',
-        'selisih' => 'decimal:2'
+        'selisih' => 'decimal:2',
     ];
 
-    // Relationship: Shift milik User
+    // ==========================================
+    // RELATIONSHIPS
+    // ==========================================
+
+    /**
+     * Shift belongs to User (Kasir)
+     */
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    // Relationship: Shift memiliki banyak penjualan
+    /**
+     * Shift belongs to Cabang
+     * ✅ TAMBAHKAN RELASI INI
+     */
+    public function cabang()
+    {
+        return $this->belongsTo(Cabang::class);
+    }
+
+    /**
+     * Shift has many Penjualan
+     */
     public function penjualan()
     {
         return $this->hasMany(Penjualan::class);
     }
 
-    // Scope: Shift yang masih open
-    public function scopeOpen($query)
+    // ==========================================
+    // QUERY SCOPES
+    // ==========================================
+
+    /**
+     * Scope: Shift yang masih aktif/terbuka
+     */
+    public function scopeAktif($query)
     {
-        return $query->where('status', 'open');
+        return $query->where('status', 'open')
+                     ->whereNull('waktu_tutup');
     }
 
-    // Scope: Shift hari ini
+    /**
+     * Scope: Shift yang sudah ditutup
+     */
+    public function scopeTertutup($query)
+    {
+        return $query->where('status', 'closed')
+                     ->whereNotNull('waktu_tutup');
+    }
+
+    /**
+     * Scope: Filter by cabang_id
+     * ✅ TAMBAHKAN SCOPE INI
+     */
+    public function scopeByCabang($query, $cabangId)
+    {
+        if ($cabangId) {
+            return $query->where('cabang_id', $cabangId);
+        }
+        return $query;
+    }
+
+    /**
+     * Scope: Shift hari ini
+     */
     public function scopeToday($query)
     {
-        return $query->whereDate('waktu_buka', now());
+        return $query->whereDate('waktu_buka', today());
     }
 
-    // Method: Cek apakah ada shift aktif untuk user
-    public static function hasActiveShift($userId)
+    /**
+     * Scope: Shift dalam range tanggal
+     */
+    public function scopeDateRange($query, $from, $to)
     {
-        return self::where('user_id', $userId)
-            ->where('status', 'open')
-            ->exists();
+        return $query->whereDate('waktu_buka', '>=', $from)
+                     ->whereDate('waktu_buka', '<=', $to);
     }
 
-    // Method: Get shift aktif untuk user
-    public static function getActiveShift($userId)
+    // ==========================================
+    // HELPER METHODS
+    // ==========================================
+
+    /**
+     * Get durasi shift dalam menit
+     */
+    public function getDurasiMenitAttribute()
     {
-        return self::where('user_id', $userId)
-            ->where('status', 'open')
-            ->first();
+        if (!$this->waktu_tutup) {
+            return null;
+        }
+        return $this->waktu_buka->diffInMinutes($this->waktu_tutup);
     }
 
-    // Method: Tutup shift dan hitung selisih
-    public function tutupShift($saldoFisik)
+    /**
+     * Get durasi shift dalam format readable
+     */
+    public function getDurasiFormattedAttribute()
     {
-        $this->waktu_tutup = now();
-        $this->saldo_akhir = $saldoFisik;
-        
-        // Hitung yang seharusnya
-        $saldoSeharusnya = $this->saldo_awal + $this->total_cash;
-        
-        // Hitung selisih
-        $this->selisih = $saldoFisik - $saldoSeharusnya;
-        $this->status = 'closed';
-        
-        return $this->save();
+        if (!$this->waktu_tutup) {
+            return 'Belum ditutup';
+        }
+        return $this->waktu_buka->diffForHumans($this->waktu_tutup, true);
+    }
+
+    /**
+     * Check apakah shift memiliki selisih (tidak pas)
+     */
+    public function hasSelisih()
+    {
+        return $this->selisih != 0;
+    }
+
+    /**
+     * Get status selisih (plus/minus/pas)
+     */
+    public function getStatusSelisihAttribute()
+    {
+        if ($this->selisih > 0) {
+            return 'plus';
+        } elseif ($this->selisih < 0) {
+            return 'minus';
+        }
+        return 'pas';
+    }
+
+    /**
+     * Get jumlah transaksi dalam shift ini
+     */
+    public function getJumlahTransaksiAttribute()
+    {
+        return $this->penjualan()->count();
+    }
+
+    /**
+     * Get rata-rata nilai transaksi
+     */
+    public function getRataRataTransaksiAttribute()
+    {
+        $jumlah = $this->jumlah_transaksi;
+        if ($jumlah == 0) {
+            return 0;
+        }
+        return $this->total_penjualan / $jumlah;
     }
 }

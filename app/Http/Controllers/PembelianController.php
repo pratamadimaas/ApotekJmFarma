@@ -39,6 +39,14 @@ class PembelianController extends Controller
             $query->where('supplier_id', $request->supplier_id);
         }
 
+        // ✅ FITUR BARU: Filter berdasarkan nama barang atau kode barang
+        if ($request->filled('barang')) {
+            $query->whereHas('detailPembelian.barang', function($q) use ($request) {
+                $q->where('nama_barang', 'LIKE', "%{$request->barang}%")
+                  ->orWhere('kode_barang', 'LIKE', "%{$request->barang}%");
+            });
+        }
+
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         } else {
@@ -72,6 +80,14 @@ class PembelianController extends Controller
 
         if ($request->filled('supplier_id')) {
             $query->where('supplier_id', $request->supplier_id);
+        }
+
+        // ✅ FITUR BARU: Filter berdasarkan nama barang atau kode barang (untuk pending)
+        if ($request->filled('barang')) {
+            $query->whereHas('detailPembelian.barang', function($q) use ($request) {
+                $q->where('nama_barang', 'LIKE', "%{$request->barang}%")
+                  ->orWhere('kode_barang', 'LIKE', "%{$request->barang}%");
+            });
         }
 
         $pembelian = $query->orderBy('tanggal_pembelian', 'desc')->paginate(20);

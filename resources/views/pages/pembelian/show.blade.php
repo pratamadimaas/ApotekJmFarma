@@ -12,6 +12,16 @@
                 <i class="bi bi-arrow-left me-1"></i> Kembali ke Daftar
             </a>
             
+            {{-- ✅ Tombol Approve (Hanya muncul jika status PENDING) --}}
+            @if($pembelian->status === 'pending' && (Auth::user()->role === 'admin' || Auth::user()->role === 'super_admin'))
+            <form action="{{ route('pembelian.approve', $pembelian->id) }}" method="POST" class="d-inline me-2" onsubmit="return confirm('Approve pembelian ini? Stok barang akan ditambahkan!')">
+                @csrf
+                <button type="submit" class="btn btn-success">
+                    <i class="bi bi-check-circle me-1"></i> Approve Pembelian
+                </button>
+            </form>
+            @endif
+            
             {{-- Tombol Cetak Barcode (Hanya muncul jika sudah Approved) --}}
             @if($pembelian->status === 'approved')
             <a href="{{ route('pembelian.cetak-barcode', $pembelian->id) }}" class="btn btn-info me-2">
@@ -19,10 +29,12 @@
             </a>
             @endif
             
-            {{-- Tombol Edit Pembelian --}}
+            {{-- Tombol Edit Pembelian (Hanya untuk Admin/Super Admin) --}}
+            @if(Auth::user()->role === 'admin' || Auth::user()->role === 'super_admin')
             <a href="{{ route('pembelian.edit', $pembelian->id) }}" class="btn btn-warning">
                 <i class="bi bi-pencil me-1"></i> Edit Pembelian
             </a>
+            @endif
         </div>
     </div>
 
@@ -31,6 +43,22 @@
             {{ session('success') }}
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
+    @endif
+
+    @if (session('error'))
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            {{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
+
+    {{-- ✅ Alert Warning untuk Status Pending --}}
+    @if($pembelian->status === 'pending')
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        <strong>Perhatian!</strong> Pembelian ini berstatus <strong>PENDING</strong>. Stok barang belum ditambahkan. Klik tombol <strong>Approve</strong> untuk menambahkan stok.
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
     @endif
 
     <div class="row">
@@ -59,8 +87,17 @@
                         </li>
                         <li class="list-group-item d-flex justify-content-between">
                             <strong>Status:</strong>
-                            {{-- Penyesuaian class badge agar sesuai Bootstrap 5 --}}
-                            <span><span class="badge {{ $pembelian->status == 'approved' ? 'bg-success' : ($pembelian->status == 'cancelled' ? 'bg-danger' : 'bg-warning') }}">{{ ucfirst($pembelian->status) }}</span></span>
+                            <span>
+                                @if($pembelian->status === 'approved')
+                                    <span class="badge bg-success">✓ Approved</span>
+                                @elseif($pembelian->status === 'pending')
+                                    <span class="badge bg-warning text-dark">⏳ Pending</span>
+                                @elseif($pembelian->status === 'cancelled')
+                                    <span class="badge bg-danger">✕ Cancelled</span>
+                                @else
+                                    <span class="badge bg-secondary">{{ ucfirst($pembelian->status) }}</span>
+                                @endif
+                            </span>
                         </li>
                         <li class="list-group-item d-flex justify-content-between">
                             <strong>Cabang:</strong>
@@ -89,7 +126,6 @@
                             </tr>
                             <tr>
                                 <td>Diskon ({{ number_format($pembelian->diskon, 0) }}%)</td>
-                                {{-- Hitung nilai diskon secara dinamis --}}
                                 @php
                                     $nilaiDiskon = $pembelian->total_pembelian * ($pembelian->diskon / 100);
                                     $subtotalSetelahDiskon = $pembelian->total_pembelian - $nilaiDiskon;
@@ -99,7 +135,6 @@
                             </tr>
                             <tr>
                                 <td>PPN/Pajak ({{ number_format($pembelian->pajak, 0) }}%)</td>
-                                {{-- Hitung nilai pajak secara dinamis --}}
                                 <td class="text-end text-success">+ Rp {{ number_format($nilaiPajak, 0, ',', '.') }}</td>
                             </tr>
                             <tr class="table-primary">
@@ -145,7 +180,7 @@
                                         {{ $detail->jumlah ?? $detail->qty }} {{ $detail->satuan }}
                                     </td>
                                     <td class="text-end">Rp {{ number_format($detail->harga_beli, 0, ',', '.') }}</td>
-                                    <td class="text-end">**Rp {{ number_format($detail->subtotal, 0, ',', '.') }}**</td>
+                                    <td class="text-end"><strong>Rp {{ number_format($detail->subtotal, 0, ',', '.') }}</strong></td>
                                 </tr>
                                 @empty
                                 <tr>

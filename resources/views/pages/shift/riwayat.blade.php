@@ -16,7 +16,7 @@
         </div>
     </div>
 
-    {{-- ✅ FORM FILTER (Disesuaikan dengan logika ShiftController@riwayat) --}}
+    {{-- FORM FILTER --}}
     <div class="card-custom mb-4">
         <div class="card-body">
             <form method="GET" action="{{ route('shift.riwayat') }}" class="row g-3 align-items-end">
@@ -30,11 +30,15 @@
                     <input type="date" class="form-control" id="tanggal_sampai" name="tanggal_sampai" 
                             value="{{ request('tanggal_sampai') }}">
                 </div>
-                {{-- Anda bisa tambahkan filter User ID di sini jika perlu --}}
                 <div class="col-md-3">
                     <button type="submit" class="btn btn-primary" style="width: 100%;">
                         <i class="bi bi-filter me-2"></i>Filter Riwayat
                     </button>
+                </div>
+                <div class="col-md-3">
+                    <a href="{{ route('shift.riwayat') }}" class="btn btn-secondary" style="width: 100%;">
+                        <i class="bi bi-arrow-counterclockwise me-2"></i>Reset Filter
+                    </a>
                 </div>
             </form>
         </div>
@@ -51,6 +55,10 @@
                     <thead class="bg-light">
                         <tr>
                             <th class="text-center">Shift ID</th>
+                            {{-- ✅ TAMBAHKAN KOLOM CABANG (hanya untuk super_admin/admin) --}}
+                            @if(Auth::user()->role === 'super_admin' || Auth::user()->role === 'admin')
+                            <th>Cabang</th>
+                            @endif
                             <th>Kasir</th>
                             <th>Waktu Buka</th>
                             <th>Waktu Tutup</th>
@@ -64,7 +72,6 @@
                         @forelse ($shifts as $s)
                         <tr>
                             <td class="text-center">
-                                {{-- PERUBAHAN DI SINI: Menggunakan kode_shift atau fallback ke id --}}
                                 <strong>
                                     @if($s->kode_shift)
                                         #{{ $s->kode_shift }} 
@@ -73,6 +80,21 @@
                                     @endif
                                 </strong>
                             </td>
+                            
+                            {{-- ✅ TAMPILKAN NAMA CABANG --}}
+                            @if(Auth::user()->role === 'super_admin' || Auth::user()->role === 'admin')
+                            <td>
+                                @if($s->cabang)
+                                    <span class="badge bg-info">
+                                        <i class="bi bi-building me-1"></i>
+                                        {{ $s->cabang->nama_cabang }}
+                                    </span>
+                                @else
+                                    <span class="badge bg-secondary">N/A</span>
+                                @endif
+                            </td>
+                            @endif
+                            
                             <td>{{ $s->user->name ?? 'N/A' }}</td>
                             <td>{{ $s->waktu_buka->format('d M Y H:i') }}</td>
                             <td>
@@ -86,7 +108,6 @@
                                 Rp {{ number_format($s->saldo_awal, 0, ',', '.') }}
                             </td>
                             <td class="text-end">
-                                {{-- Kunci utama: Data sudah dihitung dan disimpan di Controller --}}
                                 <strong>Rp {{ number_format($s->total_penjualan, 0, ',', '.') }}</strong> 
                             </td>
                             <td class="text-end">
@@ -106,8 +127,8 @@
                                 <a href="{{ route('shift.cetakLaporan', $s->id) }}" target="_blank" class="btn btn-sm btn-success" title="Cetak Laporan">
                                     <i class="bi bi-printer"></i>
                                 </a>
-                                {{-- ✅ TOMBOL DELETE (Hanya tampil untuk Admin) --}}
-                                @if(Auth::user()->role === 'admin')
+                                {{-- Tombol DELETE (Hanya tampil untuk Admin/Super Admin) --}}
+                                @if(Auth::user()->role === 'admin' || Auth::user()->role === 'super_admin')
                                 <form action="{{ route('shift.destroy', $s->id) }}" method="POST" class="d-inline" 
                                     onsubmit="return confirm('APAKAH ANDA YAKIN INGIN MENGHAPUS SHIFT {{ $s->kode_shift ?? $s->id }}? Menghapus shift akan menghapus semua data penjualan di dalamnya.')">
                                     @csrf
@@ -119,7 +140,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="8" class="text-center py-5">
+                            <td colspan="{{ (Auth::user()->role === 'super_admin' || Auth::user()->role === 'admin') ? 9 : 8 }}" class="text-center py-5">
                                 <div class="empty-state">
                                     <i class="bi bi-inbox"></i>
                                     <p>Tidak ada data riwayat shift yang ditemukan.</p>

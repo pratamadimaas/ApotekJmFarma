@@ -163,6 +163,7 @@ Route::middleware('auth')->group(function () {
             Route::delete('/{id}', [PembelianController::class, 'destroy'])->name('destroy');
             
             // Aksi
+            
             Route::post('/{id}/approve', [PembelianController::class, 'approve'])->name('approve');
 
             // ✅ Barcode - Cetak barcode setelah pembelian
