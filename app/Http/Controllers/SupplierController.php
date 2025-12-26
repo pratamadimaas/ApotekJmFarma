@@ -43,6 +43,7 @@ class SupplierController extends Controller
         ]);
 
         Supplier::create([
+            'kode_supplier' => Supplier::generateKodeSupplier(),
             'nama_supplier' => $request->nama_supplier,
             'telepon' => $request->telepon,
             'email' => $request->email,
