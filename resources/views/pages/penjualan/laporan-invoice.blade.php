@@ -19,6 +19,21 @@
         </a>
     </div>
 
+    {{-- Alert Messages --}}
+    @if (session('success'))
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle me-1"></i> {{ session('success') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    @endif
+
+    @if (session('error'))
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-x-octagon me-1"></i> {{ session('error') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    @endif
+
     <!-- Filter Card -->
     <div class="card shadow mb-4">
         <div class="card-header py-3 d-flex justify-content-between align-items-center">
@@ -34,12 +49,12 @@
                     <div class="col-md-4">
                         <label>Tanggal Dari</label>
                         <input type="date" class="form-control" name="tanggal_dari" 
-                               value="{{ request('tanggal_dari', now()->subMonth()->format('Y-m-d')) }}">
+                               value="{{ request('tanggal_dari', $tanggalDari) }}">
                     </div>
                     <div class="col-md-4">
                         <label>Tanggal Sampai</label>
                         <input type="date" class="form-control" name="tanggal_sampai" 
-                               value="{{ request('tanggal_sampai', now()->format('Y-m-d')) }}">
+                               value="{{ request('tanggal_sampai', $tanggalSampai) }}">
                     </div>
                     <div class="col-md-3">
                         <label>Metode Pembayaran</label>
@@ -152,15 +167,44 @@
                                     {{ $item->cabang->nama_cabang ?? 'N/A' }}
                                 </span>
                             </td>
-                            <td>
+                            <td class="text-nowrap">
+                                {{-- Detail --}}
                                 <a href="{{ route('penjualan.show', $item->id) }}" 
-                                   class="btn btn-sm btn-primary" title="Detail">
+                                   class="btn btn-sm btn-info" 
+                                   title="Detail">
                                     <i class="bi bi-eye"></i>
                                 </a>
+
+                                {{-- Print --}}
                                 <a href="{{ route('penjualan.print', $item->id) }}" 
-                                   class="btn btn-sm btn-success" target="_blank" title="Print">
+                                   class="btn btn-sm btn-success" 
+                                   target="_blank" 
+                                   title="Print">
                                     <i class="bi bi-printer"></i>
                                 </a>
+
+                                {{-- Edit (Hanya Admin & Super Admin) --}}
+                                @if(Auth::check() && (Auth::user()->role === 'admin' || Auth::user()->role === 'super_admin'))
+                                    <a href="{{ route('penjualan.edit', $item->id) }}" 
+                                       class="btn btn-sm btn-warning" 
+                                       title="Edit">
+                                        <i class="bi bi-pencil-square"></i>
+                                    </a>
+
+                                    {{-- Delete --}}
+                                    <form action="{{ route('penjualan.destroy', $item->id) }}" 
+                                          method="POST" 
+                                          class="d-inline"
+                                          onsubmit="return confirm('Yakin ingin menghapus penjualan {{ $item->nomor_nota }}? Stok barang akan dikembalikan.');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" 
+                                                class="btn btn-sm btn-danger" 
+                                                title="Hapus">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                @endif
                             </td>
                         </tr>
                         @empty
@@ -175,7 +219,14 @@
                 </table>
             </div>
 
-            {{ $penjualan->links() }}
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <div class="text-muted small">
+                    Menampilkan {{ $penjualan->firstItem() ?? 0 }} - {{ $penjualan->lastItem() ?? 0 }} dari {{ $penjualan->total() }} data
+                </div>
+                <div>
+                    {{ $penjualan->links('pagination::bootstrap-5') }}
+                </div>
+            </div>
         </div>
     </div>
 </div>

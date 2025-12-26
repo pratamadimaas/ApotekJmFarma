@@ -12,6 +12,7 @@ use App\Traits\RecordsStokHistory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 
 class PenjualanController extends Controller
@@ -183,11 +184,11 @@ class PenjualanController extends Controller
                 ]);
 
                 $barang->decrement('stok', $qtyDasar);
-                // ✅ TAMBAHKAN INI - Catat Riwayat Penjualan
+                
                 $this->catatRiwayatStok(
                     barangId: $barang->id,
                     tipeTransaksi: 'penjualan',
-                    jumlahPerubahan: -$qtyDasar, // NEGATIF karena keluar
+                    jumlahPerubahan: -$qtyDasar,
                     satuan: $barang->satuan_terkecil,
                     keterangan: "Penjualan" . ($request->nama_pelanggan ? " kepada {$request->nama_pelanggan}" : ""),
                     nomorReferensi: $nomorNota,
@@ -207,6 +208,216 @@ class PenjualanController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function edit($id)
+    {
+        $penjualan = Penjualan::with(['detailPenjualan.barang.satuanKonversi', 'shift'])->findOrFail($id);
+        
+        $cabangId = $this->getActiveCabangId();
+        if (!Auth::user()->isSuperAdmin() && $penjualan->cabang_id != $cabangId) {
+            abort(403, 'Penjualan ini bukan milik cabang Anda.');
+        }
+
+        $barangQuery = Barang::with('satuanKonversi')
+                             ->where('aktif', 1)
+                             ->orderBy('nama_barang', 'asc');
+        
+        $barang = $this->applyCabangFilter($barangQuery)->get();
+        
+        return view('pages.penjualan.edit', compact('penjualan', 'barang'));
+    }
+
+    public function update(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'items' => 'required|array|min:1',
+            'items.*.barang_id' => 'required|exists:barang,id',
+            'items.*.qty' => 'required|numeric|min:1',
+            'items.*.satuan' => 'required|string',
+            'items.*.harga' => 'required|numeric|min:0',
+            'total_bayar' => 'required|numeric|min:0',
+            'uang_dibayar' => 'required|numeric|min:0',
+            'diskon' => 'nullable|numeric|min:0',
+            'metode_pembayaran' => 'required|string|in:cash,debit,credit,qris,transfer',
+            'nomor_referensi' => 'nullable|string|max:100',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $penjualan = Penjualan::with('detailPenjualan')->findOrFail($id);
+            
+            $cabangId = $this->getActiveCabangId();
+            if (!Auth::user()->isSuperAdmin() && $penjualan->cabang_id != $cabangId) {
+                abort(403, 'Penjualan ini bukan milik cabang Anda.');
+            }
+
+            // Kembalikan stok dari transaksi lama
+            foreach ($penjualan->detailPenjualan as $detail) {
+                $barang = $detail->barang;
+                
+                $qtyDasar = $detail->jumlah;
+                if ($detail->satuan !== $barang->satuan_terkecil) {
+                    $konversi = SatuanKonversi::where('barang_id', $barang->id)
+                                             ->where('nama_satuan', $detail->satuan)
+                                             ->first();
+                    if ($konversi) {
+                        $qtyDasar = $detail->jumlah * $konversi->jumlah_konversi;
+                    }
+                }
+                
+                $barang->increment('stok', $qtyDasar);
+                
+                $this->catatRiwayatStok(
+                    barangId: $barang->id,
+                    tipeTransaksi: 'penyesuaian',
+                    jumlahPerubahan: $qtyDasar,
+                    satuan: $barang->satuan_terkecil,
+                    keterangan: "Edit Penjualan (kembalikan stok lama) - {$penjualan->nomor_nota}",
+                    nomorReferensi: $penjualan->nomor_nota,
+                    cabangId: $cabangId
+                );
+            }
+
+            // Hapus detail lama
+            $penjualan->detailPenjualan()->delete();
+
+            // Hitung total baru
+            $diskon = $request->diskon ?? 0;
+            $grandTotal = $request->total_bayar;
+            $totalPenjualan = $grandTotal + $diskon;
+            $kembalian = $request->uang_dibayar - $grandTotal;
+
+            // Update penjualan
+            $penjualan->update([
+                'nama_pelanggan' => $request->nama_pelanggan,
+                'total_penjualan' => $totalPenjualan,
+                'diskon' => $diskon,
+                'grand_total' => $grandTotal,
+                'jumlah_bayar' => $request->uang_dibayar,
+                'kembalian' => $kembalian,
+                'metode_pembayaran' => $request->metode_pembayaran,
+                'nomor_referensi' => $request->nomor_referensi,
+                'keterangan' => $request->keterangan,
+            ]);
+
+            // Simpan detail baru dan kurangi stok
+            foreach ($request->items as $item) {
+                $barang = Barang::findOrFail($item['barang_id']);
+
+                if (!Auth::user()->isSuperAdmin() && $barang->cabang_id != $cabangId) {
+                    throw new \Exception("Barang '{$barang->nama_barang}' bukan milik cabang Anda.");
+                }
+
+                $qtyDasar = $item['qty'];
+                if ($item['satuan'] !== $barang->satuan_terkecil) {
+                    $konversi = SatuanKonversi::where('barang_id', $barang->id)
+                                             ->where('nama_satuan', $item['satuan'])
+                                             ->first();
+                    if ($konversi) {
+                        $qtyDasar = $item['qty'] * $konversi->jumlah_konversi;
+                    }
+                }
+
+                if ($barang->stok < $qtyDasar) {
+                    throw new \Exception("Stok {$barang->nama_barang} tidak cukup! Tersedia: {$barang->stok} {$barang->satuan_terkecil}");
+                }
+
+                DetailPenjualan::create([
+                    'penjualan_id' => $penjualan->id,
+                    'barang_id' => $barang->id,
+                    'jumlah' => $item['qty'],
+                    'satuan' => $item['satuan'],
+                    'harga_jual' => $item['harga'],
+                    'subtotal' => $item['qty'] * $item['harga']
+                ]);
+
+                $barang->decrement('stok', $qtyDasar);
+                
+                $this->catatRiwayatStok(
+                    barangId: $barang->id,
+                    tipeTransaksi: 'penjualan',
+                    jumlahPerubahan: -$qtyDasar,
+                    satuan: $barang->satuan_terkecil,
+                    keterangan: "Edit Penjualan - {$penjualan->nomor_nota}",
+                    nomorReferensi: $penjualan->nomor_nota,
+                    cabangId: $cabangId
+                );
+            }
+
+            DB::commit();
+
+            return redirect()->route('penjualan.show', $penjualan->id)
+                             ->with('success', 'Penjualan berhasil diupdate!');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Update Penjualan Error', [
+                'penjualan_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+            return back()->with('error', 'Error: ' . $e->getMessage())->withInput();
+        }
+    }
+
+    public function destroy($id)
+    {
+        DB::beginTransaction();
+        try {
+            $penjualan = Penjualan::with('detailPenjualan')->findOrFail($id);
+            
+            $cabangId = $this->getActiveCabangId();
+            if (!Auth::user()->isSuperAdmin() && $penjualan->cabang_id != $cabangId) {
+                abort(403, 'Penjualan ini bukan milik cabang Anda.');
+            }
+
+            // Kembalikan stok
+            foreach ($penjualan->detailPenjualan as $detail) {
+                if ($detail->is_return) {
+                    continue; // Skip jika sudah di-return
+                }
+                
+                $barang = $detail->barang;
+                
+                $qtyDasar = $detail->jumlah;
+                if ($detail->satuan !== $barang->satuan_terkecil) {
+                    $konversi = SatuanKonversi::where('barang_id', $barang->id)
+                                             ->where('nama_satuan', $detail->satuan)
+                                             ->first();
+                    if ($konversi) {
+                        $qtyDasar = $detail->jumlah * $konversi->jumlah_konversi;
+                    }
+                }
+                
+                $barang->increment('stok', $qtyDasar);
+                
+                $this->catatRiwayatStok(
+                    barangId: $barang->id,
+                    tipeTransaksi: 'penyesuaian',
+                    jumlahPerubahan: $qtyDasar,
+                    satuan: $barang->satuan_terkecil,
+                    keterangan: "Hapus Penjualan - {$penjualan->nomor_nota}",
+                    nomorReferensi: $penjualan->nomor_nota,
+                    cabangId: $cabangId
+                );
+            }
+
+            // Hapus penjualan
+            $penjualan->delete();
+
+            DB::commit();
+
+            return redirect()->route('penjualan.riwayat')
+                             ->with('success', 'Penjualan berhasil dihapus dan stok dikembalikan!');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Delete Penjualan Error', [
+                'penjualan_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+            return back()->with('error', 'Error: ' . $e->getMessage());
         }
     }
 
@@ -288,10 +499,6 @@ class PenjualanController extends Controller
         ]);
     }
 
-    /**
-     * ✅ Proses pengembalian (return) barang dengan pengembalian uang.
-     * Mengembalikan stok, uang ke pembeli, dan kurangi kas shift.
-     */
     public function prosesReturn(Request $request)
     {
         $validated = $request->validate([
@@ -310,13 +517,11 @@ class PenjualanController extends Controller
             foreach ($request->items as $detailId) {
                 $detail = DetailPenjualan::with(['barang', 'penjualan'])->findOrFail($detailId);
                 
-                // Ambil info penjualan dan shift
                 if (!$penjualanId) {
                     $penjualanId = $detail->penjualan_id;
                     $shiftId = $detail->penjualan->shift_id;
                 }
                 
-                // Cek apakah sudah pernah diretur
                 if ($detail->is_return) {
                     throw new \Exception("Barang {$detail->barang->nama_barang} sudah pernah diretur sebelumnya!");
                 }
@@ -324,12 +529,10 @@ class PenjualanController extends Controller
                 $barang = Barang::findOrFail($detail->barang_id);
                 $cabangId = $this->getActiveCabangId();
 
-                // Pastikan barang yang di-return adalah milik cabang yang sedang diakses
                 if (!Auth::user()->isSuperAdmin() && $barang->cabang_id != $cabangId) {
                      throw new \Exception("Return ditolak: Barang {$barang->nama_barang} bukan milik cabang yang sedang diakses.");
                 }
 
-                // Hitung qty dalam satuan dasar untuk pengembalian stok
                 $qtyDasar = $detail->jumlah;
                 
                 if ($detail->satuan !== $barang->satuan_terkecil) {
@@ -341,24 +544,21 @@ class PenjualanController extends Controller
                     }
                 }
                 
-                // Tambah stok kembali
                 $barang->increment('stok', $qtyDasar);
-                // ✅ TAMBAHKAN INI - Catat Riwayat Return
+                
                 $this->catatRiwayatStok(
                     barangId: $barang->id,
                     tipeTransaksi: 'return_penjualan',
-                    jumlahPerubahan: $qtyDasar, // POSITIF karena barang kembali
+                    jumlahPerubahan: $qtyDasar,
                     satuan: $barang->satuan_terkecil,
                     keterangan: "Return: " . ($request->keterangan ?? 'Pengembalian barang'),
                     nomorReferensi: $detail->penjualan->nomor_nota,
                     cabangId: $cabangId
                 );
                 
-                // Hitung total uang yang harus dikembalikan
                 $jumlahReturn = $detail->subtotal;
                 $totalReturn += $jumlahReturn;
                 
-                // Simpan info untuk response
                 $returDetails[] = [
                     'nama_barang' => $barang->nama_barang,
                     'jumlah' => $detail->jumlah,
@@ -366,7 +566,6 @@ class PenjualanController extends Controller
                     'subtotal' => $jumlahReturn
                 ];
                 
-                // Tandai detail sebagai return
                 $detail->update([
                     'is_return' => true,
                     'return_date' => now(),
@@ -375,26 +574,19 @@ class PenjualanController extends Controller
                 ]);
             }
             
-            // ✅ Update shift: kurangi total penjualan dan tambah total retur
             if ($shiftId) {
                 $shift = Shift::find($shiftId);
                 if ($shift) {
-                    // Kurangi total penjualan
                     $shift->decrement('total_penjualan', $totalReturn);
-                    
-                    // Tambah total retur (untuk tracking)
                     $shift->increment('total_retur', $totalReturn);
                     
-                    // ✅ PENTING: Jika metode pembayaran TUNAI, kurangi saldo
                     $penjualan = Penjualan::find($penjualanId);
                     if ($penjualan && $penjualan->metode_pembayaran === 'cash') {
-                        // Saldo shift berkurang karena uang dikembalikan ke pembeli
                         $shift->decrement('saldo_akhir', $totalReturn);
                     }
                 }
             }
             
-            // ✅ Update penjualan: kurangi grand total
             $penjualan = Penjualan::find($penjualanId);
             if ($penjualan) {
                 $penjualan->decrement('grand_total', $totalReturn);

@@ -139,7 +139,7 @@ Route::middleware('auth')->group(function () {
         Route::prefix('barang')->name('barang.')->group(function () {
             // Non-resource routes
             Route::get('/search', [BarangController::class, 'search'])->name('search');
-            Route::get('/harga-satuan', [BarangController::class, 'hargaSatuanIndex'])->name('harga-satuan'); // ✅ TAMBAHKAN INI
+            Route::get('/harga-satuan', [BarangController::class, 'hargaSatuanIndex'])->name('harga-satuan');
             Route::get('/import', [BarangController::class, 'importForm'])->name('import-form');
             Route::post('/import-excel', [BarangController::class, 'importExcel'])->name('import-excel');
             Route::get('/download-template', [BarangController::class, 'downloadTemplate'])->name('download-template');
@@ -162,8 +162,7 @@ Route::middleware('auth')->group(function () {
             Route::put('/{id}', [PembelianController::class, 'update'])->name('update');
             Route::delete('/{id}', [PembelianController::class, 'destroy'])->name('destroy');
             
-            // Aksi
-            
+            // ✅ FIXED: Approve menggunakan POST (bukan PATCH)
             Route::post('/{id}/approve', [PembelianController::class, 'approve'])->name('approve');
 
             // ✅ Barcode - Cetak barcode setelah pembelian
@@ -172,17 +171,24 @@ Route::middleware('auth')->group(function () {
             Route::post('/{id}/barcode/generate-all', [PembelianController::class, 'generateBarcodeAll'])->name('barcode.generate-all');
         });
 
-        // --- 3.4 Supplier ---
+        // --- 3.4 Penjualan - Edit & Delete (Hanya Admin & Super Admin) ---
+        Route::prefix('penjualan')->name('penjualan.')->group(function () {
+            Route::get('/{id}/edit', [PenjualanController::class, 'edit'])->name('edit');
+            Route::put('/{id}', [PenjualanController::class, 'update'])->name('update');
+            Route::delete('/{id}', [PenjualanController::class, 'destroy'])->name('destroy');
+        });
+
+        // --- 3.5 Supplier ---
         Route::resource('supplier', SupplierController::class);
 
-        // --- 3.5 User Management ---
+        // --- 3.6 User Management ---
         Route::resource('users', UserController::class);
         Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword'])->name('users.resetPassword');
 
-        // --- 3.6 Shift (Admin Action) ---
+        // --- 3.7 Shift (Admin Action) ---
         Route::delete('/shift/{id}', [ShiftController::class, 'destroy'])->name('shift.destroy');
 
-        // --- 3.7 Settings ---
+        // --- 3.8 Settings ---
         Route::prefix('settings')->name('settings.')->group(function () {
             Route::get('/', [SettingController::class, 'index'])->name('index');
             Route::post('/update', [SettingController::class, 'update'])->name('update');
